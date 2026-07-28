@@ -32,9 +32,6 @@ src/PublicationSite.Api/
   Common/                RoleNames, ApiResponse envelope, exceptions, middleware, strongly-typed options
 ```
 
-Architecture is intentionally a single project organised by folder ("layered simple"), not a multi-project
-Clean Architecture split — appropriate for a 3-person team and this project's size.
-
 **Database schema:** see [docs/erd.md](docs/erd.md) for the full entity–relationship diagram (renders
 natively on GitHub) and a table-by-table data dictionary for all 38 tables.
 
@@ -43,7 +40,7 @@ natively on GitHub) and a table-by-table data dictionary for all 38 tables.
 ### 1. Prerequisites
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download)
-- Docker (for local MySQL) — or your own MySQL 8.x instance
+- [Docker](https://docs.docker.com/get-started/get-docker/) (for local MySQL) — or your own MySQL 8.x instance
 
 ### 2. Start MySQL
 
