@@ -1,0 +1,12 @@
+bin/
+obj/
+**/bin/
+**/obj/
+App_Data/
+logs/
+*.log
+.vs/
+.vscode/
+**/.DS_Store
+Dockerfile
+.dockerignore

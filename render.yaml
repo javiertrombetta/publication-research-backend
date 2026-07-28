@@ -1,0 +1,64 @@
+# Render Blueprint — deploys the image GitHub Actions already built and pushed to Docker Hub
+# (see .github/workflows/ci-cd.yml). Render does not build anything from source here.
+#
+# Usage: Render dashboard -> New -> Blueprint -> point at this repo. Render creates the
+# service below; anything marked `sync: false` needs its value filled in by hand afterwards
+# (Render dashboard -> service -> Environment) — those are secrets/deployment-specific values
+# that don't belong committed to the repo. See docs/deployment.md for the full checklist.
+#
+# MySQL is not hosted by Render itself — ConnectionStrings__Default must point at an external
+# MySQL instance (see docs/deployment.md for options).
+
+services:
+  - type: web
+    name: publication-research-backend
+    runtime: image
+    image:
+      url: docker.io/javiertrombetta/publication-research-backend:latest
+    plan: free
+    region: oregon
+    healthCheckPath: /health
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: Swagger__Enabled
+        value: "true"
+
+      - key: ConnectionStrings__Default
+        sync: false
+
+      - key: Jwt__Issuer
+        value: PublicationSite.Api
+      - key: Jwt__Audience
+        value: PublicationSite.Client
+      - key: Jwt__SigningKey
+        sync: false
+      - key: Jwt__AccessTokenMinutes
+        value: "30"
+      - key: Jwt__RefreshTokenDays
+        value: "14"
+
+      - key: Frontend__BaseUrl
+        sync: false
+      - key: Cors__AllowedOrigins__0
+        sync: false
+
+      - key: Mail__Host
+        sync: false
+      - key: Mail__Port
+        value: "587"
+      - key: Mail__Username
+        sync: false
+      - key: Mail__Password
+        sync: false
+      - key: Mail__FromAddress
+        sync: false
+      - key: Mail__UseSsl
+        value: "true"
+
+      # Bootstraps the single production Admin on first boot; safe to leave set afterwards
+      # (DbSeeder never touches an existing account) but fine to clear once the account exists.
+      - key: Seed__AdminEmail
+        sync: false
+      - key: Seed__AdminPassword
+        sync: false
