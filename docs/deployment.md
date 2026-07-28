@@ -21,6 +21,22 @@ Render never builds anything from source — it only ever pulls the image GitHub
 built and pushed. That split keeps the two concerns separate: GitHub owns "is this code good and
 does it build", Render owns "keep a container of it running and reachable".
 
+## Image tags
+
+Every push to `main` produces `javiertrombetta/publication-research-backend:latest` plus a tag for
+the short commit SHA (e.g. `:5708bec`) — this is what Render always runs.
+
+To cut a versioned release, push a `v<major>.<minor>.<patch>` git tag:
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+This additionally publishes `:1.0.0`, `:1.0`, and `:1` — useful for pinning a deployment to a
+specific version instead of always tracking `latest`. Tagging a commit doesn't change what `latest`
+points to; that always follows `main`.
+
 ## One-time setup
 
 ### 1. Push this repo to GitHub
