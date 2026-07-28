@@ -150,6 +150,16 @@ Should return `{"status":"healthy",...}`. If `Swagger__Enabled` is `true` (it is
 `render.yaml`), `/swagger` is also browsable — useful for a first smoke test, consider turning it
 off once a real frontend exists.
 
+## Resetting the database
+
+While the frontend team is building against this deployment, `POST /api/dev/reset-database`
+(Admin-only) wipes and recreates the schema, then reseeds roles, the configured Admin, and one
+test account per role (`DevTest123!` — see the README). It's controlled by
+`DevTools__EnableDatabaseReset` in `render.yaml`, currently `"true"`.
+
+**Turn it off (`"false"`, or delete the key) the moment this deployment holds real user data** —
+there is no confirmation step, any Admin token can trigger it, and it deletes everything.
+
 ## Known limitations of this setup
 
 - **Uploaded files don't survive a redeploy.** `IFileStorageService` writes to local disk inside
