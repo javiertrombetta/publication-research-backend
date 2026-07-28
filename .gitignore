@@ -1,0 +1,35 @@
+# Build artefacts
+bin/
+obj/
+out/
+
+# User-specific files
+*.user
+*.suo
+.vs/
+.vscode/
+*.DotSettings.user
+
+# Rider / JetBrains
+.idea/
+
+# Local AI assistant config/state — never share
+.claude/
+
+# macOS
+.DS_Store
+
+# Logs and local uploads
+src/PublicationSite.Api/logs/
+src/PublicationSite.Api/App_Data/
+
+# Secrets (never commit real values — use appsettings.*.json only for non-secret defaults)
+appsettings.Local.json
+appsettings.Production.json
+*.pfx
+
+# EF Core
+*.db
+
+# Test results
+TestResults/
