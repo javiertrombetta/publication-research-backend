@@ -164,7 +164,7 @@ it from there. Full walkthrough, required environment variables, and known limit
 disk, no managed MySQL on Render): [docs/deployment.md](docs/deployment.md).
 
 ```bash
-docker compose up -d          # mysql + the containerized API itself, for a local smoke test
+docker compose up -d          # mysql + the containerised API itself, for a local smoke test
 ```
 
 ### Postman
