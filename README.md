@@ -159,6 +159,13 @@ disk, no managed MySQL on Render): [docs/deployment.md](docs/deployment.md).
 docker compose up -d          # mysql + the containerized API itself, for a local smoke test
 ```
 
+### Postman
+
+[docs/postman/](docs/postman/) has a ready-to-import collection (86 requests, one folder per
+controller) generated from the live OpenAPI spec, plus an environment pointing at the deployed
+Render instance. Import both, run **Auth > Login**, and the access/refresh tokens are saved into
+collection variables automatically — every other request already inherits Bearer auth from them.
+
 ## Testing
 
 ```text
