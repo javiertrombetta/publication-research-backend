@@ -123,6 +123,14 @@ Coordinator auto-assignment logic works out of the box when the test Student cre
 
 From there, use the Admin endpoints (`/api/users`, `/api/departments`) to create any additional real accounts.
 
+### Resetting a shared deployment (frontend team use)
+
+`POST /api/dev/reset-database` (Admin-only) wipes and recreates the whole schema, then reseeds roles, the
+configured Admin, and the one-account-per-role test users above — useful while a frontend team is building
+against a shared deployment and wants a clean slate. It's a no-op (403) unless `DevTools:EnableDatabaseReset`
+is set, which is **only** appropriate on a deployment holding no real user data — see the warning in
+[render.yaml](render.yaml). Logging in again is required afterwards; tokens issued before a reset stop working.
+
 ## Business rules encoded in the domain
 
 - Email domain decides the auto-assigned role at registration: `@aisstudent.ac.nz` → Student, `@ais.ac.nz` →

@@ -20,9 +20,16 @@ public static class DevelopmentDataSeeder
     public const string TestUserPassword = "DevTest123!";
     private const string MarkerEmail = "student.test@aisstudent.ac.nz";
 
-    public static async Task SeedTestUsersAsync(IServiceProvider services, IHostEnvironment environment)
+    /// <param name="allowOutsideDevelopment">
+    /// Set only by <see cref="Controllers.DevToolsController"/>, itself gated behind
+    /// <c>DevTools:EnableDatabaseReset</c>, so these known-password accounts can be
+    /// (re)seeded on a shared frontend-testing deployment without loosening the guard
+    /// for every other caller.
+    /// </param>
+    public static async Task SeedTestUsersAsync(
+        IServiceProvider services, IHostEnvironment environment, bool allowOutsideDevelopment = false)
     {
-        if (!environment.IsDevelopment())
+        if (!environment.IsDevelopment() && !allowOutsideDevelopment)
         {
             throw new InvalidOperationException(
                 $"{nameof(DevelopmentDataSeeder)} must only run in the Development environment.");

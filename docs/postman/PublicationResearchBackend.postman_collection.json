@@ -56,6 +56,31 @@
       ]
     },
     {
+      "name": "Dev Tools",
+      "item": [
+        {
+          "name": "Reset Database",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/dev/reset-database",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "dev",
+                "reset-database"
+              ]
+            },
+            "description": "Admin-only. Wipes and recreates the whole schema, then reseeds the 8 roles, the configured Admin, and one ready-to-use account per role (password: DevTest123!). Returns 403 if DevTools:EnableDatabaseReset is not enabled on this deployment. Log in again afterwards \u2014 tokens issued before the reset stop working."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
       "name": "Auth",
       "item": [
         {

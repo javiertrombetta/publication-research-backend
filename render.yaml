@@ -62,3 +62,9 @@ services:
         sync: false
       - key: Seed__AdminPassword
         sync: false
+
+      # Lets an Admin call POST /api/dev/reset-database to wipe and reseed this instance —
+      # meant for the team building the frontend against a shared, disposable dataset.
+      # MUST be set to "false" (or removed) once this deployment holds real user data.
+      - key: DevTools__EnableDatabaseReset
+        value: "true"
