@@ -70,8 +70,10 @@ public static class DbSeeder
         var result = await userManager.CreateAsync(admin, adminPassword);
         if (!result.Succeeded)
         {
-            throw new InvalidOperationException(
-                $"Failed to seed the initial Admin account: {string.Join(", ", result.Errors.Select(e => e.Description))}");
+            logger.LogError(
+                "Failed to seed the initial Admin account from Seed:AdminEmail/Seed:AdminPassword: {Errors}. Fix the configured values and redeploy — the app will retry on next startup.",
+                string.Join(", ", result.Errors.Select(e => e.Description)));
+            return;
         }
 
         await userManager.AddToRoleAsync(admin, RoleNames.Admin);
