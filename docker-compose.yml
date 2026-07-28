@@ -36,7 +36,7 @@ services:
       # Dev-only key, same pattern as appsettings.Development.json — never used outside this local container.
       Jwt__SigningKey: "0Shw8ESJkzqVKmveT8Us5z9zI002n+6rnANMtch+dOPgNFPFxqgB08duKAqM1yz7hCKz4ejAO0yf43REXLjZKQ=="
       Frontend__BaseUrl: "http://localhost:3000"
-      # Off by default in Production; opted in here so the containerized image is browsable locally.
+      # Off by default in Production; opted in here so the containerised image is browsable locally.
       Swagger__Enabled: "true"
     ports:
       - "8080:8080"
