@@ -120,6 +120,12 @@ export Seed__AdminPassword="SomeStrongPassword123!"
 It creates the account once and never touches an existing one, logging a warning to confirm. That account
 then configures everything else and invites everyone else.
 
+Because it is checked on every startup rather than only the first, this is also the way back in if a
+deployment ends up with no administrator — set the two values, deploy, sign in, clear them. And it says so
+itself: a deployment that comes up with no enabled Admin account and no demonstration data logs an error at
+startup naming that remedy, rather than leaving the first person to find out at a sign-in page that no
+credentials open.
+
 #### The demonstration dataset
 
 Nineteen accounts across two departments, and twenty-one publications parked at every point in the three
