@@ -9,7 +9,7 @@ public class EthicsApproval
     public Guid PublicationContainerId { get; set; }
     public PublicationContainer PublicationContainer { get; set; } = null!;
 
-    public EthicsStatus Status { get; set; } = EthicsStatus.NotRequired;
+    public EthicsStatus Status { get; set; } = EthicsStatus.PendingSupervisorDecision;
 
     public string? ReferenceNumber { get; set; }
     public DateTime? ApprovalDate { get; set; }
