@@ -8,6 +8,13 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Pushing twice in quick succession should not leave the first run building something already
+# replaced. The in-progress one is cancelled; tag builds are exempt, since a release is not
+# superseded by whatever lands next.
+concurrency:
+  group: ci-cd-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+
 env:
   DOCKERHUB_IMAGE: javiertrombetta/publication-research-backend
 
@@ -23,6 +30,15 @@ jobs:
         uses: actions/setup-dotnet@v6
         with:
           dotnet-version: "10.0.x"
+
+      # Restore pulls the same packages every run otherwise. Keyed on the project files, so it
+      # only rebuilds when a dependency actually changes.
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
 
       - name: Restore
         run: dotnet restore
@@ -76,5 +92,9 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          # No provenance attestation. It costs time on every build and publishes the image as a
+          # multi-manifest index carrying an "unknown/unknown" entry, which some registries and
+          # deployment targets handle poorly. Nothing here consumes the attestation.
+          provenance: false
           cache-from: type=gha
           cache-to: type=gha,mode=max
