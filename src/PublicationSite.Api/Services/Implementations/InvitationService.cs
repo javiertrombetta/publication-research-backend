@@ -103,10 +103,13 @@ public class InvitationService(
         db.UserInvitations.Add(invitation);
         await db.SaveChangesAsync(cancellationToken);
 
-        await SendAsync(invitation, token, cancellationToken);
-
+        // Recorded before the send, not after. The invitation row is already saved by this point,
+        // and SendAsync throws when there is no working mail server — which used to skip this line
+        // and leave a live invitation with nothing in the trail to say who created it or when.
         await auditService.LogAuditAsync(actingAdminId, "UserInvited", nameof(UserInvitation), invitation.Id,
             newValue: request.Role, comments: $"Invited {email} as {request.Role}.");
+
+        await SendAsync(invitation, token, cancellationToken);
 
         return await ReloadAsync(invitation.Id, cancellationToken);
     }
@@ -134,10 +137,12 @@ public class InvitationService(
         invitation.ExpiresAt = DateTime.UtcNow.AddDays(validDays);
         await db.SaveChangesAsync(cancellationToken);
 
-        await SendAsync(invitation, token, cancellationToken);
-
+        // Before the send, as above: the token has already been replaced, so the previous link is
+        // dead whether or not the new one reaches anyone. That is the part the trail must not lose.
         await auditService.LogAuditAsync(actingAdminId, "UserInvitationResent", nameof(UserInvitation), invitation.Id,
             comments: $"Sent again to {invitation.Email}. The previous link no longer works.");
+
+        await SendAsync(invitation, token, cancellationToken);
 
         return await ReloadAsync(invitation.Id, cancellationToken);
     }

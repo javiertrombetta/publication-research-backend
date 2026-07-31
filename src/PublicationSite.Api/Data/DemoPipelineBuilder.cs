@@ -122,6 +122,11 @@ public class DemoPipelineBuilder(
     {
         var startedAt = DateTime.UtcNow;
 
+        // Reset per publication rather than left holding the previous one's last step: a plan that
+        // stops before its first step would otherwise mark its notifications against a boundary
+        // belonging to a different publication entirely.
+        _currentStepStartedAt = startedAt;
+
         var container = await containers.CreateAsync(cast.StudentId, cancellationToken);
         var containerId = container.Id;
 

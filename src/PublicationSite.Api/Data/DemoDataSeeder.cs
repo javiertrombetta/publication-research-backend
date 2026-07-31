@@ -41,8 +41,17 @@ public static class DemoDataSeeder
     /// for the mistake to fall — forgetting the setting costs a deployment its sample data, where
     /// the opposite would publish a known password on the live site.
     /// </summary>
+    /// <remarks>
+    /// Parsed leniently on purpose. Binding it as a bool throws on anything that is not "true" or
+    /// "false" — and this is read while the application is being built, so "yes" in an environment
+    /// variable took the whole service down and kept it down, restart after restart. A typo should
+    /// not be able to do that. Anything unrecognised falls back to the environment's own answer,
+    /// which is off outside development, so the failure still lands on the safe side.
+    /// </remarks>
     public static bool IsEnabled(IConfiguration configuration, IHostEnvironment environment) =>
-        configuration.GetValue("Seed:DemoData", environment.IsDevelopment());
+        bool.TryParse(configuration["Seed:DemoData"], out var enabled)
+            ? enabled
+            : environment.IsDevelopment();
 
     public static async Task SeedAsync(IServiceProvider services, CancellationToken cancellationToken = default)
     {
