@@ -113,6 +113,19 @@ public class PublicationsController(IPublicationService publicationService, ICur
         return Ok(ApiResponse.Ok("Review recorded."));
     }
 
+    /// <summary>
+    /// The file itself, for anyone who can see the publication. Distinct from the catalogue's
+    /// download, which serves published papers to readers — this serves unpublished ones to the
+    /// people who have to judge them.
+    /// </summary>
+    [HttpGet("api/publications/{publicationId:guid}/versions/{versionId:guid}/download")]
+    [ProducesResponseType(typeof(FileResult), StatusCodes.Status200OK)]
+    public async Task<IActionResult> DownloadVersion(Guid publicationId, Guid versionId)
+    {
+        var (content, fileName) = await publicationService.DownloadVersionAsync(publicationId, versionId, currentUser.UserId);
+        return File(content, "application/octet-stream", fileName);
+    }
+
     [HttpGet("api/publications/{publicationId:guid}/reviews")]
     [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<ReviewDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetReviews(Guid publicationId)

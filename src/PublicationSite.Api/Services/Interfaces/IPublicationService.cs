@@ -21,6 +21,15 @@ public interface IPublicationService
 
     Task<IReadOnlyList<PublicationDto>> GetPendingForSupervisorAsync(Guid supervisorId, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// The file of one version of a research paper, for anyone with access to its publication.
+    ///
+    /// Distinct from the catalogue's download, which serves only published papers: the people who
+    /// have to judge a paper need to read it precisely while it is not published yet.
+    /// </summary>
+    Task<(Stream Content, string FileName)> DownloadVersionAsync(
+        Guid publicationId, Guid versionId, Guid requestingUserId, CancellationToken cancellationToken = default);
+
     /// <summary>Papers a Supervisor has approved that still have no evaluation committee.</summary>
     Task<IReadOnlyList<AwaitingCommitteeDto>> GetAwaitingCommitteeAsync(CancellationToken cancellationToken = default);
     Task SupervisorReviewAsync(Guid publicationId, Guid supervisorId, PaperReviewDecisionRequest request, CancellationToken cancellationToken = default);

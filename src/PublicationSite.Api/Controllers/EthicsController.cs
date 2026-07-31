@@ -14,7 +14,6 @@ public class EthicsController(IEthicsService ethicsService, ICurrentUserService 
     [AllowAnonymous]
     [ProducesResponseType(typeof(ApiResponse<EthicsGuidanceDto>), StatusCodes.Status200OK)]
     public IActionResult GetGuidance() => Ok(ApiResponse<EthicsGuidanceDto>.Ok(ethicsService.GetGuidance()));
-
     [HttpPost("api/containers/{containerId:guid}/ethics/declaration")]
     [Authorize(Roles = RoleNames.Student)]
     [ProducesResponseType(typeof(ApiResponse<EthicsDeclarationDto>), StatusCodes.Status200OK)]
@@ -69,6 +68,17 @@ public class EthicsController(IEthicsService ethicsService, ICurrentUserService 
     {
         var result = await ethicsService.GetDocumentsAsync(containerId, currentUser.UserId);
         return Ok(ApiResponse<IReadOnlyList<EthicsDocumentDto>>.Ok(result));
+    }
+
+    /// <summary>
+    /// One uploaded document, so the people asked to approve it can read it first.
+    /// </summary>
+    [HttpGet("api/containers/{containerId:guid}/ethics/documents/{documentId:guid}/download")]
+    [ProducesResponseType(typeof(FileResult), StatusCodes.Status200OK)]
+    public async Task<IActionResult> DownloadDocument(Guid containerId, Guid documentId)
+    {
+        var (content, fileName) = await ethicsService.DownloadDocumentAsync(containerId, documentId, currentUser.UserId);
+        return File(content, "application/octet-stream", fileName);
     }
 
     [HttpPost("api/containers/{containerId:guid}/ethics/supervisor-review")]

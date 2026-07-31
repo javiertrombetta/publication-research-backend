@@ -177,18 +177,52 @@ public class EthicsService(
         await auditService.LogActivityAsync(container.Id, studentId, "EthicsDocumentUploaded",
             $"Uploaded '{requirement.Name}' (version {version}).");
 
-        return ToDocumentDto(document);
+        // Built from the requirement already in hand. Reading it off document.EthicsDocumentRequirement
+        // worked only where that entity happened to be tracked, which is not something to depend on.
+        return new EthicsDocumentDto(document.Id, requirement.Name, document.FileName, document.Version,
+            document.Status.ToString(), document.UploadedAt, document.ReviewComments);
     }
 
     public async Task<IReadOnlyList<EthicsDocumentDto>> GetDocumentsAsync(Guid publicationContainerId, Guid requestingUserId, CancellationToken cancellationToken = default)
     {
         await accessService.EnsureAccessAsync(publicationContainerId, requestingUserId);
 
+        // Projected in the query rather than through ToDocumentDto. That helper reads
+        // EthicsDocumentRequirement.Name off a navigation property, and nothing here loaded it —
+        // so every call threw a NullReferenceException and the reviewers' document list came back
+        // as a 500. Written this way the name is joined in SQL and there is no navigation to miss.
         return await db.EthicsDocuments
             .Where(d => d.EthicsApproval.PublicationContainerId == publicationContainerId)
             .OrderByDescending(d => d.UploadedAt)
-            .Select(d => ToDocumentDto(d))
+            .Select(d => new EthicsDocumentDto(
+                d.Id,
+                d.EthicsDocumentRequirement.Name,
+                d.FileName,
+                d.Version,
+                d.Status.ToString(),
+                d.UploadedAt,
+                d.ReviewComments))
             .ToListAsync(cancellationToken);
+    }
+
+    public async Task<(Stream Content, string FileName)> DownloadDocumentAsync(
+        Guid publicationContainerId, Guid documentId, Guid requestingUserId, CancellationToken cancellationToken = default)
+    {
+        await accessService.EnsureAccessAsync(publicationContainerId, requestingUserId);
+
+        var document = await db.EthicsDocuments
+            .Include(d => d.EthicsDocumentRequirement)
+            .FirstOrDefaultAsync(
+                d => d.Id == documentId && d.EthicsApproval.PublicationContainerId == publicationContainerId,
+                cancellationToken)
+            ?? throw new NotFoundException(nameof(EthicsDocument), documentId);
+
+        var content = await fileStorageService.OpenReadAsync(document.FilePath, cancellationToken);
+
+        // Named for the form it answers and its version. The stored name is the student's original
+        // one, which is often "scan.pdf" three times over.
+        return (content,
+            $"{document.EthicsDocumentRequirement.Name} v{document.Version}{Path.GetExtension(document.FileName)}");
     }
 
     public async Task SupervisorReviewDocumentsAsync(Guid publicationContainerId, Guid supervisorId, DocumentReviewDecisionRequest request, CancellationToken cancellationToken = default)
@@ -547,8 +581,4 @@ public class EthicsService(
         approval.ApprovalDate, approval.ExpiryDate, approval.IsRequiredPerSupervisor, approval.SupervisorDecisionComments,
         approval.IsRequiredPerCoordinator, approval.CoordinatorDecisionComments, approval.HeadOfDepartmentComments,
         approval.HeadOfDepartmentReviewedAt, approval.FinalDecisionAt);
-
-    private static EthicsDocumentDto ToDocumentDto(EthicsDocument document) => new(
-        document.Id, document.EthicsDocumentRequirement.Name, document.FileName, document.Version,
-        document.Status.ToString(), document.UploadedAt, document.ReviewComments);
 }
