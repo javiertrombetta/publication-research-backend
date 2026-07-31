@@ -60,9 +60,14 @@ signing key so the project runs out of the box. For any shared/deployed environm
 
 - `ConnectionStrings:Default`
 - `Jwt:SigningKey` — generate your own: `openssl rand -base64 64`
-- `Mail:*` — only needed to get the very first administrator's verification email out. Once someone can sign
-  in, the mail server is configured from the API (`PUT /api/settings/notifications`) and the stored settings
-  take precedence over these.
+- `Mail:*` — **not normally needed.** The mail server is an administrator setting, edited under System
+  settings, and the stored value takes precedence over configuration. The seeded Admin arrives with its
+  address already confirmed, so nothing has to be emailed before someone can sign in and set it up. These
+  exist only as a fallback for a deployment whose first account arrives some other way.
+
+  `Mail:Host` is deliberately blank by default, and a placeholder is worse than nothing: `SmtpEmailSender`
+  reports "no mail server is configured" only while the host is empty, so a made-up host turns that clear
+  message into a connection timeout and a stack trace.
 - `AzureAd:TenantId` / `AzureAd:ClientId` — only needed once Microsoft Entra SSO is registered; the app runs
   fine without it, the SSO exchange endpoint simply stays unavailable until configured
 
@@ -161,9 +166,11 @@ the deploy. `GET /api/dev/demo-data` (Admin) reports whether it has finished.
 the configured Admin and — where the deployment asks for it — the demonstration dataset. It returns as soon
 as signing in is possible again and finishes the dataset in the background.
 
-It is a no-op (403) unless `DevTools:EnableDatabaseReset` is set, which is **only** appropriate on a
-deployment holding no real user data — see the warning in [render.yaml](render.yaml). Logging in again is
-required afterwards; tokens issued before a reset stop working.
+It is a no-op (403) unless **both** `DevTools:EnableDatabaseReset` and `Seed:DemoData` are set. The second
+is not redundant: this deletes everything and asks nothing first, and whether a database is disposable is
+exactly what seeding demonstration data into it declares. A deployment that seeds none is holding either
+real work or nothing worth wiping, so no administrator's token can erase it even if the reset switch was
+left on by mistake. Logging in again is required afterwards; tokens issued before a reset stop working.
 
 ## Runtime settings
 

@@ -40,6 +40,20 @@ public class DevToolsController(
                 ApiResponse.Fail("Database reset is disabled on this deployment. Set DevTools:EnableDatabaseReset=true to enable it."));
         }
 
+        // Both flags, not either. This deletes everything, and the question it really turns on is
+        // whether the data here is disposable — which is the question Seed:DemoData already
+        // answers. A deployment that seeds no sample data is one holding either real work or
+        // nothing worth wiping, so an administrator's token should not be able to erase it even
+        // if somebody left the reset switch on by mistake.
+        if (!DemoDataSeeder.IsEnabled(configuration, environment))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                ApiResponse.Fail(
+                    "Database reset is only available where the demonstration dataset is, because that is what " +
+                    "marks a deployment's data as disposable. This one does not seed it (Seed:DemoData is off), " +
+                    "so its database is treated as holding real work."));
+        }
+
         await db.Database.EnsureDeletedAsync();
         await db.Database.MigrateAsync();
 
