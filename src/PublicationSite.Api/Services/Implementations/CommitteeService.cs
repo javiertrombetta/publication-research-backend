@@ -46,33 +46,34 @@ public class CommitteeService(
             throw new ConflictException("A committee has already been assigned to this research paper.");
         }
 
+        // Anyone who works here may be asked to evaluate a paper. Holding a committee-member role
+        // is no longer the entry ticket — supervisors, coordinators, heads of department and staff
+        // are all people an institution draws its evaluators from, and requiring an extra role
+        // first meant an administrator had to grant one before they could ask anybody.
         var members = await db.Users
             .Where(u => request.MemberUserIds.Contains(u.Id))
-            .Include(u => u.CommitteeMemberProfile)
+            .Select(u => new
+            {
+                User = u,
+                Roles = db.UserRoles
+                    .Where(ur => ur.UserId == u.Id)
+                    .Join(db.Roles, ur => ur.RoleId, r => r.Id, (ur, r) => r.Name!)
+                    .ToList()
+            })
             .ToListAsync(cancellationToken);
 
-        if (members.Any(m => m.CommitteeMemberProfile is null))
+        // Students are the exception, and the only one: a committee judges a student's work, so
+        // its members cannot be drawn from the people whose work is being judged.
+        var students = members.Where(m => m.Roles.Contains(RoleNames.Student)).ToList();
+        if (students.Count > 0)
         {
             throw new BusinessRuleException(
-                "Everyone on a committee must hold a committee member role. Grant it from the user directory first.");
+                "A committee cannot include students. Everyone else at the institution can be appointed to one.");
         }
 
-        // Checked as well as the profile, which outlives the role that created it: someone moved
-        // off a committee role keeps their profile, and without this would still be assignable.
-        var committeeRoleIds = await db.Roles
-            .Where(r => RoleNames.CommitteeRoles.Contains(r.Name!))
-            .Select(r => r.Id)
-            .ToListAsync(cancellationToken);
-
-        var stillCommitteeMembers = await db.UserRoles
-            .Where(ur => committeeRoleIds.Contains(ur.RoleId))
-            .Select(ur => ur.UserId)
-            .ToListAsync(cancellationToken);
-
-        if (members.Any(m => !stillCommitteeMembers.Contains(m.Id)))
+        if (members.Any(m => m.User.Status != UserStatus.Enabled))
         {
-            throw new BusinessRuleException(
-                "Everyone on a committee must currently hold a committee member role.");
+            throw new BusinessRuleException("Everyone on a committee must have an enabled account.");
         }
 
         // A member id the request named but the database does not have would otherwise vanish
@@ -82,18 +83,27 @@ public class CommitteeService(
             throw new BusinessRuleException("One or more of the people selected could not be found.");
         }
 
+        var isExternal = members
+            .Select(m => m.Roles.Contains(RoleNames.ExternalCommitteeMember))
+            .ToList();
+
         var minApprovals = await ResolveMinimumApprovalsAsync(
-            publication.PublicationContainer, members, request.MinApprovalsRequired, cancellationToken);
+            publication.PublicationContainer, isExternal, request.MinApprovalsRequired, cancellationToken);
 
         var committee = new Committee
         {
             PublicationId = publicationId,
             MinApprovalsRequired = minApprovals,
             CreatedByUserId = adminId,
+            // External means from outside the institution, which is a fact about the person
+            // rather than a choice made per committee — and the only people outside it are the
+            // ones invited as external members. Everybody else is internal by definition.
             Members = members.Select(m => new CommitteeMember
             {
-                UserId = m.Id,
-                RoleType = m.CommitteeMemberProfile!.Type
+                UserId = m.User.Id,
+                RoleType = m.Roles.Contains(RoleNames.ExternalCommitteeMember)
+                    ? CommitteeMemberRoleType.External
+                    : CommitteeMemberRoleType.Internal
             }).ToList()
         };
 
@@ -105,7 +115,7 @@ public class CommitteeService(
 
         foreach (var member in members)
         {
-            await notificationService.NotifyAsync(member.Id, NotificationType.CommitteeReviewRequested,
+            await notificationService.NotifyAsync(member.User.Id, NotificationType.CommitteeReviewRequested,
                 "Research paper awaiting your evaluation",
                 "You have been assigned to an evaluation committee. Please log in to review the research paper.",
                 nameof(Committee), committee.Id, cancellationToken);
@@ -279,11 +289,11 @@ public class CommitteeService(
     /// </summary>
     private async Task<int> ResolveMinimumApprovalsAsync(
         PublicationContainer container,
-        IReadOnlyList<ApplicationUser> members,
+        IReadOnlyList<bool> membersAreExternal,
         int requested,
         CancellationToken cancellationToken)
     {
-        await EnsureCompositionMatchesRulesAsync(container, members, cancellationToken);
+        await EnsureCompositionMatchesRulesAsync(container, membersAreExternal, cancellationToken);
 
         // Zero means the administrator did not override it, so the figure this publication was
         // opened under applies.
@@ -293,17 +303,22 @@ public class CommitteeService(
                    ?? (await settingService.GetCommitteeSettingsAsync(cancellationToken)).MinimumApprovals;
         }
 
-        if (requested > members.Count)
+        if (requested > membersAreExternal.Count)
         {
             throw new BusinessRuleException(
-                $"A committee of {members.Count} cannot be asked for {requested} approvals.");
+                $"A committee of {membersAreExternal.Count} cannot be asked for {requested} approvals.");
         }
 
         return requested;
     }
 
+    /// <param name="membersAreExternal">
+    /// One entry per proposed member: true where they come from outside the institution. Passed as
+    /// the answer rather than as the people, because who counts as external is decided once, where
+    /// the committee is built, and this only has to count them.
+    /// </param>
     private async Task EnsureCompositionMatchesRulesAsync(
-        PublicationContainer container, IReadOnlyList<ApplicationUser> members, CancellationToken cancellationToken)
+        PublicationContainer container, IReadOnlyList<bool> membersAreExternal, CancellationToken cancellationToken)
     {
         int requiredInternal, requiredExternal;
 
@@ -320,8 +335,8 @@ public class CommitteeService(
             requiredExternal = current.ExternalMembers;
         }
 
-        var actualInternal = members.Count(m => m.CommitteeMemberProfile!.Type == CommitteeMemberRoleType.Internal);
-        var actualExternal = members.Count(m => m.CommitteeMemberProfile!.Type == CommitteeMemberRoleType.External);
+        var actualExternal = membersAreExternal.Count(isExternal => isExternal);
+        var actualInternal = membersAreExternal.Count - actualExternal;
 
         if (actualInternal != requiredInternal || actualExternal != requiredExternal)
         {

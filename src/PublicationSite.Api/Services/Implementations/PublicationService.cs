@@ -296,6 +296,34 @@ public class PublicationService(
         }
     }
 
+    public async Task<(Stream Content, string FileName)> DownloadVersionAsync(
+        Guid publicationId, Guid versionId, Guid requestingUserId, CancellationToken cancellationToken = default)
+    {
+        var version = await db.PublicationVersions
+            .Include(v => v.Publication)
+            .FirstOrDefaultAsync(v => v.Id == versionId && v.PublicationId == publicationId, cancellationToken)
+            ?? throw new NotFoundException(nameof(PublicationVersion), versionId);
+
+        // Access belongs to the container, so it is asked there — which is what lets a supervisor,
+        // a coordinator, the head of that department and the appointed committee all read it,
+        // and nobody else.
+        await accessService.EnsureAccessAsync(version.Publication.PublicationContainerId, requestingUserId);
+
+        var content = await fileStorageService.OpenReadAsync(version.FilePath, cancellationToken);
+
+        // Named for the paper and the version rather than by the stored file name, which is a
+        // GUID: a reviewer downloading three papers should be able to tell them apart afterwards.
+        var title = string.IsNullOrWhiteSpace(version.Publication.Title) ? "Research paper" : version.Publication.Title;
+        return (content, $"{Sanitise(title)} v{version.VersionNumber}{Path.GetExtension(version.FilePath)}");
+    }
+
+    /// <summary>Strips what a file name cannot carry, so a title with a colon still downloads.</summary>
+    private static string Sanitise(string name)
+    {
+        var cleaned = new string(name.Select(c => Path.GetInvalidFileNameChars().Contains(c) ? ' ' : c).ToArray());
+        return string.Join(' ', cleaned.Split(' ', StringSplitOptions.RemoveEmptyEntries));
+    }
+
     public async Task<IReadOnlyList<ReviewDto>> GetReviewsAsync(Guid publicationId, Guid requestingUserId, CancellationToken cancellationToken = default)
     {
         var publication = await db.Publications.FindAsync([publicationId], cancellationToken)

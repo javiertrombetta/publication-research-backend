@@ -127,15 +127,64 @@ public class CommitteeServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task AssignAsync_rejects_member_without_committee_profile()
+    public async Task AssignAsync_accepts_a_member_with_no_committee_role_at_all()
     {
         var (publication, _, coordinator) = SeedApprovedPublication();
-        var nonMember = TestDataBuilder.User(_fixture.Context);
 
-        var act = () => _sut.AssignAsync(publication.Id, new AssignCommitteeRequest([nonMember.Id], 1, "Assign"), coordinator.Id);
+        // No committee-member role and no profile: an ordinary member of staff. Anyone who works
+        // here can be asked to evaluate a paper, so holding an extra role is not the entry ticket.
+        var staff = TestDataBuilder.User(_fixture.Context);
 
-        await act.Should().ThrowAsync<BusinessRuleException>();
+        var act = () => _sut.AssignAsync(publication.Id, new AssignCommitteeRequest([staff.Id], 1, "Assign"), coordinator.Id);
+
+        await act.Should().NotThrowAsync();
     }
+
+    [Fact]
+    public async Task AssignAsync_counts_someone_without_the_external_role_as_internal()
+    {
+        var (publication, _, coordinator) = SeedApprovedPublication();
+        var staff = TestDataBuilder.User(_fixture.Context);
+
+        await _sut.AssignAsync(publication.Id, new AssignCommitteeRequest([staff.Id], 1, "Assign"), coordinator.Id);
+
+        var member = _fixture.Context.CommitteeMembers.Single(m => m.UserId == staff.Id);
+        member.RoleType.Should().Be(CommitteeMemberRoleType.Internal);
+    }
+
+    [Fact]
+    public async Task AssignAsync_counts_someone_holding_the_external_role_as_external()
+    {
+        var (publication, container, coordinator) = SeedApprovedPublication();
+
+        // This publication was opened needing one external member and no internal one, so that the
+        // assignment is testing how the person is classified rather than the composition rule.
+        container.RequiredInternalCommitteeMembers = 0;
+        container.RequiredExternalCommitteeMembers = 1;
+        _fixture.Context.SaveChanges();
+
+        var outsider = TestDataBuilder.User(_fixture.Context);
+        TestDataBuilder.GrantRole(_fixture.Context, outsider, RoleNames.ExternalCommitteeMember);
+
+        await _sut.AssignAsync(publication.Id, new AssignCommitteeRequest([outsider.Id], 1, "Assign"), coordinator.Id);
+
+        var member = _fixture.Context.CommitteeMembers.Single(m => m.UserId == outsider.Id);
+        member.RoleType.Should().Be(CommitteeMemberRoleType.External);
+    }
+
+    [Fact]
+    public async Task AssignAsync_refuses_a_student()
+    {
+        var (publication, _, coordinator) = SeedApprovedPublication();
+        var student = TestDataBuilder.User(_fixture.Context);
+        TestDataBuilder.GrantRole(_fixture.Context, student, RoleNames.Student);
+
+        var act = () => _sut.AssignAsync(publication.Id, new AssignCommitteeRequest([student.Id], 1, "Assign"), coordinator.Id);
+
+        (await act.Should().ThrowAsync<BusinessRuleException>())
+            .Which.Message.Should().Contain("cannot include students");
+    }
+
 
     [Fact]
     public async Task AssignAsync_creates_committee_and_notifies_members()
@@ -251,18 +300,18 @@ public class CommitteeServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task AssignAsync_rejects_someone_who_no_longer_holds_a_committee_role()
+    public async Task AssignAsync_accepts_someone_whose_committee_role_was_taken_away()
     {
         var (publication, _, coordinator) = SeedApprovedPublication();
 
         // Profile but no role: what a demotion leaves behind, since profiles are never deleted.
+        // It used to disqualify them; they are still a member of staff, so it no longer does.
         var formerMember = TestDataBuilder.User(_fixture.Context);
         TestDataBuilder.CommitteeMemberProfile(_fixture.Context, formerMember);
 
         var act = () => _sut.AssignAsync(
             publication.Id, new AssignCommitteeRequest([formerMember.Id], 1, "Assign"), coordinator.Id);
 
-        (await act.Should().ThrowAsync<BusinessRuleException>())
-            .Which.Message.Should().Contain("currently hold a committee member role");
+        await act.Should().NotThrowAsync();
     }
 }

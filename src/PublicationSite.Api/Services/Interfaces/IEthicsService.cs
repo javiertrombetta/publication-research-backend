@@ -12,6 +12,13 @@ public interface IEthicsService
     Task SubmitSupervisorRequirementDecisionAsync(Guid publicationContainerId, Guid supervisorId, SupervisorRequirementDecisionRequest request, CancellationToken cancellationToken = default);
 
     Task<EthicsDocumentDto> UploadDocumentAsync(Guid publicationContainerId, Guid studentId, string documentType, Stream content, string fileName, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// One uploaded ethics document, for anyone with access to its publication. Reviewers are asked
+    /// to approve these; until now they could see that a file existed but not read it.
+    /// </summary>
+    Task<(Stream Content, string FileName)> DownloadDocumentAsync(
+        Guid publicationContainerId, Guid documentId, Guid requestingUserId, CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<EthicsDocumentDto>> GetDocumentsAsync(Guid publicationContainerId, Guid requestingUserId, CancellationToken cancellationToken = default);
 
     Task SupervisorReviewDocumentsAsync(Guid publicationContainerId, Guid supervisorId, DocumentReviewDecisionRequest request, CancellationToken cancellationToken = default);
