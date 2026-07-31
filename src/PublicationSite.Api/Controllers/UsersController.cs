@@ -26,6 +26,32 @@ public class UsersController(IUserService userService, ICurrentUserService curre
         return Ok(ApiResponse<UserDetailDto>.Ok(result));
     }
 
+    /// <summary>Any signed-in user manages their own profile photo — this is not role-specific.</summary>
+    [HttpPost("me/photo")]
+    [RequestSizeLimit(10_000_000)]
+    public async Task<IActionResult> UploadMyPhoto([FromForm] ProfilePhotoUploadForm form)
+    {
+        await using var stream = form.File.OpenReadStream();
+        var result = await userService.SetOwnProfilePhotoAsync(currentUser.UserId, stream, form.File.FileName, form.File.Length);
+        return Ok(ApiResponse<UserDetailDto>.Ok(result, "Profile photo updated."));
+    }
+
+    [HttpDelete("me/photo")]
+    public async Task<IActionResult> DeleteMyPhoto()
+    {
+        var result = await userService.RemoveOwnProfilePhotoAsync(currentUser.UserId);
+        return Ok(ApiResponse<UserDetailDto>.Ok(result, "Profile photo removed."));
+    }
+
+    /// <summary>Streams a user's photo. Any signed-in user may read it, so avatars can be shown
+    /// wherever people appear in the workflow — 404 when that user has none.</summary>
+    [HttpGet("{id:guid}/photo")]
+    public async Task<IActionResult> GetPhoto(Guid id)
+    {
+        var (content, contentType) = await userService.OpenProfilePhotoAsync(id);
+        return File(content, contentType);
+    }
+
     [HttpGet]
     [Authorize(Roles = RoleNames.Admin)]
     public async Task<IActionResult> GetAll([FromQuery] string? role, [FromQuery] string? status, [FromQuery] string? search)

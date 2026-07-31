@@ -15,10 +15,17 @@ public class LocalFileStorageService(IOptions<FileStorageSettings> options, IWeb
 {
     private readonly FileStorageSettings _settings = options.Value;
 
-    public async Task<StoredFile> SaveAsync(Stream content, string fileName, string subFolder, CancellationToken cancellationToken = default)
+    public async Task<StoredFile> SaveAsync(
+        Stream content,
+        string fileName,
+        string subFolder,
+        IReadOnlyCollection<string>? allowedExtensions = null,
+        CancellationToken cancellationToken = default)
     {
+        var permitted = allowedExtensions ?? _settings.AllowedExtensions;
+
         var extension = Path.GetExtension(fileName).ToLowerInvariant();
-        if (!_settings.AllowedExtensions.Contains(extension))
+        if (!permitted.Contains(extension))
         {
             throw new BusinessRuleException($"File extension '{extension}' is not allowed.");
         }

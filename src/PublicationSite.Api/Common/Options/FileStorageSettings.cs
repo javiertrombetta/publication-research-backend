@@ -11,4 +11,13 @@ public class FileStorageSettings
 
     public string[] AllowedExtensions { get; set; } =
         [".pdf", ".doc", ".docx", ".zip"];
+
+    /// <summary>
+    /// Kept separate from AllowedExtensions so profile photos can be images without also
+    /// letting an image be uploaded as an ethics document or a research paper.
+    /// </summary>
+    public string[] AllowedImageExtensions { get; set; } =
+        [".jpg", ".jpeg", ".png", ".webp"];
+
+    public long MaxProfilePhotoBytes { get; set; } = 5 * 1024 * 1024;
 }

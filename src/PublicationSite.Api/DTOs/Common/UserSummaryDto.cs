@@ -6,4 +6,5 @@ public record UserSummaryDto(
     string FirstName,
     string LastName,
     string Status,
-    IReadOnlyList<string> Roles);
+    IReadOnlyList<string> Roles,
+    bool HasProfilePhoto);

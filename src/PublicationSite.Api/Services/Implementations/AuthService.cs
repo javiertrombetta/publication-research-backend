@@ -268,7 +268,8 @@ public class AuthService(
         var roles = await userManager.GetRolesAsync(user);
         pair ??= await tokenService.IssueTokensAsync(user, roles);
 
-        var summary = new UserSummaryDto(user.Id, user.Email!, user.FirstName, user.LastName, user.Status.ToString(), roles.ToList());
+        var summary = new UserSummaryDto(user.Id, user.Email!, user.FirstName, user.LastName, user.Status.ToString(),
+            roles.ToList(), user.ProfilePhotoPath is not null);
         return new AuthResponse(pair.AccessToken, pair.RefreshToken, pair.AccessTokenExpiresAt, summary);
     }
 
