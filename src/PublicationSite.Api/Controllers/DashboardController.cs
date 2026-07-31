@@ -12,6 +12,7 @@ namespace PublicationSite.Api.Controllers;
 public class DashboardController(IDashboardService dashboardService) : ControllerBase
 {
     [HttpGet("summary")]
+    [ProducesResponseType(typeof(ApiResponse<DashboardSummaryDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetSummary()
     {
         var result = await dashboardService.GetSummaryAsync();

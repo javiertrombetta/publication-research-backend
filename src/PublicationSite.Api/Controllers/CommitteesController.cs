@@ -12,6 +12,7 @@ public class CommitteesController(ICommitteeService committeeService, ICurrentUs
 {
     [HttpPost("api/publications/{publicationId:guid}/assign-committee")]
     [Authorize(Roles = RoleNames.Admin)]
+    [ProducesResponseType(typeof(ApiResponse<CommitteeDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> Assign(Guid publicationId, [FromBody] AssignCommitteeRequest request)
     {
         var result = await committeeService.AssignAsync(publicationId, request, currentUser.UserId);
@@ -19,6 +20,7 @@ public class CommitteesController(ICommitteeService committeeService, ICurrentUs
     }
 
     [HttpGet("api/publications/{publicationId:guid}/committee")]
+    [ProducesResponseType(typeof(ApiResponse<CommitteeDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetByPublication(Guid publicationId)
     {
         var result = await committeeService.GetByPublicationAsync(publicationId, currentUser.UserId);
@@ -27,6 +29,7 @@ public class CommitteesController(ICommitteeService committeeService, ICurrentUs
 
     [HttpGet("api/committees/my-assignments")]
     [Authorize(Roles = $"{RoleNames.InternalCommitteeMember},{RoleNames.ExternalCommitteeMember}")]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<CommitteeDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetMyAssignments()
     {
         var result = await committeeService.GetAssignmentsForMemberAsync(currentUser.UserId);
@@ -35,6 +38,7 @@ public class CommitteesController(ICommitteeService committeeService, ICurrentUs
 
     [HttpPost("api/committees/{committeeId:guid}/review")]
     [Authorize(Roles = $"{RoleNames.InternalCommitteeMember},{RoleNames.ExternalCommitteeMember}")]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     public async Task<IActionResult> MemberReview(Guid committeeId, [FromBody] CommitteeMemberReviewRequest request)
     {
         await committeeService.MemberReviewAsync(committeeId, currentUser.UserId, request);
@@ -43,6 +47,7 @@ public class CommitteesController(ICommitteeService committeeService, ICurrentUs
 
     [HttpGet("api/settings/default-committee")]
     [Authorize(Roles = RoleNames.Admin)]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<CommitteeRoleConfigDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetDefaultConfig()
     {
         var result = await committeeService.GetDefaultConfigAsync();
@@ -51,6 +56,7 @@ public class CommitteesController(ICommitteeService committeeService, ICurrentUs
 
     [HttpPut("api/settings/default-committee")]
     [Authorize(Roles = RoleNames.Admin)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     public async Task<IActionResult> SetDefaultConfig([FromBody] SetCommitteeRoleConfigRequest request)
     {
         await committeeService.SetDefaultConfigAsync(request);
@@ -59,6 +65,7 @@ public class CommitteesController(ICommitteeService committeeService, ICurrentUs
 
     [HttpGet("api/committees/{committeeId:guid}/config")]
     [Authorize(Roles = $"{RoleNames.Admin},{RoleNames.Coordinator}")]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<CommitteeRoleConfigDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetCommitteeConfig(Guid committeeId)
     {
         var result = await committeeService.GetCommitteeConfigAsync(committeeId);
@@ -67,6 +74,7 @@ public class CommitteesController(ICommitteeService committeeService, ICurrentUs
 
     [HttpPut("api/committees/{committeeId:guid}/config")]
     [Authorize(Roles = $"{RoleNames.Admin},{RoleNames.Coordinator}")]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     public async Task<IActionResult> SetCommitteeConfig(Guid committeeId, [FromBody] SetCommitteeRoleConfigRequest request)
     {
         await committeeService.SetCommitteeConfigAsync(committeeId, request, currentUser.UserId);

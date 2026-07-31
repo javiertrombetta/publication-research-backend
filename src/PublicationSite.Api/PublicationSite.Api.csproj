@@ -4,6 +4,19 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+
+    <!-- Emitted so Swagger can show the summaries that are already written against every endpoint
+         and DTO. Without it they exist only in the source, and the API reference is a list of
+         method names explaining nothing. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+
+    <!-- CS1591 is "missing XML comment on a publicly visible type", CS1573 the same for a parameter
+         where its siblings have one. Both are demands for completeness, and completeness is the
+         wrong target here: `Guid Id` needs no sentence, and writing one for every field to silence
+         a warning would bury the descriptions that are actually worth reading — which is what the
+         API reference shows. A build that warns hundreds of times is a build whose warnings nobody
+         reads. The comments that matter are written where they matter. -->
+    <NoWarn>$(NoWarn);CS1591;CS1573</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

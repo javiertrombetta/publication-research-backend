@@ -91,8 +91,27 @@ InternalCommitteeMember, ExternalCommitteeMember, Student, Staff) on first run v
 dotnet run
 ```
 
-- Swagger UI: `http://localhost:5020/swagger` (Development only)
+- Swagger UI: `http://localhost:5020/swagger` (always in Development; elsewhere opt-in via `Swagger:Enabled`)
 - Health check: `GET /health`
+
+### The API reference
+
+Swagger is generated from the controllers, so every endpoint appears without anyone maintaining a
+list. Two things make it worth reading, and both had to be switched on deliberately:
+
+- **Response shapes.** Every action returns `IActionResult`, which tells Swashbuckle nothing about
+  what comes back, so the reference described 124 endpoints and not one of their responses.
+  `[ProducesResponseType]` on each action names the `ApiResponse<T>` it actually returns.
+- **The prose already in the source.** `GenerateDocumentationFile` emits the XML that
+  `IncludeXmlComments` feeds to Swagger; without it every `<summary>` written against an endpoint
+  or a DTO stayed in the source and reached nobody.
+
+A note for anyone documenting a positional record: the `///` block goes **above the record**, as
+`<param name="...">`. Written inside the parameter list it looks right, compiles, and is silently
+discarded — the compiler says so as CS1587, which is invisible until the documentation file is on.
+
+There is also a [Postman collection](docs/postman) covering every endpoint, with the request bodies
+filled in and a note on each about why it behaves the way it does.
 
 ### 6. Seeding
 

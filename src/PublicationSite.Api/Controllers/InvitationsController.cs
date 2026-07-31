@@ -16,6 +16,7 @@ namespace PublicationSite.Api.Controllers;
 public class InvitationsController(IInvitationService invitationService, ICurrentUserService currentUser) : ControllerBase
 {
     [HttpGet]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<UserInvitationDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetAll()
     {
         var result = await invitationService.GetAllAsync();
@@ -23,6 +24,7 @@ public class InvitationsController(IInvitationService invitationService, ICurren
     }
 
     [HttpPost]
+    [ProducesResponseType(typeof(ApiResponse<UserInvitationDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> Create([FromBody] CreateInvitationRequest request)
     {
         var result = await invitationService.CreateAsync(request, currentUser.UserId);
@@ -30,6 +32,7 @@ public class InvitationsController(IInvitationService invitationService, ICurren
     }
 
     [HttpPost("{id:guid}/resend")]
+    [ProducesResponseType(typeof(ApiResponse<UserInvitationDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> Resend(Guid id)
     {
         var result = await invitationService.ResendAsync(id, currentUser.UserId);
@@ -38,6 +41,7 @@ public class InvitationsController(IInvitationService invitationService, ICurren
     }
 
     [HttpPost("{id:guid}/revoke")]
+    [ProducesResponseType(typeof(ApiResponse<UserInvitationDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> Revoke(Guid id)
     {
         var result = await invitationService.RevokeAsync(id, currentUser.UserId);
@@ -52,6 +56,7 @@ public class InvitationsController(IInvitationService invitationService, ICurren
     /// </summary>
     [HttpGet("preview")]
     [AllowAnonymous]
+    [ProducesResponseType(typeof(ApiResponse<InvitationPreviewDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> Preview([FromQuery] string token)
     {
         var result = await invitationService.PreviewAsync(token);
@@ -60,6 +65,7 @@ public class InvitationsController(IInvitationService invitationService, ICurren
 
     [HttpPost("accept")]
     [AllowAnonymous]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     public async Task<IActionResult> Accept([FromBody] AcceptInvitationRequest request)
     {
         await invitationService.AcceptAsync(request);

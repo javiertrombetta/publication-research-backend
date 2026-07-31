@@ -842,6 +842,105 @@
             }
           },
           "response": []
+        },
+        {
+          "name": "Supervisors (for allocation)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/users/supervisors?search=",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "supervisors"
+              ],
+              "query": [
+                {
+                  "key": "search",
+                  "value": ""
+                }
+              ]
+            },
+            "description": "Admin and Coordinator. Deliberately narrower than the user directory: a Coordinator allocating a proposal needs the Supervisors and has no reason to be able to enumerate students or administrators. Enabled accounts only — a disabled one cannot take the work."
+          },
+          "response": []
+        },
+        {
+          "name": "Upload my profile photo",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/users/me/photo",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "me",
+                "photo"
+              ]
+            },
+            "description": "Multipart. Max 10 MB, images only — the permitted extensions are fixed here rather than taken from the administrator's upload settings, so widening those for documents never widens what can be posted as an image."
+          },
+          "response": []
+        },
+        {
+          "name": "Remove my profile photo",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/users/me/photo",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "me",
+                "photo"
+              ]
+            },
+            "description": "Deletes the stored file as well as the reference to it."
+          },
+          "response": []
+        },
+        {
+          "name": "Get a user's photo",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/users/:id/photo",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                ":id",
+                "photo"
+              ]
+            },
+            "description": "Returns the image bytes, or 404 when that account has none. Any signed-in user, since names and faces appear together throughout the interface."
+          },
+          "response": []
         }
       ]
     },
@@ -1170,6 +1269,86 @@
                 }
               }
             }
+          },
+          "response": []
+        },
+        {
+          "name": "My publications",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/containers/me",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "containers",
+                "me"
+              ]
+            },
+            "description": "Student only. Every Publication Container this student has open. A student may run several at once, so this is a list rather than a single container, and each carries the title, stage and whose turn it is."
+          },
+          "response": []
+        },
+        {
+          "name": "Publications I supervise",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/containers/supervising",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "containers",
+                "supervising"
+              ]
+            },
+            "description": "Supervisor only. The containers this Supervisor was allocated."
+          },
+          "response": []
+        },
+        {
+          "name": "Publications in my department",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/containers/in-my-department",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "containers",
+                "in-my-department"
+              ]
+            },
+            "description": "Head of Department only. Limited to students of the department this person heads — not the institution's."
+          },
+          "response": []
+        },
+        {
+          "name": "Discard a container",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/containers/:id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "containers",
+                ":id"
+              ]
+            },
+            "description": "Student only, and only while the container still holds no research proposals. Once the process has started it can no longer be discarded, so nothing anybody has reviewed disappears."
           },
           "response": []
         }
@@ -1996,6 +2175,28 @@
             }
           },
           "response": []
+        },
+        {
+          "name": "Required documents",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/containers/:containerId/ethics/required-documents",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "containers",
+                ":containerId",
+                "ethics",
+                "required-documents"
+              ]
+            },
+            "description": "The documents THIS publication was asked for, copied from the master list when documentation was requested rather than read live — so an administrator adding a fourth form does not reopen an ethics stage somebody already completed. Each one says whether it has been supplied."
+          },
+          "response": []
         }
       ]
     },
@@ -2424,6 +2625,26 @@
               ]
             },
             "description": "Admin-only. Papers whose newest version the Supervisor has approved and that have no committee yet — the administrator's queue. Status alone cannot answer this: UnderReview covers both before the Supervisor has read a paper and after they have approved it."
+          },
+          "response": []
+        },
+        {
+          "name": "Get by id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/publications/:publicationId",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "publications",
+                ":publicationId"
+              ]
+            },
+            "description": "Anyone with access to the owning container: the student, their Coordinator and Supervisor, the Head of that department, the evaluation committee, and an Admin."
           },
           "response": []
         }
@@ -2938,6 +3159,46 @@
             }
           },
           "response": []
+        },
+        {
+          "name": "Unread count",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/notifications/unread-count",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "notifications",
+                "unread-count"
+              ]
+            },
+            "description": "What the bell in the top bar shows. Cheap enough to call on every page render."
+          },
+          "response": []
+        },
+        {
+          "name": "Mark all as read",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/notifications/read",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "notifications",
+                "read"
+              ]
+            },
+            "description": "Marks every unread notification for the signed-in user as read, and says how many that was."
+          },
+          "response": []
         }
       ]
     },
@@ -2991,6 +3252,509 @@
                 }
               }
             }
+          },
+          "response": []
+        },
+        {
+          "name": "Committees",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/settings/committees",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "settings",
+                "committees"
+              ]
+            },
+            "description": "Admin only. Settings are grouped so each group is validated as a whole — a rejected mail server cannot discard an unrelated edit made at the same time."
+          },
+          "response": []
+        },
+        {
+          "name": "Update committees",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"internalMembers\": 2,\n  \"externalMembers\": 1,\n  \"minimumApprovals\": 2\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/settings/committees",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "settings",
+                "committees"
+              ]
+            },
+            "description": "Admin only. Settings are grouped so each group is validated as a whole — a rejected mail server cannot discard an unrelated edit made at the same time.\n\nApplies to publications opened from now on. Each Publication Container records the figures in force on the day it was opened, so tightening this never moves the goalposts for research already under way."
+          },
+          "response": []
+        },
+        {
+          "name": "Passwords",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/settings/passwords",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "settings",
+                "passwords"
+              ]
+            },
+            "description": "Admin only. Settings are grouped so each group is validated as a whole — a rejected mail server cannot discard an unrelated edit made at the same time."
+          },
+          "response": []
+        },
+        {
+          "name": "Update passwords",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"minimumLength\": 10,\n  \"requireDigit\": true,\n  \"requireUppercase\": true,\n  \"requireLowercase\": true,\n  \"requireSymbol\": true,\n  \"expiryDays\": 0,\n  \"lockoutAttempts\": 5,\n  \"lockoutMinutes\": 15\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/settings/passwords",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "settings",
+                "passwords"
+              ]
+            },
+            "description": "Admin only. Settings are grouped so each group is validated as a whole — a rejected mail server cannot discard an unrelated edit made at the same time.\n\nExpiryDays 0 means passwords never expire. LockoutAttempts counts every path that checks a password, signing in and changing one alike."
+          },
+          "response": []
+        },
+        {
+          "name": "Notifications and SMTP",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/settings/notifications",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "settings",
+                "notifications"
+              ]
+            },
+            "description": "Admin only. Settings are grouped so each group is validated as a whole — a rejected mail server cannot discard an unrelated edit made at the same time.\n\nThe SMTP password is never returned — the response says whether one is set, not what it is."
+          },
+          "response": []
+        },
+        {
+          "name": "Update notifications and SMTP",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"emailEnabled\": false,\n  \"smtpHost\": \"smtp.example.com\",\n  \"smtpPort\": 587,\n  \"smtpUsername\": \"\",\n  \"smtpPassword\": null,\n  \"useSsl\": true,\n  \"fromAddress\": \"no-reply@ais.ac.nz\",\n  \"fromName\": \"AIS Research Publication Site\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/settings/notifications",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "settings",
+                "notifications"
+              ]
+            },
+            "description": "Admin only. Settings are grouped so each group is validated as a whole — a rejected mail server cannot discard an unrelated edit made at the same time.\n\nWith emailEnabled false nothing is emailed and every notification is delivered in the application only, where the person sees it when they next sign in. Leave smtpPassword null to keep the stored one unchanged."
+          },
+          "response": []
+        },
+        {
+          "name": "Ethics documents",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/settings/ethics-documents",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "settings",
+                "ethics-documents"
+              ]
+            },
+            "description": "Admin only. Settings are grouped so each group is validated as a whole — a rejected mail server cannot discard an unrelated edit made at the same time.\n\nThe master list of documents a student is asked for at the ethics stage."
+          },
+          "response": []
+        },
+        {
+          "name": "Add an ethics document",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Participant Information Sheet\",\n  \"description\": \"What participants are told before consenting.\",\n  \"sortOrder\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/settings/ethics-documents",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "settings",
+                "ethics-documents"
+              ]
+            },
+            "description": "Admin only. Settings are grouped so each group is validated as a whole — a rejected mail server cannot discard an unrelated edit made at the same time."
+          },
+          "response": []
+        },
+        {
+          "name": "Edit an ethics document",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Participant Information Sheet\",\n  \"description\": \"What participants are told before consenting.\",\n  \"sortOrder\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/settings/ethics-documents/:id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "settings",
+                "ethics-documents",
+                ":id"
+              ]
+            },
+            "description": "Admin only. Settings are grouped so each group is validated as a whole — a rejected mail server cannot discard an unrelated edit made at the same time."
+          },
+          "response": []
+        },
+        {
+          "name": "Retire or restore an ethics document",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isActive\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/settings/ethics-documents/:id/active",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "settings",
+                "ethics-documents",
+                ":id",
+                "active"
+              ]
+            },
+            "description": "Admin only. Settings are grouped so each group is validated as a whole — a rejected mail server cannot discard an unrelated edit made at the same time.\n\nRetired rather than deleted. A requirement that has been asked of anyone is referenced by their uploads and by the snapshot of every ethics approval that included it; removing the row would orphan documents submitted in good faith. Inactive means stop asking for this from now on."
+          },
+          "response": []
+        },
+        {
+          "name": "Access",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/settings/access",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "settings",
+                "access"
+              ]
+            },
+            "description": "Admin only. Settings are grouped so each group is validated as a whole — a rejected mail server cannot discard an unrelated edit made at the same time."
+          },
+          "response": []
+        },
+        {
+          "name": "Update access",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"registrationMode\": \"InviteOnly\",\n  \"azureSsoEnabled\": false,\n  \"invitationValidDays\": 14,\n  \"accessTokenMinutes\": 30,\n  \"refreshTokenDays\": 14\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/settings/access",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "settings",
+                "access"
+              ]
+            },
+            "description": "Admin only. Settings are grouped so each group is validated as a whole — a rejected mail server cannot discard an unrelated edit made at the same time.\n\nRegistrationMode is Open or InviteOnly. The default is not a constant — it comes from the hosting environment, so an unconfigured system is never accidentally open in production."
+          },
+          "response": []
+        },
+        {
+          "name": "Uploads",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/settings/uploads",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "settings",
+                "uploads"
+              ]
+            },
+            "description": "Admin only. Settings are grouped so each group is validated as a whole — a rejected mail server cannot discard an unrelated edit made at the same time."
+          },
+          "response": []
+        },
+        {
+          "name": "Update uploads",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"maxMegabytes\": 50,\n  \"allowedExtensions\": \".pdf,.doc,.docx,.zip\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/settings/uploads",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "settings",
+                "uploads"
+              ]
+            },
+            "description": "Admin only. Settings are grouped so each group is validated as a whole — a rejected mail server cannot discard an unrelated edit made at the same time.\n\nExtensions are comma-separated and leading dots are optional — an administrator should be able to type \"pdf, docx\" without knowing the internal format."
+          },
+          "response": []
+        },
+        {
+          "name": "Institution",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/settings/institution",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "settings",
+                "institution"
+              ]
+            },
+            "description": "Admin only. Settings are grouped so each group is validated as a whole — a rejected mail server cannot discard an unrelated edit made at the same time."
+          },
+          "response": []
+        },
+        {
+          "name": "Update institution",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Auckland Institute of Studies\",\n  \"studentEmailDomain\": \"@aisstudent.ac.nz\",\n  \"staffEmailDomain\": \"@ais.ac.nz\",\n  \"itSupportEmail\": \"\",\n  \"researchEnquiriesEmail\": \"\",\n  \"privacyPolicyUrl\": \"https://www.ais.ac.nz/\",\n  \"currentAcademicCycle\": \"2026 Semester 2\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/settings/institution",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "settings",
+                "institution"
+              ]
+            },
+            "description": "Admin only. Settings are grouped so each group is validated as a whole — a rejected mail server cannot discard an unrelated edit made at the same time.\n\nThe email domains decide what somebody is when they register or arrive from single sign-on. These were constants in the registration code; an institution adding a second student domain should not need a deployment to accept it."
+          },
+          "response": []
+        },
+        {
+          "name": "Deadlines",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/settings/deadlines",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "settings",
+                "deadlines"
+              ]
+            },
+            "description": "Admin only. Settings are grouped so each group is validated as a whole — a rejected mail server cannot discard an unrelated edit made at the same time."
+          },
+          "response": []
+        },
+        {
+          "name": "Update deadlines",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"supervisorResponseDays\": 14,\n  \"ethicsReviewDays\": 21,\n  \"committeeReviewDays\": 30\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/settings/deadlines",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "settings",
+                "deadlines"
+              ]
+            },
+            "description": "Admin only. Settings are grouped so each group is validated as a whole — a rejected mail server cannot discard an unrelated edit made at the same time.\n\nHow long each stage is expected to take, in days; 0 means no expectation is set and nothing is ever reported late. These describe when work becomes overdue — they do not stop anyone doing it afterwards, since a deadline that blocked a late Supervisor would only strand the student."
           },
           "response": []
         }
@@ -3108,6 +3872,171 @@
                   "disabled": true
                 }
               ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Invitations",
+      "item": [
+        {
+          "name": "List",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/invitations",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "invitations"
+              ]
+            },
+            "description": "Admin only. Every invitation and its state: pending, accepted, expired or withdrawn."
+          },
+          "response": []
+        },
+        {
+          "name": "Send",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"someone@example.org\",\n  \"role\": \"ExternalCommitteeMember\",\n  \"firstName\": \"Jonathan\",\n  \"lastName\": \"Reyes\",\n  \"departmentId\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/invitations",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "invitations"
+              ]
+            },
+            "description": "Admin only. How anyone gets an account where self-registration is closed, which is every deployment that is not a development one. The role is fixed at the moment of sending, so the person cannot choose their own. DepartmentId is required for the roles that belong to a department (Student, Supervisor, Coordinator, HeadOfDepartment) and ignored for the rest.\n\nReturns 422 if the invitation was created but could not be emailed — the row still exists and the audit trail records it; use Resend once a mail server is configured."
+          },
+          "response": []
+        },
+        {
+          "name": "Resend",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/invitations/:id/resend",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "invitations",
+                ":id",
+                "resend"
+              ]
+            },
+            "description": "Admin only. Issues a fresh token, so the previous link stops working — re-sending because an email went astray should not leave two live ways in."
+          },
+          "response": []
+        },
+        {
+          "name": "Withdraw",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/invitations/:id/revoke",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "invitations",
+                ":id",
+                "revoke"
+              ]
+            },
+            "description": "Admin only. Kills the link. Refused once the invitation has been accepted: disable or delete the account instead."
+          },
+          "response": []
+        },
+        {
+          "name": "Preview (anonymous)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/invitations/preview?token=",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "invitations",
+                "preview"
+              ],
+              "query": [
+                {
+                  "key": "token",
+                  "value": ""
+                }
+              ]
+            },
+            "description": "No account required, by necessity — the whole point is that this person has none. The token is the only credential; it is unguessable and single-use. Tells the invited person who invited them and as what, before they set a password.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Accept (anonymous)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"the-token-from-the-email\",\n  \"password\": \"ChooseAStrongOne123!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/invitations/accept",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "invitations",
+                "accept"
+              ]
+            },
+            "description": "No account required. Creates the account enabled and with its address already confirmed — the invitation reaching that inbox is itself the proof the address works.",
+            "auth": {
+              "type": "noauth"
             }
           },
           "response": []

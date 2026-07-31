@@ -5,6 +5,7 @@ namespace PublicationSite.Api.DTOs.Auth;
 /// the email that was sent, so an administrator reading this list cannot accept on someone's
 /// behalf.
 /// </summary>
+/// <param name="Status"><summary>Pending, Accepted, Revoked or Expired — what the administrator actually reads.</summary></param>
 public record UserInvitationDto(
     Guid Id,
     string Email,
@@ -18,7 +19,6 @@ public record UserInvitationDto(
     DateTime ExpiresAt,
     DateTime? AcceptedAt,
     DateTime? RevokedAt,
-    /// <summary>Pending, Accepted, Revoked or Expired — what the administrator actually reads.</summary>
     string Status);
 
 /// <summary>
