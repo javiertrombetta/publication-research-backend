@@ -5,6 +5,7 @@ namespace PublicationSite.Api.DTOs.Containers;
 /// <param name="PaperStatus">The research paper's own status, or null while no paper exists yet. The Container's Status only distinguishes InProgress from Completed, so without this a listing cannot tell an accepted paper awaiting its publication decision from one still being reviewed.</param>
 /// <param name="EthicsStatus">The ethics approval's status, or null before the student has declared. Lets a listing show what a Container is waiting on without a request per row.</param>
 /// <param name="EthicsAwaitingRole">Whose turn it is in the ethics workflow, as a role name, or null when nothing is pending. EthicsStatus alone cannot answer this. PendingVerification covers four different waits — the Supervisor checking the documents, the Coordinator reviewing them, the Head of Department commenting, and the Coordinator's final decision — told apart only by which timestamps have been set. Deriving that belongs here rather than in every client.</param>
+/// <param name="PaperAwaitingRole">Whose turn it is on the research paper, as a role name, or null when nothing is pending — before a paper exists, and once it is published. UnderReview alone cannot answer this: it covers the Supervisor still reading the paper, an Admin appointing a committee, the committee voting and the Coordinator's decision, told apart only by what has been recorded against it. RoleNames.EvaluationCommittee is returned where the wait belongs to the committee as a body rather than to one role.</param>
 /// <param name="RequiredInternalCommitteeMembers">The evaluation committee this publication needs, as agreed when it was opened rather than as configured today — so an administrator assigning a committee months later is told the figures this piece of research was actually started under. Null on containers created before the figures were recorded; the current settings apply to those.</param>
 public record PublicationContainerDto(
     Guid Id,
@@ -22,6 +23,7 @@ public record PublicationContainerDto(
     string? PaperStatus = null,
     string? EthicsStatus = null,
     string? EthicsAwaitingRole = null,
+    string? PaperAwaitingRole = null,
     int? RequiredInternalCommitteeMembers = null,
     int? RequiredExternalCommitteeMembers = null);
 

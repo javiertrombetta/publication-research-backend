@@ -266,6 +266,41 @@ public class ContainerService(
                                 // Everyone has had their say; the Coordinator closes it.
                                 : RoleNames.Coordinator)
                     : null,
+            // Whose turn it is on the research paper. Like the ethics answer above, this cannot be
+            // read off the status: UnderReview covers four separate waits — the Supervisor reading
+            // it, an Admin appointing a committee, the committee voting, and the Coordinator's
+            // decision — told apart only by what has been recorded against the paper. Every screen
+            // that tried to work it out from the status alone got it wrong in the same way, by
+            // offering people work that was not theirs yet.
+            c.Publication == null
+                ? null
+                : c.Publication.Status == PublicationStatus.Draft
+                        || c.Publication.Status == PublicationStatus.RevisionsRequested
+                    // Nothing to submit yet, or sent back for another version. Either way the
+                    // paper is in the author's hands.
+                    ? RoleNames.Student
+                : c.Publication.Status == PublicationStatus.Accepted
+                    // Only the author decides whether an accepted paper is published.
+                    ? RoleNames.Student
+                : c.Publication.Status == PublicationStatus.Published
+                    ? null
+                : c.Publication.Status == PublicationStatus.Resubmitted
+                    // A new version needs a fresh reading; the approval on record is of a draft
+                    // the student has already replaced.
+                    ? RoleNames.Supervisor
+                : c.Publication.Status == PublicationStatus.UnderReview
+                    ? (!c.Publication.Versions
+                            .OrderByDescending(v => v.VersionNumber)
+                            .Take(1)
+                            .SelectMany(v => v.Reviews)
+                            .Any(r => r.ReviewerType == ReviewerType.Supervisor && r.Decision == ReviewDecision.Approve)
+                        ? RoleNames.Supervisor
+                        : c.Publication.Committee == null
+                            ? RoleNames.Admin
+                            : c.Publication.Committee.Status != CommitteeStatus.Completed
+                                ? RoleNames.EvaluationCommittee
+                                : RoleNames.Coordinator)
+                    : null,
             c.RequiredInternalCommitteeMembers,
             c.RequiredExternalCommitteeMembers));
 }

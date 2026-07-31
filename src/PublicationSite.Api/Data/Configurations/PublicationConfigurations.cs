@@ -23,11 +23,6 @@ public class PublicationConfiguration : IEntityTypeConfiguration<Publication>
             .HasForeignKey(p => p.PublishedByUserId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasOne(p => p.PublicationCategory)
-            .WithMany(c => c.Publications)
-            .HasForeignKey(p => p.PublicationCategoryId)
-            .OnDelete(DeleteBehavior.Restrict);
-
         builder.HasMany(p => p.Keywords)
             .WithMany(k => k.Publications)
             .UsingEntity(j => j.ToTable("PublicationKeywords"));

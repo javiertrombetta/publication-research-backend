@@ -908,9 +908,6 @@ namespace PublicationSite.Api.Data.Migrations
                     b.Property<bool>("IsPublished")
                         .HasColumnType("tinyint(1)");
 
-                    b.Property<Guid?>("PublicationCategoryId")
-                        .HasColumnType("char(36)");
-
                     b.Property<Guid>("PublicationContainerId")
                         .HasColumnType("char(36)");
 
@@ -940,33 +937,12 @@ namespace PublicationSite.Api.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("PublicationCategoryId");
-
                     b.HasIndex("PublicationContainerId")
                         .IsUnique();
 
                     b.HasIndex("PublishedByUserId");
 
                     b.ToTable("Publications");
-                });
-
-            modelBuilder.Entity("PublicationSite.Api.Entities.PublicationCategory", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("char(36)");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(150)
-                        .HasColumnType("varchar(150)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Name")
-                        .IsUnique();
-
-                    b.ToTable("PublicationCategories");
                 });
 
             modelBuilder.Entity("PublicationSite.Api.Entities.PublicationContainer", b =>
@@ -1731,11 +1707,6 @@ namespace PublicationSite.Api.Data.Migrations
 
             modelBuilder.Entity("PublicationSite.Api.Entities.Publication", b =>
                 {
-                    b.HasOne("PublicationSite.Api.Entities.PublicationCategory", "PublicationCategory")
-                        .WithMany("Publications")
-                        .HasForeignKey("PublicationCategoryId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("PublicationSite.Api.Entities.PublicationContainer", "PublicationContainer")
                         .WithOne("Publication")
                         .HasForeignKey("PublicationSite.Api.Entities.Publication", "PublicationContainerId")
@@ -1746,8 +1717,6 @@ namespace PublicationSite.Api.Data.Migrations
                         .WithMany()
                         .HasForeignKey("PublishedByUserId")
                         .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("PublicationCategory");
 
                     b.Navigation("PublicationContainer");
 
@@ -1992,11 +1961,6 @@ namespace PublicationSite.Api.Data.Migrations
                     b.Navigation("Committee");
 
                     b.Navigation("Versions");
-                });
-
-            modelBuilder.Entity("PublicationSite.Api.Entities.PublicationCategory", b =>
-                {
-                    b.Navigation("Publications");
                 });
 
             modelBuilder.Entity("PublicationSite.Api.Entities.PublicationContainer", b =>

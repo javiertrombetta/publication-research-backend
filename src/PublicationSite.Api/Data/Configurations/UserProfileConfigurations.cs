@@ -43,15 +43,6 @@ public class KeywordConfiguration : IEntityTypeConfiguration<Keyword>
     }
 }
 
-public class PublicationCategoryConfiguration : IEntityTypeConfiguration<PublicationCategory>
-{
-    public void Configure(EntityTypeBuilder<PublicationCategory> builder)
-    {
-        builder.Property(c => c.Name).HasMaxLength(150).IsRequired();
-        builder.HasIndex(c => c.Name).IsUnique();
-    }
-}
-
 public class SystemSettingConfiguration : IEntityTypeConfiguration<SystemSetting>
 {
     public void Configure(EntityTypeBuilder<SystemSetting> builder)

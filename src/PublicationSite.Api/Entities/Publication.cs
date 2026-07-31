@@ -25,9 +25,6 @@ public class Publication
     public Guid? PublishedByUserId { get; set; }
     public ApplicationUser? PublishedByUser { get; set; }
 
-    public Guid? PublicationCategoryId { get; set; }
-    public PublicationCategory? PublicationCategory { get; set; }
-
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
