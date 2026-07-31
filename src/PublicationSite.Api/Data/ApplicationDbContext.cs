@@ -11,7 +11,6 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<Department> Departments => Set<Department>();
     public DbSet<ResearchArea> ResearchAreas => Set<ResearchArea>();
     public DbSet<Keyword> Keywords => Set<Keyword>();
-    public DbSet<PublicationCategory> PublicationCategories => Set<PublicationCategory>();
     public DbSet<SystemSetting> SystemSettings => Set<SystemSetting>();
     public DbSet<EthicsDocumentRequirement> EthicsDocumentRequirements => Set<EthicsDocumentRequirement>();
     public DbSet<UserInvitation> UserInvitations => Set<UserInvitation>();

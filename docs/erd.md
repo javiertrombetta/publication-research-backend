@@ -1,11 +1,11 @@
 # Entity–Relationship Diagram
 
-38 tables in MySQL 8 — 36 shown below as entities, `UserRoles` drawn as a direct many-to-many, and
+39 tables in MySQL 8 — 38 shown below as entities, `UserRoles` drawn as a direct many-to-many, and
 `__EFMigrationsHistory` left out as EF Core's own migration bookkeeping, not part of the data model.
 Verified column-for-column against `SHOW TABLES` / `DESCRIBE` on the live database.
 
-This file is a snapshot generated from `Data/Migrations/*_InitialCreate.cs`. Regenerate it after schema
-changes — it does not update itself.
+This file does not update itself. Bring it back in step after a schema change — it has fallen behind
+before, which is worse than having no diagram at all, because a wrong one is still believed.
 
 ## Legend
 
@@ -104,10 +104,6 @@ erDiagram
         char36 Id PK
         varchar Name UK
     }
-    PublicationCategories {
-        char36 Id PK
-        varchar Name UK
-    }
     RefreshTokens {
         char36 Id PK
         char36 UserId FK
@@ -163,14 +159,40 @@ erDiagram
     EthicsDocuments {
         char36 Id PK
         char36 EthicsApprovalId FK
+        char36 EthicsDocumentRequirementId FK
         char36 UploadedByUserId FK
-        varchar DocumentType
+        int Version
         varchar Status
+    }
+
+    UserInvitations {
+        char36 Id PK
+        varchar Email
+        varchar Role
+        char36 DepartmentId FK
+        varchar TokenHash UK
+        datetime ExpiresAt
+        char36 InvitedByUserId FK
+        datetime AcceptedAt
+        datetime RevokedAt
+    }
+
+    EthicsDocumentRequirements {
+        char36 Id PK
+        varchar Name UK
+        int SortOrder
+        bool IsActive
+    }
+
+    EthicsApprovalRequirements {
+        char36 Id PK
+        char36 EthicsApprovalId FK
+        char36 EthicsDocumentRequirementId FK
+        int SortOrder
     }
     Publications {
         char36 Id PK
         char36 PublicationContainerId FK
-        char36 PublicationCategoryId FK
         char36 PublishedByUserId FK
         varchar Title
         varchar Status
@@ -270,10 +292,14 @@ erDiagram
     PublicationContainers ||--o| EthicsDeclarations : ""
     PublicationContainers ||--o| EthicsApprovals : ""
     EthicsApprovals ||--o{ EthicsDocuments : ""
+    EthicsApprovals ||--o{ EthicsApprovalRequirements : ""
+    EthicsDocumentRequirements ||--o{ EthicsApprovalRequirements : ""
+    EthicsDocumentRequirements ||--o{ EthicsDocuments : ""
+    Users ||--o{ UserInvitations : "invited by"
+    Departments |o--o{ UserInvitations : ""
     Users ||--o{ EthicsDocuments : "uploaded by"
     PublicationContainers ||--o| Publications : ""
     Users o|..o{ Publications : "published by"
-    PublicationCategories o|..o{ Publications : ""
     Keywords ||--o{ PublicationKeywords : ""
     Publications ||--o{ PublicationKeywords : ""
     Publications ||--o{ PublicationResearchAreas : ""
@@ -312,7 +338,7 @@ line = the foreign key also carries a unique index (one-to-one).
 
 ## Data dictionary
 
-### 🟦 Identity & academic structure (16 tables)
+### 🟦 Identity & academic structure (17 tables)
 
 | Table | Description | Keys |
 | --- | --- | --- |
@@ -348,15 +374,17 @@ line = the foreign key also carries a unique index (one-to-one).
 | `ProposalSupervisorSelections` | One row per (proposal, invited supervisor) — invited, then optionally marked feasible. | PK `Id` · FK `ProposalId`, `SupervisorId` |
 | `ProposalAssignments` | The coordinator's final allocation of a proposal to a supervisor. | PK `Id` · FK `ProposalId` (UK), `SupervisorId`, `CoordinatorId` |
 
-### 🟪 Pipeline 2 — Ethics approval (3 tables)
+### 🟪 Pipeline 2 — Ethics approval (5 tables)
 
 | Table | Description | Keys |
 | --- | --- | --- |
 | `EthicsDeclarations` | The student's Yes / No / Unsure declaration. | PK `Id` · FK `PublicationContainerId` (UK) |
 | `EthicsApprovals` | Status machine: NotRequired → PendingUpload → PendingVerification → Verified. | PK `Id` · FK `PublicationContainerId` (UK) |
-| `EthicsDocuments` | The three required forms, versioned per re-upload. | PK `Id` · FK `EthicsApprovalId`, `UploadedByUserId` |
+| `EthicsDocuments` | The documents a student supplied, versioned per re-upload. | PK `Id` · FK `EthicsApprovalId`, `EthicsDocumentRequirementId`, `UploadedByUserId` |
+| `EthicsDocumentRequirements` | The documents an administrator asks for. Retired rather than deleted, since uploads reference them. | PK `Id` · UK `Name` |
+| `EthicsApprovalRequirements` | The list one approval was asked for, copied when documentation was requested so a later change applies to new work only. | PK `Id` · FK `EthicsApprovalId`, `EthicsDocumentRequirementId` |
 
-### 🟨 Pipeline 3 — Research paper & committee (9 tables)
+### 🟨 Pipeline 3 — Research paper & committee (8 tables)
 
 | Table | Description | Keys |
 | --- | --- | --- |
@@ -366,7 +394,6 @@ line = the foreign key also carries a unique index (one-to-one).
 | `Committees` | The evaluation committee assigned to one publication. | PK `Id` · FK `PublicationId` (UK) |
 | `CommitteeRoleConfigs` | Required member counts per role — global default or per-committee override. | PK `Id` · FK `CommitteeId` (nullable) |
 | `CommitteeMembers` | Membership + individual approve/reject decision. | PK `Id` · FK `CommitteeId`, `UserId` |
-| `PublicationCategories` | Admin-managed category list. | PK `Id` · UK `Name` |
 | `PublicationKeywords` | Join table: which keywords are attached to a published paper. | PK `KeywordsId+PublicationsId` |
 | `PublicationResearchAreas` | Join table: which research areas a publication is tagged with. | PK `PublicationsId+ResearchAreasId` |
 
