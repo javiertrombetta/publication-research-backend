@@ -20,6 +20,9 @@ public interface IPublicationService
     Task SubmitAsync(Guid publicationId, Guid studentId, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<PublicationDto>> GetPendingForSupervisorAsync(Guid supervisorId, CancellationToken cancellationToken = default);
+
+    /// <summary>Papers a Supervisor has approved that still have no evaluation committee.</summary>
+    Task<IReadOnlyList<AwaitingCommitteeDto>> GetAwaitingCommitteeAsync(CancellationToken cancellationToken = default);
     Task SupervisorReviewAsync(Guid publicationId, Guid supervisorId, PaperReviewDecisionRequest request, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<ReviewDto>> GetReviewsAsync(Guid publicationId, Guid requestingUserId, CancellationToken cancellationToken = default);

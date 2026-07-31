@@ -87,6 +87,14 @@ public class PublicationsController(IPublicationService publicationService, ICur
         return Ok(ApiResponse<IReadOnlyList<PublicationDto>>.Ok(result));
     }
 
+    [HttpGet("api/publications/awaiting-committee")]
+    [Authorize(Roles = RoleNames.Admin)]
+    public async Task<IActionResult> GetAwaitingCommittee()
+    {
+        var result = await publicationService.GetAwaitingCommitteeAsync();
+        return Ok(ApiResponse<IReadOnlyList<AwaitingCommitteeDto>>.Ok(result));
+    }
+
     [HttpPost("api/publications/{publicationId:guid}/supervisor-review")]
     [Authorize(Roles = RoleNames.Supervisor)]
     public async Task<IActionResult> SupervisorReview(Guid publicationId, [FromBody] PaperReviewDecisionRequest request)

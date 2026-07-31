@@ -27,11 +27,14 @@ public class CommitteeService(
             throw new BusinessRuleException("A committee can only be assigned once the Supervisor has approved the paper.");
         }
 
-        var latestVersionApproved = await db.Reviews
-            .Where(r => r.PublicationVersion.PublicationId == publicationId && r.ReviewerType == ReviewerType.Supervisor)
-            .OrderByDescending(r => r.ReviewedAt)
-            .Select(r => r.Decision == ReviewDecision.Approve)
-            .FirstOrDefaultAsync(cancellationToken);
+        // The same condition the administrator's queue is built from, so the list can no longer
+        // offer a paper that this then refuses. It used to take the Supervisor's most recent
+        // review across every version, which is not the same question: after a resubmission that
+        // is an approval of the draft the student has already replaced.
+        var latestVersionApproved = await db.Publications
+            .Where(p => p.Id == publicationId)
+            .WhereLatestVersionApprovedBySupervisor()
+            .AnyAsync(cancellationToken);
 
         if (!latestVersionApproved)
         {

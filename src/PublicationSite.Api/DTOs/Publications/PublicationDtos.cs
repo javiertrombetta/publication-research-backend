@@ -41,3 +41,21 @@ public record ReviewDto(
 public record PaperReviewDecisionRequest(bool Accept, string Comments);
 
 public record PublishDecisionRequest(bool Publish, string? Comments);
+
+/// <summary>
+/// A research paper the Supervisor has approved and that has no evaluation committee yet — the
+/// administrator's queue, with everything that screen needs to show and to build the committee.
+///
+/// Assembled here rather than left to the caller: working it out from the containers list meant
+/// two further requests per publication, and the answer still came out wrong, because nothing in
+/// those responses says whether the Supervisor has approved.
+/// </summary>
+public record AwaitingCommitteeDto(
+    Guid Id,
+    Guid PublicationContainerId,
+    string Title,
+    string Abstract,
+    string StudentName,
+    /// <summary>The composition agreed when this publication was opened; null on ones that predate it.</summary>
+    int? RequiredInternalCommitteeMembers,
+    int? RequiredExternalCommitteeMembers);

@@ -135,10 +135,14 @@ by itself.)
    | `Cors__AllowedOrigins__0` | same as above — must match exactly for the frontend to be able to call this API |
    | `Mail__Host`, `Mail__Username`, `Mail__Password`, `Mail__FromAddress` | real SMTP credentials — until set, emails fail silently and are logged (see README), the workflow itself still works since every notification is also stored in-app |
    | `Seed__AdminEmail`, `Seed__AdminPassword` | your real Admin login — created once on first boot, never overwritten afterwards |
+   | `Seed__DemoData` | `"true"` on the shared instance the team tests against, so it comes up with an account for every role and a publication at every pipeline stage. **Remove it for production** — every demonstration account shares one published password, and the default outside development is off |
 
 4. **Manual Deploy → Deploy latest commit** (or just wait — Render also polls the image tag
-   periodically). First boot runs pending EF Core migrations and seeds roles + the Admin account
-   automatically.
+   periodically). First boot runs pending EF Core migrations and seeds the roles and the Admin
+   account automatically. With `Seed__DemoData` set, the sample dataset is then built in the
+   background — the service reports healthy straight away and the data appears over the following
+   minutes, since building it inline would hold the health check open past the point where Render
+   gives up on the deploy. `GET /api/dev/demo-data` (Admin) says when it has finished.
 
 ### 7. Verify
 
@@ -152,10 +156,12 @@ off once a real frontend exists.
 
 ## Resetting the database
 
-While the frontend team is building against this deployment, `POST /api/dev/reset-database`
-(Admin-only) wipes and recreates the schema, then reseeds roles, the configured Admin, and one
-test account per role (`DevTest123!` — see the README). It's controlled by
-`DevTools__EnableDatabaseReset` in `render.yaml`, currently `"true"`.
+While the team is testing against this deployment, `POST /api/dev/reset-database` (Admin-only)
+wipes and recreates the schema, then reseeds the roles, the configured Admin and — where
+`Seed__DemoData` is set — the whole demonstration dataset (`DevTest123!` for every account; see
+the README). It returns as soon as signing in is possible again and finishes the dataset in the
+background. It's controlled by `DevTools__EnableDatabaseReset` in `render.yaml`, currently
+`"true"`.
 
 **Turn it off (`"false"`, or delete the key) the moment this deployment holds real user data** —
 there is no confirmation step, any Admin token can trigger it, and it deletes everything.
@@ -164,7 +170,10 @@ there is no confirmation step, any Admin token can trigger it, and it deletes ev
 
 - **Uploaded files don't survive a redeploy.** `IFileStorageService` writes to local disk inside
   the container (`/app/App_Data/uploads`), and Render's default filesystem is ephemeral — a new
-  deploy starts from a fresh image with nothing written. For anything beyond a demo, either attach
+  deploy starts from a fresh image with nothing written. The demonstration dataset works around
+  this for its own uploads only: on every start it replaces any sample document whose file has
+  gone, so a redeploy doesn't leave reviewers clicking through to a 404. Anything a real person
+  uploaded is simply lost. For anything beyond a demo, either attach
   a paid [Render Disk](https://render.com/docs/disks) at that path, or implement `IFileStorageService`
   against Azure Blob Storage (the interface was designed for exactly this swap — see
   `Services/Implementations/LocalFileStorageService.cs`).

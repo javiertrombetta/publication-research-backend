@@ -63,6 +63,16 @@ services:
       - key: Seed__AdminPassword
         sync: false
 
+      # Fills an empty database with an account for every role and a publication at every stage
+      # of the three pipelines, so the team can test the whole system without building a dataset
+      # by hand. Every one of those accounts shares one published password.
+      #
+      # This blueprint describes the shared instance the team tests against, which is why it is
+      # on. A production deployment REMOVES this key — the default outside development is off, so
+      # the mistake of forgetting it costs sample data rather than opening a live site.
+      - key: Seed__DemoData
+        value: "true"
+
       # Lets an Admin call POST /api/dev/reset-database to wipe and reseed this instance —
       # meant for the team building the frontend against a shared, disposable dataset.
       # MUST be set to "false" (or removed) once this deployment holds real user data.
