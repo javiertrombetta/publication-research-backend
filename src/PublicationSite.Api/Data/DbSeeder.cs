@@ -82,4 +82,36 @@ public static class DbSeeder
             "Seeded the initial Admin account ({Email}). Remove Seed:AdminEmail/Seed:AdminPassword from configuration now that it exists.",
             adminEmail);
     }
+
+    /// <summary>
+    /// Says so, loudly, when this deployment has come up with nobody who can administer it.
+    ///
+    /// It is an easy state to reach and a silent one to be in: point a service at an empty
+    /// database with neither <c>Seed:AdminEmail</c> nor demonstration data, and the API starts
+    /// perfectly, reports healthy and serves the public catalogue. The first anyone knows of it is
+    /// a sign-in page that no credentials open, which looks like a broken login rather than an
+    /// empty user table. One line in the startup log turns that into an instruction.
+    ///
+    /// Deliberately a log line and not a refusal to start. An API with no administrator is still
+    /// serving every reader the catalogue, and crash-looping over a configuration value that can
+    /// be supplied at any time would take that away to fix nothing.
+    ///
+    /// Enabled accounts only: an Admin that is disabled or awaiting confirmation is not a way in.
+    /// </summary>
+    public static async Task WarnIfNoAdministratorAsync(IServiceProvider services)
+    {
+        var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
+
+        var administrators = await userManager.GetUsersInRoleAsync(RoleNames.Admin);
+        if (administrators.Any(a => a.Status == UserStatus.Enabled))
+        {
+            return;
+        }
+
+        services.GetRequiredService<ILoggerFactory>().CreateLogger(nameof(DbSeeder)).LogError(
+            "This deployment has no enabled Admin account, so nobody can sign in to administer it. " +
+            "Set Seed:AdminEmail and Seed:AdminPassword and deploy again — the account is created on the " +
+            "next startup, and neither value ever overwrites an existing account, so this is safe to do " +
+            "at any point. Clear them once you have signed in.");
+    }
 }

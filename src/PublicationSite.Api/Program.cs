@@ -239,6 +239,13 @@ using (var scope = app.Services.CreateScope())
     // The demonstration dataset is not seeded here. It is slow enough against a hosted database
     // to hold up the health check, so DemoDataSeedRunner starts it once the server is listening —
     // and it is registered only where it is wanted (see DemoDataSeeder.IsEnabled).
+    //
+    // Which is also why this check is skipped where that dataset is coming: it brings an Admin
+    // with it, and complaining before it has finished would be an alarm about nothing.
+    if (!DemoDataSeeder.IsEnabled(app.Configuration, app.Environment))
+    {
+        await DbSeeder.WarnIfNoAdministratorAsync(scope.ServiceProvider);
+    }
 }
 
 // ---------- Middleware pipeline ----------
