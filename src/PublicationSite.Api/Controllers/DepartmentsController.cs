@@ -12,6 +12,7 @@ namespace PublicationSite.Api.Controllers;
 public class DepartmentsController(IDepartmentService departmentService) : ControllerBase
 {
     [HttpGet]
+    [AllowAnonymous]
     public async Task<IActionResult> GetAll()
     {
         var result = await departmentService.GetAllAsync();
