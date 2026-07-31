@@ -34,7 +34,7 @@ jobs:
       # Restore pulls the same packages every run otherwise. Keyed on the project files, so it
       # only rebuilds when a dependency actually changes.
       - name: Cache NuGet packages
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
