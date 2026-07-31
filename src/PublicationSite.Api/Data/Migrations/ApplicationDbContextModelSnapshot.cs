@@ -289,6 +289,9 @@ namespace PublicationSite.Api.Data.Migrations
                         .HasMaxLength(256)
                         .HasColumnType("varchar(256)");
 
+                    b.Property<DateTime?>("PasswordChangedAt")
+                        .HasColumnType("datetime(6)");
+
                     b.Property<string>("PasswordHash")
                         .HasColumnType("longtext");
 
@@ -605,6 +608,31 @@ namespace PublicationSite.Api.Data.Migrations
                     b.ToTable("EthicsApprovals");
                 });
 
+            modelBuilder.Entity("PublicationSite.Api.Entities.EthicsApprovalRequirement", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<Guid>("EthicsApprovalId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<Guid>("EthicsDocumentRequirementId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EthicsDocumentRequirementId");
+
+                    b.HasIndex("EthicsApprovalId", "EthicsDocumentRequirementId")
+                        .IsUnique();
+
+                    b.ToTable("EthicsApprovalRequirements");
+                });
+
             modelBuilder.Entity("PublicationSite.Api.Entities.EthicsDeclaration", b =>
                 {
                     b.Property<Guid>("Id")
@@ -634,10 +662,10 @@ namespace PublicationSite.Api.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("char(36)");
 
-                    b.Property<int>("DocumentType")
-                        .HasColumnType("int");
-
                     b.Property<Guid>("EthicsApprovalId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<Guid>("EthicsDocumentRequirementId")
                         .HasColumnType("char(36)");
 
                     b.Property<string>("FileName")
@@ -669,9 +697,45 @@ namespace PublicationSite.Api.Data.Migrations
 
                     b.HasIndex("EthicsApprovalId");
 
+                    b.HasIndex("EthicsDocumentRequirementId");
+
                     b.HasIndex("UploadedByUserId");
 
                     b.ToTable("EthicsDocuments");
+                });
+
+            modelBuilder.Entity("PublicationSite.Api.Entities.EthicsDocumentRequirement", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("EthicsDocumentRequirements");
                 });
 
             modelBuilder.Entity("PublicationSite.Api.Entities.HeadOfDepartmentProfile", b =>
@@ -924,6 +988,15 @@ namespace PublicationSite.Api.Data.Migrations
                         .HasColumnType("datetime(6)");
 
                     b.Property<int>("CurrentPipeline")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("RequiredCommitteeApprovals")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("RequiredExternalCommitteeMembers")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("RequiredInternalCommitteeMembers")
                         .HasColumnType("int");
 
                     b.Property<int>("Status")
@@ -1226,6 +1299,74 @@ namespace PublicationSite.Api.Data.Migrations
                     b.ToTable("SystemSettings");
                 });
 
+            modelBuilder.Entity("PublicationSite.Api.Entities.UserInvitation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime?>("AcceptedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid?>("DepartmentId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("varchar(256)");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("FirstName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<Guid>("InvitedByUserId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("LastName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<DateTime?>("RevokedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid?>("RevokedByUserId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DepartmentId");
+
+                    b.HasIndex("Email");
+
+                    b.HasIndex("InvitedByUserId");
+
+                    b.HasIndex("RevokedByUserId");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique();
+
+                    b.ToTable("UserInvitations");
+                });
+
             modelBuilder.Entity("ResearchAreaStudentProfile", b =>
                 {
                     b.Property<Guid>("ResearchAreasId")
@@ -1455,6 +1596,25 @@ namespace PublicationSite.Api.Data.Migrations
                     b.Navigation("PublicationContainer");
                 });
 
+            modelBuilder.Entity("PublicationSite.Api.Entities.EthicsApprovalRequirement", b =>
+                {
+                    b.HasOne("PublicationSite.Api.Entities.EthicsApproval", "EthicsApproval")
+                        .WithMany("RequiredDocuments")
+                        .HasForeignKey("EthicsApprovalId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("PublicationSite.Api.Entities.EthicsDocumentRequirement", "EthicsDocumentRequirement")
+                        .WithMany()
+                        .HasForeignKey("EthicsDocumentRequirementId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("EthicsApproval");
+
+                    b.Navigation("EthicsDocumentRequirement");
+                });
+
             modelBuilder.Entity("PublicationSite.Api.Entities.EthicsDeclaration", b =>
                 {
                     b.HasOne("PublicationSite.Api.Entities.PublicationContainer", "PublicationContainer")
@@ -1474,6 +1634,12 @@ namespace PublicationSite.Api.Data.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("PublicationSite.Api.Entities.EthicsDocumentRequirement", "EthicsDocumentRequirement")
+                        .WithMany("Documents")
+                        .HasForeignKey("EthicsDocumentRequirementId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("PublicationSite.Api.Entities.ApplicationUser", "UploadedByUser")
                         .WithMany()
                         .HasForeignKey("UploadedByUserId")
@@ -1481,6 +1647,8 @@ namespace PublicationSite.Api.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("EthicsApproval");
+
+                    b.Navigation("EthicsDocumentRequirement");
 
                     b.Navigation("UploadedByUser");
                 });
@@ -1731,6 +1899,31 @@ namespace PublicationSite.Api.Data.Migrations
                     b.Navigation("UpdatedByUser");
                 });
 
+            modelBuilder.Entity("PublicationSite.Api.Entities.UserInvitation", b =>
+                {
+                    b.HasOne("PublicationSite.Api.Entities.Department", "Department")
+                        .WithMany()
+                        .HasForeignKey("DepartmentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("PublicationSite.Api.Entities.ApplicationUser", "InvitedByUser")
+                        .WithMany()
+                        .HasForeignKey("InvitedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("PublicationSite.Api.Entities.ApplicationUser", "RevokedByUser")
+                        .WithMany()
+                        .HasForeignKey("RevokedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Department");
+
+                    b.Navigation("InvitedByUser");
+
+                    b.Navigation("RevokedByUser");
+                });
+
             modelBuilder.Entity("ResearchAreaStudentProfile", b =>
                 {
                     b.HasOne("PublicationSite.Api.Entities.ResearchArea", null)
@@ -1783,6 +1976,13 @@ namespace PublicationSite.Api.Data.Migrations
                 });
 
             modelBuilder.Entity("PublicationSite.Api.Entities.EthicsApproval", b =>
+                {
+                    b.Navigation("Documents");
+
+                    b.Navigation("RequiredDocuments");
+                });
+
+            modelBuilder.Entity("PublicationSite.Api.Entities.EthicsDocumentRequirement", b =>
                 {
                     b.Navigation("Documents");
                 });

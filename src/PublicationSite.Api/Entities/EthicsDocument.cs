@@ -9,7 +9,9 @@ public class EthicsDocument
     public Guid EthicsApprovalId { get; set; }
     public EthicsApproval EthicsApproval { get; set; } = null!;
 
-    public EthicsDocumentType DocumentType { get; set; }
+    /// <summary>Which of the required documents this file is. Was a fixed enum; now configurable data.</summary>
+    public Guid EthicsDocumentRequirementId { get; set; }
+    public EthicsDocumentRequirement EthicsDocumentRequirement { get; set; } = null!;
     public string FileName { get; set; } = string.Empty;
     public string FilePath { get; set; } = string.Empty;
     public int Version { get; set; } = 1;

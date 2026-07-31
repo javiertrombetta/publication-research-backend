@@ -14,8 +14,12 @@ public class AuthController(IAuthService authService, ICurrentUserService curren
     [AllowAnonymous]
     public async Task<IActionResult> Register([FromBody] RegisterRequest request)
     {
-        await authService.RegisterAsync(request);
-        return Ok(ApiResponse.Ok("Registration successful. Please check your email to verify your address."));
+        var emailSent = await authService.RegisterAsync(request);
+
+        return Ok(ApiResponse.Ok(emailSent
+            ? "Registration successful. Please check your email to verify your address."
+            : "Your account was created, but the verification email could not be sent. " +
+              "Ask an administrator to check the mail server before trying to sign in."));
     }
 
     [HttpPost("login")]

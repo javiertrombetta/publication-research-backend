@@ -19,4 +19,12 @@ public interface IEthicsService
     Task CoordinatorReviewDocumentsAsync(Guid publicationContainerId, Guid coordinatorId, CoordinatorDocumentReviewRequest request, CancellationToken cancellationToken = default);
     Task HeadOfDepartmentReviewAsync(Guid publicationContainerId, Guid headOfDepartmentId, HeadOfDepartmentReviewRequest request, CancellationToken cancellationToken = default);
     Task CoordinatorFinalDecisionAsync(Guid publicationContainerId, Guid coordinatorId, CoordinatorFinalDecisionRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// The documents this particular publication must supply, with the ones already accepted
+    /// marked off. Read from the approval's own snapshot, so it reflects what was asked of this
+    /// student rather than what would be asked of one starting today.
+    /// </summary>
+    Task<IReadOnlyList<RequiredEthicsDocumentDto>> GetRequiredDocumentsAsync(
+        Guid publicationContainerId, Guid requestingUserId, CancellationToken cancellationToken = default);
 }

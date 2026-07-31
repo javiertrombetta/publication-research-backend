@@ -13,7 +13,8 @@ public class ContainerService(
     ApplicationDbContext db,
     IDepartmentService departmentService,
     IContainerAccessService accessService,
-    IAuditService auditService) : IContainerService
+    IAuditService auditService,
+    ISystemSettingService settingService) : IContainerService
 {
     public async Task<PublicationContainerDto> CreateAsync(Guid studentUserId, CancellationToken cancellationToken = default)
     {
@@ -24,19 +25,28 @@ public class ContainerService(
 
         var coordinatorId = await departmentService.SelectCoordinatorForDepartmentAsync(studentProfile.DepartmentId, cancellationToken);
 
+        // Taken now and kept, so that a later change to the settings governs the publications
+        // opened after it and not this one.
+        var committeeRules = await settingService.GetCommitteeSettingsAsync(cancellationToken);
+
         var container = new PublicationContainer
         {
             StudentId = studentUserId,
             CoordinatorId = coordinatorId,
             CurrentPipeline = PipelineStage.ResearchProposals,
-            Status = ContainerStatus.InProgress
+            Status = ContainerStatus.InProgress,
+            RequiredInternalCommitteeMembers = committeeRules.InternalMembers,
+            RequiredExternalCommitteeMembers = committeeRules.ExternalMembers,
+            RequiredCommitteeApprovals = committeeRules.MinimumApprovals
         };
 
         db.PublicationContainers.Add(container);
         await db.SaveChangesAsync(cancellationToken);
 
         await auditService.LogActivityAsync(container.Id, studentUserId, "ContainerCreated",
-            "Publication Container created; Coordinator auto-assigned by department workload.",
+            "Publication Container created; Coordinator auto-assigned by department workload. " +
+            $"Its evaluation committee will need {committeeRules.InternalMembers} internal and " +
+            $"{committeeRules.ExternalMembers} external members.",
             newStatus: container.Status.ToString());
 
         return await GetByIdInternalAsync(container.Id, cancellationToken);
@@ -55,6 +65,38 @@ public class ContainerService(
         return await ProjectToDto(
                 db.PublicationContainers
                     .Where(c => c.StudentId == studentUserId)
+                    .OrderByDescending(c => c.CreatedAt))
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<PublicationContainerDto>> GetSupervisingAsync(Guid supervisorUserId, CancellationToken cancellationToken = default)
+    {
+        // Ordered before projecting, as in GetMineAsync: the DTO carries correlated sub-queries
+        // that EF Core cannot order on top of.
+        return await ProjectToDto(
+                db.PublicationContainers
+                    .Where(c => c.AssignedSupervisorId == supervisorUserId)
+                    .OrderByDescending(c => c.CreatedAt))
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<PublicationContainerDto>> GetInMyDepartmentAsync(Guid headOfDepartmentUserId, CancellationToken cancellationToken = default)
+    {
+        // Exactly one Head of Department per Department, so a single id is all there is to match.
+        var departmentId = await db.HeadOfDepartmentProfiles
+            .Where(h => h.UserId == headOfDepartmentUserId)
+            .Select(h => (Guid?)h.DepartmentId)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (departmentId is null)
+        {
+            return [];
+        }
+
+        return await ProjectToDto(
+                db.PublicationContainers
+                    .Where(c => c.Student.StudentProfile != null
+                                && c.Student.StudentProfile.DepartmentId == departmentId)
                     .OrderByDescending(c => c.CreatedAt))
             .ToListAsync(cancellationToken);
     }
@@ -200,5 +242,30 @@ public class ContainerService(
                 ? c.Publication.Title
                 : c.Proposals.Where(p => p.Status == ProposalStatus.Assigned).Select(p => p.Title).FirstOrDefault(),
             c.Proposals.Count,
-            c.Publication == null ? null : c.Publication.Status.ToString()));
+            c.Publication == null ? null : c.Publication.Status.ToString(),
+            c.EthicsApproval == null ? null : c.EthicsApproval.Status.ToString(),
+            c.EthicsApproval == null
+                ? null
+                // Nobody has ruled on the declaration yet.
+                : c.EthicsApproval.Status == EthicsStatus.PendingSupervisorDecision
+                    ? RoleNames.Supervisor
+                // A Supervisor said no documentation is needed; the Coordinator confirms it.
+                : c.EthicsApproval.Status == EthicsStatus.NotRequired && c.EthicsApproval.FinalDecisionAt == null
+                    ? RoleNames.Coordinator
+                // Documentation was asked for and the student has yet to upload it.
+                : c.EthicsApproval.Status == EthicsStatus.PendingUpload
+                    ? RoleNames.Student
+                : c.EthicsApproval.Status == EthicsStatus.PendingVerification
+                    // Uploaded and not yet looked at: the Supervisor sees them first.
+                    ? (c.EthicsApproval.Documents.Any(d => d.Status == EthicsDocumentStatus.PendingReview)
+                        ? RoleNames.Supervisor
+                        : c.EthicsApproval.CoordinatorDecisionAt == null
+                            ? RoleNames.Coordinator
+                            : c.EthicsApproval.HeadOfDepartmentReviewedAt == null
+                                ? RoleNames.HeadOfDepartment
+                                // Everyone has had their say; the Coordinator closes it.
+                                : RoleNames.Coordinator)
+                    : null,
+            c.RequiredInternalCommitteeMembers,
+            c.RequiredExternalCommitteeMembers));
 }

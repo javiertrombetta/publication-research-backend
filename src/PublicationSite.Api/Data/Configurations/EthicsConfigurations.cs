@@ -51,5 +51,44 @@ public class EthicsDocumentConfiguration : IEntityTypeConfiguration<EthicsDocume
             .WithMany()
             .HasForeignKey(d => d.UploadedByUserId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        // Restrict: a requirement that has been uploaded against cannot be deleted, only
+        // retired. Otherwise removing a form from the list would take submitted work with it.
+        builder.HasOne(d => d.EthicsDocumentRequirement)
+            .WithMany(r => r.Documents)
+            .HasForeignKey(d => d.EthicsDocumentRequirementId)
+            .OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+public class EthicsDocumentRequirementConfiguration : IEntityTypeConfiguration<EthicsDocumentRequirement>
+{
+    public void Configure(EntityTypeBuilder<EthicsDocumentRequirement> builder)
+    {
+        builder.Property(r => r.Name).HasMaxLength(200).IsRequired();
+        builder.Property(r => r.Description).HasColumnType("text");
+
+        // Two forms with the same name would be indistinguishable to the student uploading
+        // against them. Retired ones are included: reusing a retired name would make the
+        // history ambiguous too.
+        builder.HasIndex(r => r.Name).IsUnique();
+    }
+}
+
+public class EthicsApprovalRequirementConfiguration : IEntityTypeConfiguration<EthicsApprovalRequirement>
+{
+    public void Configure(EntityTypeBuilder<EthicsApprovalRequirement> builder)
+    {
+        builder.HasIndex(r => new { r.EthicsApprovalId, r.EthicsDocumentRequirementId }).IsUnique();
+
+        builder.HasOne(r => r.EthicsApproval)
+            .WithMany(a => a.RequiredDocuments)
+            .HasForeignKey(r => r.EthicsApprovalId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(r => r.EthicsDocumentRequirement)
+            .WithMany()
+            .HasForeignKey(r => r.EthicsDocumentRequirementId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

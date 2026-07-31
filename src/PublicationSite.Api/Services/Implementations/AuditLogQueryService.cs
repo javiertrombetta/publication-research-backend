@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
 using PublicationSite.Api.Data;
@@ -18,7 +19,7 @@ public class AuditLogQueryService(ApplicationDbContext db) : IAuditLogQueryServi
             .OrderByDescending(a => a.Timestamp)
             .Skip((query.Page - 1) * query.PageSize)
             .Take(query.PageSize)
-            .Select(a => ToDto(a))
+            .Select(ToDto)
             .ToListAsync(cancellationToken);
 
         return new PagedResult<AuditLogEntryDto>(items, query.Page, query.PageSize, totalCount);
@@ -26,7 +27,7 @@ public class AuditLogQueryService(ApplicationDbContext db) : IAuditLogQueryServi
 
     public async Task<byte[]> ExportCsvAsync(AuditLogQuery query, CancellationToken cancellationToken = default)
     {
-        var items = await Filter(query).OrderByDescending(a => a.Timestamp).Select(a => ToDto(a)).ToListAsync(cancellationToken);
+        var items = await Filter(query).OrderByDescending(a => a.Timestamp).Select(ToDto).ToListAsync(cancellationToken);
 
         var sb = new StringBuilder();
         sb.AppendLine("Timestamp,Actor,OnBehalfOf,ActionType,EntityType,EntityId,Comments");
@@ -60,8 +61,15 @@ public class AuditLogQueryService(ApplicationDbContext db) : IAuditLogQueryServi
 
     private static string CsvEscape(string value) => $"\"{value.Replace("\"", "\"\"")}\"";
 
-    private static AuditLogEntryDto ToDto(Entities.AuditLogEntry a) => new(
-        a.Id, a.ActorUser.FirstName + " " + a.ActorUser.LastName,
-        a.OnBehalfOfUser == null ? null : a.OnBehalfOfUser.FirstName + " " + a.OnBehalfOfUser.LastName,
-        a.ActionType, a.EntityType, a.EntityId, a.PreviousValue, a.NewValue, a.Comments, a.Timestamp);
+    /// <summary>
+    /// An expression rather than a method, so EF Core translates it into the SQL SELECT and joins
+    /// the actor. Called as a method it was evaluated in memory instead, against an entity whose
+    /// ActorUser navigation had never been loaded — every request threw a NullReferenceException.
+    /// </summary>
+    private static readonly Expression<Func<Entities.AuditLogEntry, AuditLogEntryDto>> ToDto = a =>
+        new AuditLogEntryDto(
+            a.Id,
+            a.ActorUser.FirstName + " " + a.ActorUser.LastName,
+            a.OnBehalfOfUser == null ? null : a.OnBehalfOfUser.FirstName + " " + a.OnBehalfOfUser.LastName,
+            a.ActionType, a.EntityType, a.EntityId, a.PreviousValue, a.NewValue, a.Comments, a.Timestamp);
 }

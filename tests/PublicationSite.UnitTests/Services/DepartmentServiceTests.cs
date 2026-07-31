@@ -1,4 +1,5 @@
 using FluentAssertions;
+using PublicationSite.Api.Common;
 using PublicationSite.Api.Common.Exceptions;
 using PublicationSite.Api.DTOs.Departments;
 using PublicationSite.Api.Enums;
@@ -58,9 +59,11 @@ public class DepartmentServiceTests : IDisposable
 
         var busyCoordinator = TestDataBuilder.User(_fixture.Context);
         TestDataBuilder.CoordinatorProfile(_fixture.Context, busyCoordinator, department);
+        TestDataBuilder.GrantRole(_fixture.Context, busyCoordinator, RoleNames.Coordinator);
 
         var freeCoordinator = TestDataBuilder.User(_fixture.Context);
         TestDataBuilder.CoordinatorProfile(_fixture.Context, freeCoordinator, department);
+        TestDataBuilder.GrantRole(_fixture.Context, freeCoordinator, RoleNames.Coordinator);
 
         // Give the "busy" coordinator two active containers, the "free" one none.
         var student1 = TestDataBuilder.User(_fixture.Context);
@@ -80,9 +83,11 @@ public class DepartmentServiceTests : IDisposable
 
         var onLeave = TestDataBuilder.User(_fixture.Context);
         TestDataBuilder.CoordinatorProfile(_fixture.Context, onLeave, department, isAvailable: false);
+        TestDataBuilder.GrantRole(_fixture.Context, onLeave, RoleNames.Coordinator);
 
         var available = TestDataBuilder.User(_fixture.Context);
         TestDataBuilder.CoordinatorProfile(_fixture.Context, available, department, isAvailable: true);
+        TestDataBuilder.GrantRole(_fixture.Context, available, RoleNames.Coordinator);
 
         var selected = await _sut.SelectCoordinatorForDepartmentAsync(department.Id);
 
@@ -96,13 +101,34 @@ public class DepartmentServiceTests : IDisposable
 
         var disabled = TestDataBuilder.User(_fixture.Context, status: UserStatus.Disabled);
         TestDataBuilder.CoordinatorProfile(_fixture.Context, disabled, department);
+        TestDataBuilder.GrantRole(_fixture.Context, disabled, RoleNames.Coordinator);
 
         var enabled = TestDataBuilder.User(_fixture.Context, status: UserStatus.Enabled);
         TestDataBuilder.CoordinatorProfile(_fixture.Context, enabled, department);
+        TestDataBuilder.GrantRole(_fixture.Context, enabled, RoleNames.Coordinator);
 
         var selected = await _sut.SelectCoordinatorForDepartmentAsync(department.Id);
 
         selected.Should().Be(enabled.Id);
+    }
+
+    /// <summary>
+    /// A profile outlives the role that created it — they are never deleted, because Publication
+    /// Containers point at them — so someone moved off Coordinator keeps a Coordinator Profile.
+    /// They must stop being handed new students the moment the role goes.
+    /// </summary>
+    [Fact]
+    public async Task SelectCoordinatorForDepartmentAsync_ignores_a_profile_whose_owner_no_longer_holds_the_role()
+    {
+        var department = TestDataBuilder.Department(_fixture.Context);
+
+        // Has the profile but was never granted the role: the state left behind by a demotion.
+        var formerCoordinator = TestDataBuilder.User(_fixture.Context);
+        TestDataBuilder.CoordinatorProfile(_fixture.Context, formerCoordinator, department);
+
+        var act = () => _sut.SelectCoordinatorForDepartmentAsync(department.Id);
+
+        await act.Should().ThrowAsync<BusinessRuleException>();
     }
 
     [Fact]

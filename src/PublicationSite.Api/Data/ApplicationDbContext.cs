@@ -13,6 +13,9 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<Keyword> Keywords => Set<Keyword>();
     public DbSet<PublicationCategory> PublicationCategories => Set<PublicationCategory>();
     public DbSet<SystemSetting> SystemSettings => Set<SystemSetting>();
+    public DbSet<EthicsDocumentRequirement> EthicsDocumentRequirements => Set<EthicsDocumentRequirement>();
+    public DbSet<UserInvitation> UserInvitations => Set<UserInvitation>();
+    public DbSet<EthicsApprovalRequirement> EthicsApprovalRequirements => Set<EthicsApprovalRequirement>();
 
     public DbSet<StudentProfile> StudentProfiles => Set<StudentProfile>();
     public DbSet<SupervisorProfile> SupervisorProfiles => Set<SupervisorProfile>();

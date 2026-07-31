@@ -26,13 +26,6 @@ public enum EthicsStatus
     PendingSupervisorDecision = 4
 }
 
-public enum EthicsDocumentType
-{
-    ApprovalCertificate,
-    ApplicationForm,
-    ParticipantConsentForm
-}
-
 public enum EthicsDocumentStatus
 {
     PendingReview,

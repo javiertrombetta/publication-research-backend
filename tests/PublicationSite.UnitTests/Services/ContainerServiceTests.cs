@@ -4,6 +4,7 @@ using PublicationSite.Api.Common.Exceptions;
 using PublicationSite.Api.DTOs.Containers;
 using PublicationSite.Api.Enums;
 using PublicationSite.Api.Services.Implementations;
+using PublicationSite.Api.DTOs.Settings;
 using PublicationSite.Api.Services.Interfaces;
 using PublicationSite.UnitTests.TestSupport;
 using Xunit;
@@ -16,12 +17,19 @@ public class ContainerServiceTests : IDisposable
     private readonly Mock<IDepartmentService> _departmentService = new();
     private readonly Mock<IContainerAccessService> _accessService = new();
     private readonly Mock<IAuditService> _auditService = new();
+    private readonly Mock<ISystemSettingService> _settingService = new();
     private readonly ContainerService _sut;
 
     public ContainerServiceTests()
     {
         _accessService.Setup(a => a.EnsureAccessAsync(It.IsAny<Guid>(), It.IsAny<Guid>())).Returns(Task.CompletedTask);
-        _sut = new ContainerService(_fixture.Context, _departmentService.Object, _accessService.Object, _auditService.Object);
+
+        // Creating a container snapshots the committee rules onto it, so they have to answer.
+        _settingService.Setup(s => s.GetCommitteeSettingsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new CommitteeSettingsDto(2, 1, 2));
+
+        _sut = new ContainerService(_fixture.Context, _departmentService.Object, _accessService.Object,
+            _auditService.Object, _settingService.Object);
     }
 
     public void Dispose() => _fixture.Dispose();

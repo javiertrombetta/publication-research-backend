@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using PublicationSite.Api.Common;
 using PublicationSite.Api.DTOs.Common;
 using PublicationSite.Api.DTOs.Users;
+using PublicationSite.Api.Enums;
 using PublicationSite.Api.Services.Interfaces;
 
 namespace PublicationSite.Api.Controllers;
@@ -60,6 +61,20 @@ public class UsersController(IUserService userService, ICurrentUserService curre
         return Ok(ApiResponse<IReadOnlyList<UserListItemDto>>.Ok(result));
     }
 
+    /// <summary>
+    /// The supervisors a Coordinator can send proposals to. Narrower than the full user list,
+    /// which stays Admin-only: assigning supervision needs exactly this and nothing more, and
+    /// there is no reason for a Coordinator to be able to enumerate students or administrators.
+    /// Only enabled accounts, since a disabled one cannot take the work.
+    /// </summary>
+    [HttpGet("supervisors")]
+    [Authorize(Roles = $"{RoleNames.Admin},{RoleNames.Coordinator}")]
+    public async Task<IActionResult> GetSupervisors([FromQuery] string? search)
+    {
+        var result = await userService.GetAllAsync(RoleNames.Supervisor, nameof(UserStatus.Enabled), search);
+        return Ok(ApiResponse<IReadOnlyList<UserListItemDto>>.Ok(result));
+    }
+
     [HttpGet("{id:guid}")]
     [Authorize(Roles = RoleNames.Admin)]
     public async Task<IActionResult> GetById(Guid id)
@@ -72,8 +87,13 @@ public class UsersController(IUserService userService, ICurrentUserService curre
     [Authorize(Roles = RoleNames.Admin)]
     public async Task<IActionResult> Create([FromBody] CreateUserRequest request)
     {
-        var result = await userService.CreateAsync(request, currentUser.UserId);
-        return CreatedAtAction(nameof(GetById), new { id = result.Id }, ApiResponse<UserDetailDto>.Ok(result));
+        var (user, passwordEmailSent) = await userService.CreateAsync(request, currentUser.UserId);
+
+        return CreatedAtAction(nameof(GetById), new { id = user.Id }, ApiResponse<UserDetailDto>.Ok(user,
+            passwordEmailSent
+                ? $"Account created. {user.Email} has been emailed a link to set their password."
+                : $"Account created, but {user.Email} could not be emailed a link to set their password. " +
+                  "Check the mail server under System settings, then reset their password to send it again."));
     }
 
     [HttpPut("{id:guid}")]

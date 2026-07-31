@@ -14,6 +14,13 @@ public class ApplicationUser : IdentityUser<Guid>
 
     /// <summary>Storage-relative path of the user's profile photo; null when they have none.</summary>
     public string? ProfilePhotoPath { get; set; }
+    /// <summary>
+    /// When the password was last set. Null for accounts that predate password expiry, and for
+    /// accounts that have never had a local password (Azure sign-in); both are treated as
+    /// not expired, so turning expiry on does not lock out the whole institution at once.
+    /// </summary>
+    public DateTime? PasswordChangedAt { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 

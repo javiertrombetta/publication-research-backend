@@ -47,6 +47,16 @@ public class EthicsController(IEthicsService ethicsService, ICurrentUserService 
         return Ok(ApiResponse<EthicsDocumentDto>.Ok(result));
     }
 
+    /// <summary>
+    /// What this publication has been asked to supply, and what is still outstanding.
+    /// </summary>
+    [HttpGet("api/containers/{containerId:guid}/ethics/required-documents")]
+    public async Task<IActionResult> GetRequiredDocuments(Guid containerId)
+    {
+        var result = await ethicsService.GetRequiredDocumentsAsync(containerId, currentUser.UserId);
+        return Ok(ApiResponse<IReadOnlyList<RequiredEthicsDocumentDto>>.Ok(result));
+    }
+
     [HttpGet("api/containers/{containerId:guid}/ethics/documents")]
     public async Task<IActionResult> GetDocuments(Guid containerId)
     {

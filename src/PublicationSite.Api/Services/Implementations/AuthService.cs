@@ -17,21 +17,29 @@ namespace PublicationSite.Api.Services.Implementations;
 
 public class AuthService(
     UserManager<ApplicationUser> userManager,
-    SignInManager<ApplicationUser> signInManager,
     ApplicationDbContext db,
     ITokenService tokenService,
     IEmailSender emailSender,
     IAuditService auditService,
+    ISystemSettingService settingService,
+    IAccountLockoutService lockoutService,
     IOptions<FrontendSettings> frontendOptions) : IAuthService
 {
-    private const string StudentEmailDomain = "@aisstudent.ac.nz";
-    private const string StaffEmailDomain = "@ais.ac.nz";
-
     private readonly FrontendSettings _frontend = frontendOptions.Value;
 
-    public async Task RegisterAsync(RegisterRequest request, CancellationToken cancellationToken = default)
+    public async Task<bool> RegisterAsync(RegisterRequest request, CancellationToken cancellationToken = default)
     {
-        var role = ResolveRoleFromEmail(request.Email);
+        // Whether anyone may sign themselves up at all. Checked before the address is even
+        // looked at: on a closed system the answer is the same for every address, and saying so
+        // plainly is better than rejecting each one for a different-sounding reason.
+        var access = await settingService.GetAccessSettingsAsync(cancellationToken);
+        if (access.RegistrationMode != SettingKeys.RegistrationModeOpen)
+        {
+            throw new ForbiddenException(
+                "Accounts are created by invitation. Ask an administrator to invite you.");
+        }
+
+        var role = await ResolveRoleFromEmailAsync(request.Email, cancellationToken);
 
         var user = new ApplicationUser
         {
@@ -50,6 +58,7 @@ public class AuthService(
             throw new ValidationAppException(createResult.Errors.Select(e => e.Description).ToList());
         }
 
+        await StampPasswordChangedAsync(user);
         await userManager.AddToRoleAsync(user, role);
 
         if (role == RoleNames.Student)
@@ -57,7 +66,7 @@ public class AuthService(
             await CreateStudentProfileAsync(user, request, cancellationToken);
         }
 
-        await SendEmailVerificationAsync(user);
+        return await SendEmailVerificationAsync(user);
     }
 
     public async Task<AuthResponse> LoginAsync(LoginRequest request, CancellationToken cancellationToken = default)
@@ -65,15 +74,25 @@ public class AuthService(
         var user = await userManager.FindByEmailAsync(request.Email)
             ?? throw new ForbiddenException("Invalid email or password.");
 
-        var checkResult = await signInManager.CheckPasswordSignInAsync(user, request.Password, lockoutOnFailure: true);
-        if (!checkResult.Succeeded)
+        // Checked before the password, so a locked account never learns whether the password
+        // it was given happens to be the right one.
+        await lockoutService.EnsureNotLockedOutAsync(user, cancellationToken);
+
+        if (!await userManager.CheckPasswordAsync(user, request.Password))
         {
-            throw new ForbiddenException(checkResult.IsLockedOut
-                ? "Account is temporarily locked due to too many failed attempts."
-                : "Invalid email or password.");
+            if (await lockoutService.RecordFailureAsync(user, cancellationToken))
+            {
+                // Say so plainly on the attempt that locks it, rather than letting the next
+                // attempt be the first the person hears of it.
+                await lockoutService.EnsureNotLockedOutAsync(user, cancellationToken);
+            }
+
+            throw new ForbiddenException("Invalid email or password.");
         }
 
+        await lockoutService.RecordSuccessAsync(user, cancellationToken);
         EnsureUserCanLogIn(user);
+        await EnsurePasswordHasNotExpiredAsync(user, cancellationToken);
 
         var response = await BuildAuthResponseAsync(user);
         await auditService.LogAuditAsync(user.Id, "UserLoggedIn", nameof(ApplicationUser), user.Id);
@@ -118,10 +137,22 @@ public class AuthService(
             return;
         }
 
+        await SendPasswordResetEmailAsync(user);
+    }
+
+    /// <summary>
+    /// Returns whether the message went out. Forgot-password ignores that on purpose — saying an
+    /// email failed would reveal that the address is registered, which is the one thing that
+    /// endpoint is careful not to disclose. The expiry path does report it, because the person
+    /// asking is already known to exist and is otherwise left stranded.
+    /// </summary>
+    private async Task<bool> SendPasswordResetEmailAsync(ApplicationUser user)
+    {
+        var email = user.Email!;
         var token = await userManager.GeneratePasswordResetTokenAsync(user);
         var link = $"{_frontend.BaseUrl}/reset-password?email={Uri.EscapeDataString(email)}&token={Uri.EscapeDataString(token)}";
 
-        await emailSender.SendAsync(email, "Reset your password",
+        return await emailSender.SendAsync(email, "Reset your password",
             $"<p>Click the link below to reset your password:</p><p><a href=\"{link}\">Reset password</a></p>");
     }
 
@@ -136,6 +167,7 @@ public class AuthService(
             throw new ValidationAppException(result.Errors.Select(e => e.Description).ToList());
         }
 
+        await StampPasswordChangedAsync(user);
         await auditService.LogAuditAsync(user.Id, "PasswordReset", nameof(ApplicationUser), user.Id);
     }
 
@@ -144,12 +176,30 @@ public class AuthService(
         var user = await userManager.FindByIdAsync(userId.ToString())
             ?? throw new NotFoundException(nameof(ApplicationUser), userId);
 
+        await lockoutService.EnsureNotLockedOutAsync(user, cancellationToken);
+
+        // The current password is checked separately from the change so that getting it wrong
+        // counts towards a lockout. Left to ChangePasswordAsync, this form would be an
+        // unlimited guessing oracle for anyone who found a signed-in session unattended.
+        if (!await userManager.CheckPasswordAsync(user, request.CurrentPassword))
+        {
+            if (await lockoutService.RecordFailureAsync(user, cancellationToken))
+            {
+                await lockoutService.EnsureNotLockedOutAsync(user, cancellationToken);
+            }
+
+            throw new ValidationAppException(["That is not your current password."]);
+        }
+
+        await lockoutService.RecordSuccessAsync(user, cancellationToken);
+
         var result = await userManager.ChangePasswordAsync(user, request.CurrentPassword, request.NewPassword);
         if (!result.Succeeded)
         {
             throw new ValidationAppException(result.Errors.Select(e => e.Description).ToList());
         }
 
+        await StampPasswordChangedAsync(user);
         await auditService.LogAuditAsync(user.Id, "PasswordChanged", nameof(ApplicationUser), user.Id);
     }
 
@@ -167,7 +217,7 @@ public class AuthService(
 
         if (user is null)
         {
-            var role = ResolveRoleFromEmail(email);
+            var role = await ResolveRoleFromEmailAsync(email, cancellationToken);
             user = new ApplicationUser
             {
                 UserName = email,
@@ -186,9 +236,12 @@ public class AuthService(
             }
 
             await userManager.AddToRoleAsync(user, role);
-            await SendEmailVerificationAsync(user);
+            var verificationSent = await SendEmailVerificationAsync(user);
 
-            throw new ForbiddenException("Account created. Please check your email to verify your address before logging in.");
+            throw new ForbiddenException(verificationSent
+                ? "Account created. Please check your email to verify your address before logging in."
+                : "Account created, but the verification email could not be sent. " +
+                  "Ask an administrator to check the mail server.");
         }
 
         EnsureUserCanLogIn(user);
@@ -196,6 +249,45 @@ public class AuthService(
         var response = await BuildAuthResponseAsync(user);
         await auditService.LogAuditAsync(user.Id, "UserLoggedInViaAzureSso", nameof(ApplicationUser), user.Id);
         return response;
+    }
+
+    /// <summary>
+    /// Records when the password was set, so expiry has something to count from.
+    /// </summary>
+    private async Task StampPasswordChangedAsync(ApplicationUser user)
+    {
+        user.PasswordChangedAt = DateTime.UtcNow;
+        await userManager.UpdateAsync(user);
+    }
+
+    /// <summary>
+    /// Refuses a sign-in whose password is older than the configured lifetime, and sends a reset
+    /// link so the person is not simply stuck. Zero days means no expiry, which is the default.
+    ///
+    /// A password with no recorded change date is treated as current: the column was added after
+    /// these accounts existed, and reading null as "infinitely old" would lock out everyone who
+    /// had not signed in since, the moment an administrator first switched expiry on.
+    /// </summary>
+    private async Task EnsurePasswordHasNotExpiredAsync(ApplicationUser user, CancellationToken cancellationToken)
+    {
+        var policy = await settingService.GetPasswordSettingsAsync(cancellationToken);
+        if (policy.ExpiryDays <= 0 || user.PasswordChangedAt is not { } changedAt)
+        {
+            return;
+        }
+
+        var age = DateTime.UtcNow - changedAt;
+        if (age.TotalDays < policy.ExpiryDays)
+        {
+            return;
+        }
+
+        var sent = await SendPasswordResetEmailAsync(user);
+
+        throw new ForbiddenException(sent
+            ? $"Your password expired after {policy.ExpiryDays} days. We have emailed you a link to set a new one."
+            : $"Your password expired after {policy.ExpiryDays} days, and the reset email could not be sent. " +
+              "Ask an administrator to reset it for you.");
     }
 
     private static void EnsureUserCanLogIn(ApplicationUser user)
@@ -209,12 +301,15 @@ public class AuthService(
         }
     }
 
-    private async Task SendEmailVerificationAsync(ApplicationUser user)
+    private async Task<bool> SendEmailVerificationAsync(ApplicationUser user)
     {
         var token = await userManager.GenerateEmailConfirmationTokenAsync(user);
         var link = $"{_frontend.BaseUrl}/verify-email?userId={user.Id}&token={Uri.EscapeDataString(token)}";
 
-        await emailSender.SendAsync(user.Email!, "Verify your email address",
+        // Reported, not thrown. The account is already created, so failing here would return an
+        // error for something that succeeded — and the retry would then collide with the address
+        // it had just taken.
+        return await emailSender.SendAsync(user.Email!, "Verify your email address",
             $"<p>Welcome to the AIS Research Publication Site. Please verify your email address:</p><p><a href=\"{link}\">Verify email</a></p>");
     }
 
@@ -247,20 +342,30 @@ public class AuthService(
         await db.SaveChangesAsync(cancellationToken);
     }
 
-    private static string ResolveRoleFromEmail(string email)
+    /// <summary>
+    /// What someone is, judged by their address. The two domains were constants; an institution
+    /// that takes on a second student domain should not need a deployment to accept it.
+    ///
+    /// Staff is deliberately a holding role rather than an operational one: it lets the person
+    /// sign in and see their profile, and an administrator grants them what they actually do.
+    /// </summary>
+    private async Task<string> ResolveRoleFromEmailAsync(string email, CancellationToken cancellationToken)
     {
-        if (email.EndsWith(StudentEmailDomain, StringComparison.OrdinalIgnoreCase))
+        var institution = await settingService.GetInstitutionSettingsAsync(cancellationToken);
+
+        if (email.EndsWith(institution.StudentEmailDomain, StringComparison.OrdinalIgnoreCase))
         {
             return RoleNames.Student;
         }
 
-        if (email.EndsWith(StaffEmailDomain, StringComparison.OrdinalIgnoreCase))
+        if (email.EndsWith(institution.StaffEmailDomain, StringComparison.OrdinalIgnoreCase))
         {
             return RoleNames.Staff;
         }
 
         throw new BusinessRuleException(
-            $"Only '{StudentEmailDomain}' or '{StaffEmailDomain}' email addresses may register.");
+            $"Only '{institution.StudentEmailDomain}' or '{institution.StaffEmailDomain}' addresses can register here. " +
+            "Anyone outside the institution has to be invited.");
     }
 
     private async Task<AuthResponse> BuildAuthResponseAsync(ApplicationUser user, Services.Interfaces.TokenPair? pair = null)

@@ -18,10 +18,30 @@ public class NotificationsController(INotificationQueryService notificationQuery
         return Ok(ApiResponse<IReadOnlyList<NotificationDto>>.Ok(result));
     }
 
+    /// <summary>
+    /// How many are unread. Requested on every page load to colour the top bar's bell, so it is
+    /// deliberately a count rather than a listing the caller has to measure.
+    /// </summary>
+    [HttpGet("unread-count")]
+    public async Task<IActionResult> GetUnreadCount()
+    {
+        var result = await notificationQueryService.GetUnreadCountAsync(currentUser.UserId);
+        return Ok(ApiResponse<int>.Ok(result));
+    }
+
     [HttpPut("{id:guid}/read")]
     public async Task<IActionResult> MarkAsRead(Guid id)
     {
         await notificationQueryService.MarkAsReadAsync(id, currentUser.UserId);
         return Ok(ApiResponse.Ok("Notification marked as read."));
+    }
+
+    [HttpPut("read")]
+    public async Task<IActionResult> MarkAllAsRead()
+    {
+        var count = await notificationQueryService.MarkAllAsReadAsync(currentUser.UserId);
+        return Ok(ApiResponse.Ok(count == 0
+            ? "You had nothing unread."
+            : count == 1 ? "1 notification marked as read." : $"{count} notifications marked as read."));
     }
 }

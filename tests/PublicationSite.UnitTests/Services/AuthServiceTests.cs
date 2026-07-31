@@ -9,6 +9,7 @@ using PublicationSite.Api.DTOs.Auth;
 using PublicationSite.Api.Entities;
 using PublicationSite.Api.Enums;
 using PublicationSite.Api.Services.Implementations;
+using PublicationSite.Api.DTOs.Settings;
 using PublicationSite.Api.Services.Interfaces;
 using PublicationSite.UnitTests.TestSupport;
 using Xunit;
@@ -23,18 +24,35 @@ public class AuthServiceTests : IDisposable
     private readonly Mock<ITokenService> _tokenService = new();
     private readonly Mock<IEmailSender> _emailSender = new();
     private readonly Mock<IAuditService> _auditService = new();
+    private readonly Mock<ISystemSettingService> _settingService = new();
+    private readonly Mock<IAccountLockoutService> _lockoutService = new();
     private readonly AuthService _sut;
 
     public AuthServiceTests()
     {
         _signInManager = IdentityMockFactory.MockSignInManager(_userManager.Object);
         _emailSender.Setup(e => e.SendAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
+            .ReturnsAsync(true);
         _userManager.Setup(m => m.GenerateEmailConfirmationTokenAsync(It.IsAny<ApplicationUser>())).ReturnsAsync("token");
 
+        // The defaults: passwords never expire and nothing is locked out, so a test only has to
+        // say otherwise when that is what it is about.
+        _settingService.Setup(s => s.GetPasswordSettingsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PasswordSettingsDto(10, true, true, true, true, 0, 5, 15));
+
+        // Registration now asks whether anyone may sign themselves up, and which domains mean
+        // what. Open with the usual domains, so these tests stay about registration itself.
+        _settingService.Setup(s => s.GetAccessSettingsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AccessSettingsDto("Open", false, false, false, 14, 30, 14));
+
+        _settingService.Setup(s => s.GetInstitutionSettingsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new InstitutionSettingsDto(
+                "Auckland Institute of Studies", "@aisstudent.ac.nz", "@ais.ac.nz", null, null, null, null));
+
         _sut = new AuthService(
-            _userManager.Object, _signInManager.Object, _fixture.Context, _tokenService.Object,
-            _emailSender.Object, _auditService.Object, Options.Create(new FrontendSettings()));
+            _userManager.Object, _fixture.Context, _tokenService.Object,
+            _emailSender.Object, _auditService.Object, _settingService.Object, _lockoutService.Object,
+            Options.Create(new FrontendSettings()));
     }
 
     public void Dispose() => _fixture.Dispose();
@@ -136,23 +154,65 @@ public class AuthServiceTests : IDisposable
     {
         var user = new ApplicationUser { Email = "user@ais.ac.nz", Status = UserStatus.Enabled };
         _userManager.Setup(m => m.FindByEmailAsync(user.Email)).ReturnsAsync(user);
-        _signInManager.Setup(s => s.CheckPasswordSignInAsync(user, "wrong", true)).ReturnsAsync(SignInResult.Failed);
+        _userManager.Setup(m => m.CheckPasswordAsync(user, "wrong")).ReturnsAsync(false);
 
         var act = () => _sut.LoginAsync(new LoginRequest(user.Email, "wrong"));
 
         await act.Should().ThrowAsync<ForbiddenException>();
     }
 
+    /// <summary>
+    /// Lockout is checked before the password, so a locked account is never told whether the
+    /// password it was given happens to be right. Asserted by leaving CheckPasswordAsync
+    /// unconfigured — it would return false — and still expecting the lockout's own message.
+    /// </summary>
     [Fact]
-    public async Task LoginAsync_rejects_locked_out_account()
+    public async Task LoginAsync_rejects_locked_out_account_before_checking_the_password()
     {
         var user = new ApplicationUser { Email = "user@ais.ac.nz", Status = UserStatus.Enabled };
         _userManager.Setup(m => m.FindByEmailAsync(user.Email)).ReturnsAsync(user);
-        _signInManager.Setup(s => s.CheckPasswordSignInAsync(user, "pw", true)).ReturnsAsync(SignInResult.LockedOut);
+        _lockoutService.Setup(l => l.EnsureNotLockedOutAsync(user, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new ForbiddenException("Too many failed attempts. This account is locked for another 15 minutes."));
 
         var act = () => _sut.LoginAsync(new LoginRequest(user.Email, "pw"));
 
         (await act.Should().ThrowAsync<ForbiddenException>()).Which.Message.Should().Contain("locked");
+    }
+
+    [Fact]
+    public async Task LoginAsync_records_a_wrong_password_against_the_lockout()
+    {
+        var user = new ApplicationUser { Email = "user@ais.ac.nz", Status = UserStatus.Enabled };
+        _userManager.Setup(m => m.FindByEmailAsync(user.Email)).ReturnsAsync(user);
+        _userManager.Setup(m => m.CheckPasswordAsync(user, "wrong")).ReturnsAsync(false);
+
+        var act = () => _sut.LoginAsync(new LoginRequest(user.Email, "wrong"));
+
+        await act.Should().ThrowAsync<ForbiddenException>();
+        _lockoutService.Verify(l => l.RecordFailureAsync(user, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    /// <summary>
+    /// Zero expiry days means passwords never expire, so an old one still signs in. The opposite
+    /// case is covered by the settings service's own validation.
+    /// </summary>
+    [Fact]
+    public async Task LoginAsync_rejects_a_password_older_than_the_configured_expiry()
+    {
+        var user = new ApplicationUser
+        {
+            Id = Guid.NewGuid(), Email = "user@ais.ac.nz", FirstName = "A", LastName = "B",
+            Status = UserStatus.Enabled, PasswordChangedAt = DateTime.UtcNow.AddDays(-120)
+        };
+        _userManager.Setup(m => m.FindByEmailAsync(user.Email)).ReturnsAsync(user);
+        _userManager.Setup(m => m.CheckPasswordAsync(user, "pw")).ReturnsAsync(true);
+        _userManager.Setup(m => m.GeneratePasswordResetTokenAsync(user)).ReturnsAsync("reset-token");
+        _settingService.Setup(s => s.GetPasswordSettingsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PasswordSettingsDto(10, true, true, true, true, 90, 5, 15));
+
+        var act = () => _sut.LoginAsync(new LoginRequest(user.Email, "pw"));
+
+        (await act.Should().ThrowAsync<ForbiddenException>()).Which.Message.Should().Contain("expired");
     }
 
     [Theory]
@@ -162,7 +222,7 @@ public class AuthServiceTests : IDisposable
     {
         var user = new ApplicationUser { Email = "user@ais.ac.nz", Status = status };
         _userManager.Setup(m => m.FindByEmailAsync(user.Email)).ReturnsAsync(user);
-        _signInManager.Setup(s => s.CheckPasswordSignInAsync(user, "pw", true)).ReturnsAsync(SignInResult.Success);
+        _userManager.Setup(m => m.CheckPasswordAsync(user, "pw")).ReturnsAsync(true);
 
         var act = () => _sut.LoginAsync(new LoginRequest(user.Email, "pw"));
 
@@ -174,7 +234,7 @@ public class AuthServiceTests : IDisposable
     {
         var user = new ApplicationUser { Id = Guid.NewGuid(), Email = "user@ais.ac.nz", FirstName = "A", LastName = "B", Status = UserStatus.Enabled };
         _userManager.Setup(m => m.FindByEmailAsync(user.Email)).ReturnsAsync(user);
-        _signInManager.Setup(s => s.CheckPasswordSignInAsync(user, "pw", true)).ReturnsAsync(SignInResult.Success);
+        _userManager.Setup(m => m.CheckPasswordAsync(user, "pw")).ReturnsAsync(true);
         _userManager.Setup(m => m.GetRolesAsync(user)).ReturnsAsync([RoleNames.Coordinator]);
 
         var expiresAt = DateTime.UtcNow.AddMinutes(30);

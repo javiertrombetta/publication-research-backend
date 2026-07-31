@@ -29,6 +29,11 @@ public class EthicsServiceTests : IDisposable
             .ReturnsAsync((Stream _, string fileName, string _, IReadOnlyCollection<string>? _, CancellationToken _) =>
                 new StoredFile($"stored/{fileName}", fileName));
 
+        // Without these nothing can be asked of a student: the documents are configuration now,
+        // and an ethics stage with none set up refuses to start rather than silently asking for
+        // nothing.
+        TestDataBuilder.EthicsDocumentRequirements(_fixture.Context);
+
         _sut = new EthicsService(_fixture.Context, _accessService.Object, _auditService.Object, _notificationService.Object, _fileStorageService.Object);
     }
 

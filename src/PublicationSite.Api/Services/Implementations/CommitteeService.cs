@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using PublicationSite.Api.Common;
 using PublicationSite.Api.Common.Exceptions;
 using PublicationSite.Api.Data;
 using PublicationSite.Api.DTOs.Committees;
@@ -12,7 +13,8 @@ public class CommitteeService(
     ApplicationDbContext db,
     IContainerAccessService accessService,
     IAuditService auditService,
-    INotificationService notificationService) : ICommitteeService
+    INotificationService notificationService,
+    ISystemSettingService settingService) : ICommitteeService
 {
     public async Task<CommitteeDto> AssignAsync(Guid publicationId, AssignCommitteeRequest request, Guid adminId, CancellationToken cancellationToken = default)
     {
@@ -48,13 +50,42 @@ public class CommitteeService(
 
         if (members.Any(m => m.CommitteeMemberProfile is null))
         {
-            throw new BusinessRuleException("All committee members must have a Committee Member profile.");
+            throw new BusinessRuleException(
+                "Everyone on a committee must hold a committee member role. Grant it from the user directory first.");
         }
+
+        // Checked as well as the profile, which outlives the role that created it: someone moved
+        // off a committee role keeps their profile, and without this would still be assignable.
+        var committeeRoleIds = await db.Roles
+            .Where(r => RoleNames.CommitteeRoles.Contains(r.Name!))
+            .Select(r => r.Id)
+            .ToListAsync(cancellationToken);
+
+        var stillCommitteeMembers = await db.UserRoles
+            .Where(ur => committeeRoleIds.Contains(ur.RoleId))
+            .Select(ur => ur.UserId)
+            .ToListAsync(cancellationToken);
+
+        if (members.Any(m => !stillCommitteeMembers.Contains(m.Id)))
+        {
+            throw new BusinessRuleException(
+                "Everyone on a committee must currently hold a committee member role.");
+        }
+
+        // A member id the request named but the database does not have would otherwise vanish
+        // silently, producing a committee smaller than the administrator believes they built.
+        if (members.Count != request.MemberUserIds.Distinct().Count())
+        {
+            throw new BusinessRuleException("One or more of the people selected could not be found.");
+        }
+
+        var minApprovals = await ResolveMinimumApprovalsAsync(
+            publication.PublicationContainer, members, request.MinApprovalsRequired, cancellationToken);
 
         var committee = new Committee
         {
             PublicationId = publicationId,
-            MinApprovalsRequired = request.MinApprovalsRequired,
+            MinApprovalsRequired = minApprovals,
             CreatedByUserId = adminId,
             Members = members.Select(m => new CommitteeMember
             {
@@ -222,4 +253,66 @@ public class CommitteeService(
         committee.Members.Select(m => new CommitteeMemberDto(
             m.UserId, m.User.FirstName + " " + m.User.LastName, m.RoleType.ToString(),
             m.Decision.ToString(), m.DecisionComments, m.DecidedAt)).ToList());
+
+    /// <summary>
+    /// Checks the proposed committee against the composition this publication was opened under.
+    ///
+    /// Read from the container rather than from the settings so that an administrator changing
+    /// the rules does not invalidate work already in flight — see PublicationContainer. A
+    /// container from before the snapshot existed has nothing recorded, and falls back to what
+    /// is configured now.
+    /// </summary>
+    private async Task<int> ResolveMinimumApprovalsAsync(
+        PublicationContainer container,
+        IReadOnlyList<ApplicationUser> members,
+        int requested,
+        CancellationToken cancellationToken)
+    {
+        await EnsureCompositionMatchesRulesAsync(container, members, cancellationToken);
+
+        // Zero means the administrator did not override it, so the figure this publication was
+        // opened under applies.
+        if (requested <= 0)
+        {
+            return container.RequiredCommitteeApprovals
+                   ?? (await settingService.GetCommitteeSettingsAsync(cancellationToken)).MinimumApprovals;
+        }
+
+        if (requested > members.Count)
+        {
+            throw new BusinessRuleException(
+                $"A committee of {members.Count} cannot be asked for {requested} approvals.");
+        }
+
+        return requested;
+    }
+
+    private async Task EnsureCompositionMatchesRulesAsync(
+        PublicationContainer container, IReadOnlyList<ApplicationUser> members, CancellationToken cancellationToken)
+    {
+        int requiredInternal, requiredExternal;
+
+        if (container.RequiredInternalCommitteeMembers is { } snapshotInternal &&
+            container.RequiredExternalCommitteeMembers is { } snapshotExternal)
+        {
+            requiredInternal = snapshotInternal;
+            requiredExternal = snapshotExternal;
+        }
+        else
+        {
+            var current = await settingService.GetCommitteeSettingsAsync(cancellationToken);
+            requiredInternal = current.InternalMembers;
+            requiredExternal = current.ExternalMembers;
+        }
+
+        var actualInternal = members.Count(m => m.CommitteeMemberProfile!.Type == CommitteeMemberRoleType.Internal);
+        var actualExternal = members.Count(m => m.CommitteeMemberProfile!.Type == CommitteeMemberRoleType.External);
+
+        if (actualInternal != requiredInternal || actualExternal != requiredExternal)
+        {
+            throw new BusinessRuleException(
+                $"This publication needs a committee of {requiredInternal} internal and {requiredExternal} external " +
+                $"members. You have selected {actualInternal} internal and {actualExternal} external.");
+        }
+    }
 }

@@ -27,6 +27,22 @@ public class ContainersController(IContainerService containerService, ICurrentUs
         return Ok(ApiResponse<IReadOnlyList<PublicationContainerDto>>.Ok(result));
     }
 
+    [HttpGet("supervising")]
+    [Authorize(Roles = RoleNames.Supervisor)]
+    public async Task<IActionResult> GetSupervising()
+    {
+        var result = await containerService.GetSupervisingAsync(currentUser.UserId);
+        return Ok(ApiResponse<IReadOnlyList<PublicationContainerDto>>.Ok(result));
+    }
+
+    [HttpGet("in-my-department")]
+    [Authorize(Roles = RoleNames.HeadOfDepartment)]
+    public async Task<IActionResult> GetInMyDepartment()
+    {
+        var result = await containerService.GetInMyDepartmentAsync(currentUser.UserId);
+        return Ok(ApiResponse<IReadOnlyList<PublicationContainerDto>>.Ok(result));
+    }
+
     [HttpDelete("{id:guid}")]
     [Authorize(Roles = RoleNames.Student)]
     public async Task<IActionResult> DeleteOwn(Guid id)
