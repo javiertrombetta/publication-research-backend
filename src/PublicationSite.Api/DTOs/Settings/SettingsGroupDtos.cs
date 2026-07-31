@@ -91,14 +91,16 @@ public record AccessSettingsDto(
     bool AzureSsoConfigured,
     int InvitationValidDays,
     int AccessTokenMinutes,
-    int RefreshTokenDays);
+    int RefreshTokenDays,
+    bool PublicCatalogueEnabled = true);
 
 public record UpdateAccessSettingsRequest(
     string RegistrationMode,
     bool AzureSsoEnabled,
     int InvitationValidDays,
     int AccessTokenMinutes,
-    int RefreshTokenDays);
+    int RefreshTokenDays,
+    bool PublicCatalogueEnabled = true);
 
 /// <summary>What may be uploaded. Extensions are accepted with or without their leading dot.</summary>
 public record UploadSettingsDto(int MaxMegabytes, string AllowedExtensions);
@@ -118,7 +120,8 @@ public record InstitutionSettingsDto(
     string? ResearchEnquiriesEmail,
     string? PrivacyPolicyUrl,
     string? CurrentAcademicCycle,
-    bool SelfRegistrationOpen = false);
+    bool SelfRegistrationOpen = false,
+    bool PublicCatalogueEnabled = true);
 
 public record UpdateInstitutionSettingsRequest(
     string Name,

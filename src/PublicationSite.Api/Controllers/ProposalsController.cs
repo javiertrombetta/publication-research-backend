@@ -55,6 +55,40 @@ public class ProposalsController(IProposalService proposalService, ICurrentUserS
         return Ok(ApiResponse.Ok("Student asked to resubmit proposals."));
     }
 
+    [HttpGet("api/proposals/for-coordinator")]
+
+    [Authorize(Roles = RoleNames.Coordinator)]
+
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<ProposalWithInvitationsDto>>), StatusCodes.Status200OK)]
+
+    public async Task<IActionResult> GetForCoordinator()
+
+    {
+
+        var result = await proposalService.GetForCoordinatorAsync(currentUser.UserId);
+
+        return Ok(ApiResponse<IReadOnlyList<ProposalWithInvitationsDto>>.Ok(result));
+
+    }
+
+
+    [HttpGet("api/proposals/in-my-department")]
+
+    [Authorize(Roles = RoleNames.HeadOfDepartment)]
+
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<ProposalWithInvitationsDto>>), StatusCodes.Status200OK)]
+
+    public async Task<IActionResult> GetInMyDepartment()
+
+    {
+
+        var result = await proposalService.GetInDepartmentAsync(currentUser.UserId);
+
+        return Ok(ApiResponse<IReadOnlyList<ProposalWithInvitationsDto>>.Ok(result));
+
+    }
+
+
     [HttpGet("api/proposals/pending")]
     [Authorize(Roles = RoleNames.Coordinator)]
     [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<ProposalDto>>), StatusCodes.Status200OK)]

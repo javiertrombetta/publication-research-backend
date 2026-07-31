@@ -233,7 +233,8 @@ public class SystemSettingService(
             AzureSsoConfigured,
             await settings.GetIntAsync(SettingKeys.InvitationValidDays, SettingKeys.DefaultInvitationValidDays, cancellationToken),
             await settings.GetIntAsync(SettingKeys.AccessTokenMinutes, SettingKeys.DefaultAccessTokenMinutes, cancellationToken),
-            await settings.GetIntAsync(SettingKeys.RefreshTokenDays, SettingKeys.DefaultRefreshTokenDays, cancellationToken));
+            await settings.GetIntAsync(SettingKeys.RefreshTokenDays, SettingKeys.DefaultRefreshTokenDays, cancellationToken),
+            await settings.GetBoolAsync(SettingKeys.PublicCatalogueEnabled, SettingKeys.DefaultPublicCatalogueEnabled, cancellationToken));
     }
 
     public async Task<AccessSettingsDto> UpdateAccessSettingsAsync(
@@ -277,11 +278,15 @@ public class SystemSettingService(
         await SetPendingAsync(SettingKeys.InvitationValidDays, request.InvitationValidDays, actingAdminId, cancellationToken);
         await SetPendingAsync(SettingKeys.AccessTokenMinutes, request.AccessTokenMinutes, actingAdminId, cancellationToken);
         await SetPendingAsync(SettingKeys.RefreshTokenDays, request.RefreshTokenDays, actingAdminId, cancellationToken);
+        await SetPendingAsync(SettingKeys.PublicCatalogueEnabled, request.PublicCatalogueEnabled, actingAdminId, cancellationToken);
 
         await CommitAsync(actingAdminId, "AccessSettingsUpdated",
-            request.RegistrationMode == SettingKeys.RegistrationModeOpen
-                ? "Anyone with an institutional email address can now create their own account."
-                : "Accounts are now created by invitation only.",
+            (request.RegistrationMode == SettingKeys.RegistrationModeOpen
+                ? "Anyone with an institutional email address can now create their own account. "
+                : "Accounts are now created by invitation only. ")
+            + (request.PublicCatalogueEnabled
+                ? "The public catalogue is the site's landing page."
+                : "The public catalogue is switched off; the sign-in page is the landing page."),
             cancellationToken);
 
         return await GetAccessSettingsAsync(cancellationToken);
@@ -344,7 +349,10 @@ public class SystemSettingService(
             await settings.GetStringAsync(SettingKeys.PrivacyPolicyUrl, cancellationToken),
             await settings.GetStringAsync(SettingKeys.CurrentAcademicCycle, cancellationToken),
             (await settings.GetStringAsync(SettingKeys.RegistrationMode, cancellationToken)
-             ?? EnvironmentRegistrationDefault) == SettingKeys.RegistrationModeOpen);
+             ?? EnvironmentRegistrationDefault) == SettingKeys.RegistrationModeOpen,
+            // Carried on the anonymous response because the landing page has to be decided before
+            // anyone has signed in, which is exactly when no other settings are readable.
+            await settings.GetBoolAsync(SettingKeys.PublicCatalogueEnabled, SettingKeys.DefaultPublicCatalogueEnabled, cancellationToken));
 
     public async Task<InstitutionSettingsDto> UpdateInstitutionSettingsAsync(
         UpdateInstitutionSettingsRequest request, Guid actingAdminId, CancellationToken cancellationToken = default)

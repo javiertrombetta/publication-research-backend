@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PublicationSite.Api.Common;
+using PublicationSite.Api.Common.Filters;
 using PublicationSite.Api.DTOs.Catalogue;
 using PublicationSite.Api.Services.Interfaces;
 
@@ -13,6 +14,7 @@ namespace PublicationSite.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/catalogue")]
+[PublicCatalogueRequired]
 public class CatalogueController(ICatalogueService catalogueService) : ControllerBase
 {
     [HttpGet]

@@ -121,7 +121,9 @@ public class CommitteeService(
 
         await accessService.EnsureAccessAsync(publication.PublicationContainerId, requestingUserId);
 
-        var committee = await db.Committees.Include(c => c.Members).ThenInclude(m => m.User)
+        var committee = await db.Committees
+            .Include(c => c.Publication).ThenInclude(p => p.Keywords)
+            .Include(c => c.Members).ThenInclude(m => m.User)
             .FirstOrDefaultAsync(c => c.PublicationId == publicationId, cancellationToken)
             ?? throw new NotFoundException(nameof(Committee), publicationId);
 
@@ -131,6 +133,7 @@ public class CommitteeService(
     public async Task<IReadOnlyList<CommitteeDto>> GetAssignmentsForMemberAsync(Guid memberUserId, CancellationToken cancellationToken = default)
     {
         var committees = await db.Committees
+            .Include(c => c.Publication).ThenInclude(p => p.Keywords)
             .Include(c => c.Members).ThenInclude(m => m.User)
             .Where(c => c.Members.Any(m => m.UserId == memberUserId))
             .ToListAsync(cancellationToken);
@@ -252,7 +255,16 @@ public class CommitteeService(
     }
 
     private static CommitteeDto ToDto(Committee committee) => new(
-        committee.Id, committee.PublicationId, committee.Status.ToString(), committee.MinApprovalsRequired,
+        committee.Id, committee.PublicationId,
+        committee.Publication is null
+            ? null
+            : new CommitteePaperDto(
+                committee.Publication.Id,
+                committee.Publication.Title,
+                committee.Publication.Abstract,
+                committee.Publication.PublicationYear,
+                committee.Publication.Keywords.Select(k => k.Name).ToList()),
+        committee.Status.ToString(), committee.MinApprovalsRequired,
         committee.Members.Select(m => new CommitteeMemberDto(
             m.UserId, m.User.FirstName + " " + m.User.LastName, m.RoleType.ToString(),
             m.Decision.ToString(), m.DecisionComments, m.DecidedAt)).ToList());
