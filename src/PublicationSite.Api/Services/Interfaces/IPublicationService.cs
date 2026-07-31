@@ -6,6 +6,12 @@ public interface IPublicationService
 {
     Task<PublicationDto> GetOrCreateDraftAsync(Guid publicationContainerId, Guid studentId, CancellationToken cancellationToken = default);
     Task<PublicationDto> GetByContainerAsync(Guid publicationContainerId, Guid requestingUserId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// The paper itself, for anyone with access to its Container. Committee members are given a
+    /// publication id and nothing else, so without this they cannot read what they are reviewing.
+    /// </summary>
+    Task<PublicationDto> GetByIdAsync(Guid publicationId, Guid requestingUserId, CancellationToken cancellationToken = default);
     Task<PublicationDto> UpdateMetadataAsync(Guid publicationId, Guid studentId, UpdatePublicationMetadataRequest request, CancellationToken cancellationToken = default);
 
     Task<PublicationVersionDto> UploadVersionAsync(Guid publicationId, Guid studentId, Stream content, string fileName, Stream? supplementary, string? supplementaryFileName, string? reviewerNotes, CancellationToken cancellationToken = default);

@@ -28,7 +28,29 @@ public record PublicationContainerDto(
     /// Status only distinguishes InProgress from Completed, so without this a listing cannot
     /// tell an accepted paper awaiting its publication decision from one still being reviewed.
     /// </summary>
-    string? PaperStatus = null);
+    string? PaperStatus = null,
+    /// <summary>
+    /// The ethics approval's status, or null before the student has declared. Lets a listing
+    /// show what a Container is waiting on without a request per row.
+    /// </summary>
+    string? EthicsStatus = null,
+    /// <summary>
+    /// Whose turn it is in the ethics workflow, as a role name, or null when nothing is pending.
+    ///
+    /// EthicsStatus alone cannot answer this. PendingVerification covers four different waits —
+    /// the Supervisor checking the documents, the Coordinator reviewing them, the Head of
+    /// Department commenting, and the Coordinator's final decision — told apart only by which
+    /// timestamps have been set. Deriving that belongs here rather than in every client.
+    /// </summary>
+    string? EthicsAwaitingRole = null,
+    /// <summary>
+    /// The evaluation committee this publication needs, as agreed when it was opened rather than
+    /// as configured today — so an administrator assigning a committee months later is told the
+    /// figures this piece of research was actually started under. Null on containers created
+    /// before the figures were recorded; the current settings apply to those.
+    /// </summary>
+    int? RequiredInternalCommitteeMembers = null,
+    int? RequiredExternalCommitteeMembers = null);
 
 public record ActivityHistoryEntryDto(
     Guid Id,

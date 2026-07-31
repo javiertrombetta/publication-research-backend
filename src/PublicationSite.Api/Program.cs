@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using Microsoft.Identity.Web;
 using Microsoft.IdentityModel.Tokens;
@@ -52,18 +53,30 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 builder.Services
     .AddIdentity<ApplicationUser, ApplicationRole>(options =>
     {
-        options.Password.RequiredLength = 10;
-        options.Password.RequireDigit = true;
-        options.Password.RequireUppercase = true;
-        options.Password.RequireLowercase = true;
-        options.Password.RequireNonAlphanumeric = true;
+        // Deliberately wide open here. IdentityOptions are bound once at start-up, so they
+        // cannot follow a value an administrator changes at runtime; ConfigurablePasswordValidator
+        // below is the authority on password rules and reads them fresh on every check. Leaving
+        // real limits here as well would only produce a second, contradictory error message.
+        options.Password.RequiredLength = 1;
+        options.Password.RequireDigit = false;
+        options.Password.RequireUppercase = false;
+        options.Password.RequireLowercase = false;
+        options.Password.RequireNonAlphanumeric = false;
         options.User.RequireUniqueEmail = true;
         options.SignIn.RequireConfirmedEmail = true;
-        options.Lockout.MaxFailedAccessAttempts = 5;
-        options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
+        // Identity's lockout is switched off here for the same reason as its password rules:
+        // these options are bound once at start-up. IAccountLockoutService owns lockout instead,
+        // reading the administrator's threshold on every attempt and covering the
+        // change-password path as well as sign-in.
+        options.Lockout.AllowedForNewUsers = false;
     })
     .AddEntityFrameworkStores<ApplicationDbContext>()
     .AddDefaultTokenProviders();
+
+// Replaces Identity's built-in validator rather than joining it — see the class for why.
+builder.Services.RemoveAll<IPasswordValidator<ApplicationUser>>();
+builder.Services.AddScoped<IPasswordValidator<ApplicationUser>, ConfigurablePasswordValidator>();
+builder.Services.AddScoped<IAccountLockoutService, AccountLockoutService>();
 
 // ---------- Authentication (JWT) ----------
 var authenticationBuilder = builder.Services
@@ -130,7 +143,14 @@ builder.Services.AddScoped<ICatalogueService, CatalogueService>();
 builder.Services.AddScoped<INotificationQueryService, NotificationQueryService>();
 builder.Services.AddScoped<IAuditLogQueryService, AuditLogQueryService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
+// Settings are read on paths as hot as signing in, so they are cached in memory rather than
+// queried per use; the provider drops the cache whenever the service writes.
+builder.Services.AddMemoryCache();
+builder.Services.AddScoped<ISystemSettingsProvider, SystemSettingsProvider>();
 builder.Services.AddScoped<ISystemSettingService, SystemSettingService>();
+builder.Services.AddScoped<IEthicsDocumentRequirementService, EthicsDocumentRequirementService>();
+builder.Services.AddScoped<IUserProfileFactory, UserProfileFactory>();
+builder.Services.AddScoped<IInvitationService, InvitationService>();
 
 // ---------- Reverse proxy (Render terminates TLS in front of the container) ----------
 builder.Services.Configure<ForwardedHeadersOptions>(options =>

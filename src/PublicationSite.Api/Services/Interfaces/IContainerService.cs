@@ -19,6 +19,20 @@ public interface IContainerService
     /// </summary>
     Task DeleteOwnAsync(Guid containerId, Guid studentUserId, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Supervisor-initiated: the Containers this Supervisor has been assigned to, newest first.
+    /// A Supervisor cannot list Containers any other way, and without this they have no way to
+    /// find the ones waiting on their ethics decision or document review.
+    /// </summary>
+    Task<IReadOnlyList<PublicationContainerDto>> GetSupervisingAsync(Guid supervisorUserId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Head of Department-initiated: every Container belonging to a student in their Department,
+    /// newest first. ContainerAccessService already lets them open any of these individually;
+    /// this is how they find the ones waiting on their ethics review.
+    /// </summary>
+    Task<IReadOnlyList<PublicationContainerDto>> GetInMyDepartmentAsync(Guid headOfDepartmentUserId, CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<ActivityHistoryEntryDto>> GetActivityHistoryAsync(Guid id, Guid requestingUserId, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<PublicationContainerDto>> GetAllAsync(Guid? studentId, Guid? coordinatorId, string? status, CancellationToken cancellationToken = default);

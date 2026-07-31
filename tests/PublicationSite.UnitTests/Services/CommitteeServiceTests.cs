@@ -1,11 +1,13 @@
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Moq;
+using PublicationSite.Api.Common;
 using PublicationSite.Api.Common.Exceptions;
 using PublicationSite.Api.DTOs.Committees;
 using PublicationSite.Api.Entities;
 using PublicationSite.Api.Enums;
 using PublicationSite.Api.Services.Implementations;
+using PublicationSite.Api.DTOs.Settings;
 using PublicationSite.Api.Services.Interfaces;
 using PublicationSite.UnitTests.TestSupport;
 using Xunit;
@@ -18,12 +20,21 @@ public class CommitteeServiceTests : IDisposable
     private readonly Mock<IContainerAccessService> _accessService = new();
     private readonly Mock<IAuditService> _auditService = new();
     private readonly Mock<INotificationService> _notificationService = new();
+    private readonly Mock<ISystemSettingService> _settingService = new();
     private readonly CommitteeService _sut;
 
     public CommitteeServiceTests()
     {
         _accessService.Setup(a => a.EnsureAccessAsync(It.IsAny<Guid>(), It.IsAny<Guid>())).Returns(Task.CompletedTask);
-        _sut = new CommitteeService(_fixture.Context, _accessService.Object, _auditService.Object, _notificationService.Object);
+
+        // These tests are about assignment and review mechanics, so they work with the smallest
+        // committee that exists: one internal member. The composition rule is exercised by its
+        // own test below.
+        _settingService.Setup(s => s.GetCommitteeSettingsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new CommitteeSettingsDto(1, 0, 1));
+
+        _sut = new CommitteeService(_fixture.Context, _accessService.Object, _auditService.Object,
+            _notificationService.Object, _settingService.Object);
     }
 
     public void Dispose() => _fixture.Dispose();
@@ -61,10 +72,26 @@ public class CommitteeServiceTests : IDisposable
         return (publication, container, coordinator);
     }
 
+    /// <summary>
+    /// Says what composition the publication under test requires. The class default is the
+    /// smallest committee that exists — one internal member — so a test only says otherwise when
+    /// the mix is the point.
+    /// </summary>
+    private void RequireCommitteeOf(int internalMembers, int externalMembers, int approvals) =>
+        _settingService.Setup(s => s.GetCommitteeSettingsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new CommitteeSettingsDto(internalMembers, externalMembers, approvals));
+
     private ApplicationUser SeedCommitteeMember(CommitteeMemberRoleType type = CommitteeMemberRoleType.Internal)
     {
         var user = TestDataBuilder.User(_fixture.Context);
         TestDataBuilder.CommitteeMemberProfile(_fixture.Context, user, type);
+
+        // The role as well as the profile: assignment checks both, because a profile outlives the
+        // role that created it and must not keep someone assignable after it is taken away.
+        TestDataBuilder.GrantRole(_fixture.Context, user, type == CommitteeMemberRoleType.Internal
+            ? RoleNames.InternalCommitteeMember
+            : RoleNames.ExternalCommitteeMember);
+
         return user;
     }
 
@@ -113,6 +140,8 @@ public class CommitteeServiceTests : IDisposable
     [Fact]
     public async Task AssignAsync_creates_committee_and_notifies_members()
     {
+        RequireCommitteeOf(1, 1, 2);
+
         var (publication, _, coordinator) = SeedApprovedPublication();
         var internalMember = SeedCommitteeMember(CommitteeMemberRoleType.Internal);
         var externalMember = SeedCommitteeMember(CommitteeMemberRoleType.External);
@@ -170,6 +199,8 @@ public class CommitteeServiceTests : IDisposable
     [Fact]
     public async Task MemberReviewAsync_completes_committee_and_notifies_coordinator_once_all_members_decided()
     {
+        RequireCommitteeOf(1, 1, 2);
+
         var (publication, _, coordinator) = SeedApprovedPublication();
         var member1 = SeedCommitteeMember();
         var member2 = SeedCommitteeMember(CommitteeMemberRoleType.External);
@@ -203,5 +234,35 @@ public class CommitteeServiceTests : IDisposable
         await _sut.SetCommitteeConfigAsync(committee.Id, new SetCommitteeRoleConfigRequest("External", 1), coordinator.Id);
         var committeeConfig = await _sut.GetCommitteeConfigAsync(committee.Id);
         committeeConfig.Should().ContainSingle(c => c.RoleType == "External" && c.RequiredCount == 1);
+    }
+
+    [Fact]
+    public async Task AssignAsync_rejects_a_committee_that_does_not_match_the_required_composition()
+    {
+        var (publication, _, coordinator) = SeedApprovedPublication();
+        var member = SeedCommitteeMember();
+
+        RequireCommitteeOf(2, 1, 2);
+
+        var act = () => _sut.AssignAsync(publication.Id, new AssignCommitteeRequest([member.Id], 1, "Assign"), coordinator.Id);
+
+        (await act.Should().ThrowAsync<BusinessRuleException>())
+            .Which.Message.Should().Contain("2 internal and 1 external");
+    }
+
+    [Fact]
+    public async Task AssignAsync_rejects_someone_who_no_longer_holds_a_committee_role()
+    {
+        var (publication, _, coordinator) = SeedApprovedPublication();
+
+        // Profile but no role: what a demotion leaves behind, since profiles are never deleted.
+        var formerMember = TestDataBuilder.User(_fixture.Context);
+        TestDataBuilder.CommitteeMemberProfile(_fixture.Context, formerMember);
+
+        var act = () => _sut.AssignAsync(
+            publication.Id, new AssignCommitteeRequest([formerMember.Id], 1, "Assign"), coordinator.Id);
+
+        (await act.Should().ThrowAsync<BusinessRuleException>())
+            .Which.Message.Should().Contain("currently hold a committee member role");
     }
 }

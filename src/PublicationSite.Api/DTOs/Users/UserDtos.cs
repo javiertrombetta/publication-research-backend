@@ -49,7 +49,17 @@ public class CreateUserRequest
 
 public record UpdateUserRequest(string FirstName, string LastName, string? InstitutionalId, string Comments);
 
-public record ChangeUserRoleRequest(string Role, string Comments);
+/// <summary>
+/// Granting a role to an account that already exists. Carries what the new role needs, because a
+/// role without its profile is a role the person cannot actually use: a Coordinator with no
+/// profile is invisible to auto-assignment, and a committee member with none cannot be put on a
+/// committee at all.
+/// </summary>
+public record ChangeUserRoleRequest(
+    string Role,
+    string Comments,
+    Guid? DepartmentId = null,
+    string? Affiliation = null);
 
 public class ProfilePhotoUploadForm
 {

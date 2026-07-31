@@ -1,0 +1,204 @@
+namespace PublicationSite.Api.Common;
+
+/// <summary>
+/// The canonical names of every administrator-configurable setting, and the value each one
+/// falls back to before an administrator has ever touched it.
+///
+/// Settings live in a single key/value table, which keeps the schema stable as the list grows
+/// but gives no type safety on its own — hence this file. Nothing outside
+/// <c>ISystemSettingsProvider</c> should spell a key as a literal string: a typo in a reader
+/// silently yields the default rather than failing, which is the worst way for a setting to
+/// break.
+/// </summary>
+public static class SettingKeys
+{
+    // ---------- Evaluation committees ----------
+
+    /// <summary>
+    /// How many internal and external members an evaluation committee needs. Applies to
+    /// publications created from the moment it changes: each Publication Container records the
+    /// figures in force on the day it was opened, so a change never moves the goalposts for
+    /// research already under way.
+    /// </summary>
+    public const string CommitteeInternalMembers = "committee.internal-members";
+    public const string CommitteeExternalMembers = "committee.external-members";
+
+    /// <summary>How many committee members must approve for a paper to pass.</summary>
+    public const string CommitteeMinApprovals = "committee.min-approvals";
+
+    public const int DefaultCommitteeInternalMembers = 2;
+    public const int DefaultCommitteeExternalMembers = 1;
+    public const int DefaultCommitteeMinApprovals = 2;
+
+    // ---------- Passwords ----------
+
+    public const string PasswordMinimumLength = "password.minimum-length";
+    public const string PasswordRequireDigit = "password.require-digit";
+    public const string PasswordRequireUppercase = "password.require-uppercase";
+    public const string PasswordRequireLowercase = "password.require-lowercase";
+    public const string PasswordRequireSymbol = "password.require-symbol";
+
+    /// <summary>
+    /// How many days a password stays valid. Zero means it never expires — the sensible default
+    /// for an institution that has no help desk to absorb the reset traffic.
+    /// </summary>
+    public const string PasswordExpiryDays = "password.expiry-days";
+
+    /// <summary>
+    /// How many wrong passwords in a row lock an account, and for how long. Counts every path
+    /// that checks a password, signing in and changing one alike: an attacker who has borrowed
+    /// an unlocked laptop attacks the change-password form, not the sign-in page.
+    /// </summary>
+    public const string LockoutMaxFailedAttempts = "password.lockout-attempts";
+    public const string LockoutMinutes = "password.lockout-minutes";
+
+    public const int DefaultPasswordMinimumLength = 10;
+    public const bool DefaultPasswordRequireDigit = true;
+    public const bool DefaultPasswordRequireUppercase = true;
+    public const bool DefaultPasswordRequireLowercase = true;
+    public const bool DefaultPasswordRequireSymbol = true;
+    public const int DefaultPasswordExpiryDays = 0;
+    public const int DefaultLockoutMaxFailedAttempts = 5;
+    public const int DefaultLockoutMinutes = 15;
+
+    // ---------- Notifications and email ----------
+
+    /// <summary>
+    /// The master switch. With it off nothing is emailed and every notification is delivered
+    /// in the application only, where the person sees it when they next sign in.
+    /// </summary>
+    public const string EmailNotificationsEnabled = "notifications.email-enabled";
+
+    public const string SmtpHost = "smtp.host";
+    public const string SmtpPort = "smtp.port";
+    public const string SmtpUsername = "smtp.username";
+
+    /// <summary>
+    /// Write-only over the API: it is accepted on save and never returned on read, so an
+    /// administrator's browser is never handed the mail account's password.
+    /// </summary>
+    public const string SmtpPassword = "smtp.password";
+
+    public const string SmtpUseSsl = "smtp.use-ssl";
+    public const string SmtpFromAddress = "smtp.from-address";
+    public const string SmtpFromName = "smtp.from-name";
+
+    public const bool DefaultEmailNotificationsEnabled = false;
+    public const int DefaultSmtpPort = 587;
+    public const bool DefaultSmtpUseSsl = true;
+
+    // ---------- Who may get an account ----------
+
+    /// <summary>
+    /// How someone comes to have an account: <c>Open</c> lets anyone with an institutional
+    /// address sign themselves up, <c>InviteOnly</c> means an administrator invites them.
+    ///
+    /// The default is not a constant — it comes from the hosting environment. Development wants
+    /// self-registration so the team can create accounts freely; a production deployment must not
+    /// hand out accounts to anyone who guesses the domain. An administrator can override either
+    /// way, but an unconfigured system is never accidentally open in production.
+    /// </summary>
+    public const string RegistrationMode = "access.registration-mode";
+
+    public const string RegistrationModeOpen = "Open";
+    public const string RegistrationModeInviteOnly = "InviteOnly";
+
+    /// <summary>
+    /// Whether staff and students are expected to arrive through Microsoft Entra ID rather than
+    /// with a password here. The token plumbing already exists and switches on whether an
+    /// AzureAd tenant is configured; this says whether the institution intends to use it, which
+    /// is what the sign-in page and the invitation rules need to know.
+    ///
+    /// External committee members are outside the tenant by definition, so they are always
+    /// invited and always sign in with a password — no setting changes that.
+    /// </summary>
+    public const string AzureSsoEnabled = "access.azure-sso-enabled";
+
+    /// <summary>How long an invitation stays usable before it has to be sent again.</summary>
+    public const string InvitationValidDays = "access.invitation-valid-days";
+
+    public const bool DefaultAzureSsoEnabled = false;
+    public const int DefaultInvitationValidDays = 14;
+
+    // ---------- Sessions ----------
+
+    public const string AccessTokenMinutes = "session.access-token-minutes";
+    public const string RefreshTokenDays = "session.refresh-token-days";
+
+    public const int DefaultAccessTokenMinutes = 30;
+    public const int DefaultRefreshTokenDays = 14;
+
+    // ---------- Uploads ----------
+
+    public const string MaxUploadMegabytes = "uploads.max-megabytes";
+
+    /// <summary>
+    /// Comma-separated, leading dots optional — an administrator should be able to type
+    /// "pdf, docx" without knowing the internal format.
+    /// </summary>
+    public const string AllowedUploadExtensions = "uploads.allowed-extensions";
+
+    public const int DefaultMaxUploadMegabytes = 50;
+    public const string DefaultAllowedUploadExtensions = ".pdf,.doc,.docx,.zip";
+
+    // ---------- The institution ----------
+
+    public const string InstitutionName = "institution.name";
+
+    /// <summary>
+    /// The address suffixes that decide what someone is when they register or arrive from
+    /// single sign-on. These were constants in the registration code; an institution that adds a
+    /// second student domain should not need a deployment to accept it.
+    /// </summary>
+    public const string StudentEmailDomain = "institution.student-email-domain";
+    public const string StaffEmailDomain = "institution.staff-email-domain";
+
+    /// <summary>
+    /// Shown rather than linked when blank, so the interface never offers a dead mailto.
+    /// </summary>
+    public const string ItSupportEmail = "institution.it-support-email";
+
+    /// <summary>
+    /// Where the public writes to ask for a paper's full text. Research is not downloadable from
+    /// the catalogue, so this address is the whole of that route.
+    /// </summary>
+    public const string ResearchEnquiriesEmail = "institution.research-enquiries-email";
+
+    public const string PrivacyPolicyUrl = "institution.privacy-policy-url";
+
+    /// <summary>
+    /// The intake now running, as people say it — "2026 Semester 2". A proposal deferred to the
+    /// next cycle is deferred to something, and nothing in the system said what.
+    /// </summary>
+    public const string CurrentAcademicCycle = "institution.academic-cycle";
+
+    public const string DefaultInstitutionName = "Auckland Institute of Studies";
+    public const string DefaultStudentEmailDomain = "@aisstudent.ac.nz";
+    public const string DefaultStaffEmailDomain = "@ais.ac.nz";
+
+    // ---------- Deadlines ----------
+
+    /// <summary>
+    /// How long each stage is expected to take, in days. Zero means no expectation is set, and
+    /// nothing is ever reported late.
+    ///
+    /// These describe when work becomes overdue; they do not stop anyone doing it afterwards.
+    /// A deadline that blocked a supervisor from responding late would only strand the student.
+    /// </summary>
+    public const string SupervisorResponseDays = "deadlines.supervisor-response-days";
+    public const string EthicsReviewDays = "deadlines.ethics-review-days";
+    public const string CommitteeReviewDays = "deadlines.committee-review-days";
+
+    public const int DefaultSupervisorResponseDays = 14;
+    public const int DefaultEthicsReviewDays = 21;
+    public const int DefaultCommitteeReviewDays = 30;
+
+    /// <summary>
+    /// Keys whose values must never leave the server. Read endpoints report whether one is set
+    /// rather than what it is.
+    /// </summary>
+    public static readonly IReadOnlySet<string> Secret = new HashSet<string>(StringComparer.Ordinal)
+    {
+        SmtpPassword
+    };
+}

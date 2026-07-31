@@ -15,12 +15,6 @@ public class EthicsService(
     INotificationService notificationService,
     IFileStorageService fileStorageService) : IEthicsService
 {
-    private static readonly EthicsDocumentType[] RequiredDocumentTypes =
-    [
-        EthicsDocumentType.ApprovalCertificate,
-        EthicsDocumentType.ApplicationForm,
-        EthicsDocumentType.ParticipantConsentForm
-    ];
 
     public EthicsGuidanceDto GetGuidance() => new(
         "Understanding Research Ethics Approval",
@@ -89,6 +83,12 @@ public class EthicsService(
         approval.SupervisorDecisionComments = request.Comments;
         approval.SupervisorDecisionAt = DateTime.UtcNow;
         approval.Status = request.IsRequired ? EthicsStatus.PendingUpload : EthicsStatus.NotRequired;
+
+        if (request.IsRequired)
+        {
+            await SnapshotRequiredDocumentsAsync(approval, cancellationToken);
+        }
+
         await db.SaveChangesAsync(cancellationToken);
 
         var container = await db.PublicationContainers.FindAsync([publicationContainerId], cancellationToken);
@@ -124,18 +124,28 @@ public class EthicsService(
             throw new BusinessRuleException("Ethics documentation is not currently being requested.");
         }
 
-        if (!Enum.TryParse<EthicsDocumentType>(documentType, true, out var type))
-        {
-            throw new BusinessRuleException($"'{documentType}' is not a recognised ethics document type.");
-        }
+        // Matched against this approval's own list rather than the master list: a requirement
+        // added after this student was asked for documentation is not one of theirs.
+        var required = await db.EthicsApprovalRequirements
+            .Where(r => r.EthicsApprovalId == approval.Id)
+            .Include(r => r.EthicsDocumentRequirement)
+            .ToListAsync(cancellationToken);
+
+        var requirement = required
+            .Select(r => r.EthicsDocumentRequirement)
+            .FirstOrDefault(r => r.Id.ToString() == documentType
+                                 || string.Equals(r.Name, documentType, StringComparison.OrdinalIgnoreCase))
+            ?? throw new BusinessRuleException($"'{documentType}' is not one of the documents requested for this publication.");
 
         var stored = await fileStorageService.SaveAsync(content, fileName, $"ethics/{container.Id}", cancellationToken: cancellationToken);
-        var version = approval.Documents.Where(d => d.DocumentType == type).Select(d => d.Version).DefaultIfEmpty(0).Max() + 1;
+        var version = approval.Documents
+            .Where(d => d.EthicsDocumentRequirementId == requirement.Id)
+            .Select(d => d.Version).DefaultIfEmpty(0).Max() + 1;
 
         var document = new EthicsDocument
         {
             EthicsApprovalId = approval.Id,
-            DocumentType = type,
+            EthicsDocumentRequirementId = requirement.Id,
             FileName = stored.FileName,
             FilePath = stored.RelativePath,
             Version = version,
@@ -146,11 +156,11 @@ public class EthicsService(
         db.EthicsDocuments.Add(document);
         await db.SaveChangesAsync(cancellationToken);
 
-        var uploadedTypes = await db.EthicsDocuments
+        var uploaded = await db.EthicsDocuments
             .Where(d => d.EthicsApprovalId == approval.Id && d.Status != EthicsDocumentStatus.RevisionRequested)
-            .Select(d => d.DocumentType).Distinct().ToListAsync(cancellationToken);
+            .Select(d => d.EthicsDocumentRequirementId).Distinct().ToListAsync(cancellationToken);
 
-        if (RequiredDocumentTypes.All(uploadedTypes.Contains))
+        if (required.All(r => uploaded.Contains(r.EthicsDocumentRequirementId)))
         {
             approval.Status = EthicsStatus.PendingVerification;
             await db.SaveChangesAsync(cancellationToken);
@@ -165,7 +175,7 @@ public class EthicsService(
         }
 
         await auditService.LogActivityAsync(container.Id, studentId, "EthicsDocumentUploaded",
-            $"Uploaded '{type}' (version {version}).");
+            $"Uploaded '{requirement.Name}' (version {version}).");
 
         return ToDocumentDto(document);
     }
@@ -230,6 +240,7 @@ public class EthicsService(
         if (request.RequireDocumentation)
         {
             approval.Status = EthicsStatus.PendingUpload;
+            await SnapshotRequiredDocumentsAsync(approval, cancellationToken);
             await db.SaveChangesAsync(cancellationToken);
 
             await auditService.LogActivityAsync(publicationContainerId, coordinatorId, "CoordinatorRequiredEthicsDocumentation",
@@ -382,6 +393,76 @@ public class EthicsService(
         }
     }
 
+    public async Task<IReadOnlyList<RequiredEthicsDocumentDto>> GetRequiredDocumentsAsync(
+        Guid publicationContainerId, Guid requestingUserId, CancellationToken cancellationToken = default)
+    {
+        await accessService.EnsureAccessAsync(publicationContainerId, requestingUserId);
+
+        var approval = await db.EthicsApprovals
+            .FirstOrDefaultAsync(a => a.PublicationContainerId == publicationContainerId, cancellationToken);
+
+        if (approval is null)
+        {
+            return [];
+        }
+
+        // A document counts as supplied unless it was sent back: a revision request means the
+        // student owes it again, which is exactly what an unticked box should mean.
+        var accepted = await db.EthicsDocuments
+            .Where(d => d.EthicsApprovalId == approval.Id && d.Status != EthicsDocumentStatus.RevisionRequested)
+            .Select(d => d.EthicsDocumentRequirementId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        return await db.EthicsApprovalRequirements
+            .Where(r => r.EthicsApprovalId == approval.Id)
+            .OrderBy(r => r.SortOrder).ThenBy(r => r.EthicsDocumentRequirement.Name)
+            .Select(r => new RequiredEthicsDocumentDto(
+                r.EthicsDocumentRequirementId,
+                r.EthicsDocumentRequirement.Name,
+                r.EthicsDocumentRequirement.Description,
+                r.SortOrder,
+                accepted.Contains(r.EthicsDocumentRequirementId)))
+            .ToListAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Copies today's active requirements onto this approval, once. Everything the student is
+    /// then asked for, and everything anyone later checks them against, reads from this copy —
+    /// so an administrator editing the master list changes what is asked of the next student,
+    /// not of this one.
+    ///
+    /// Does nothing if a snapshot already exists: documentation can be requested more than once
+    /// on the same approval (a Coordinator may ask after a Supervisor said it was unnecessary),
+    /// and the first list asked for is the one that counts.
+    /// </summary>
+    private async Task SnapshotRequiredDocumentsAsync(EthicsApproval approval, CancellationToken cancellationToken)
+    {
+        if (await db.EthicsApprovalRequirements.AnyAsync(r => r.EthicsApprovalId == approval.Id, cancellationToken))
+        {
+            return;
+        }
+
+        var active = await db.EthicsDocumentRequirements
+            .Where(r => r.IsActive)
+            .OrderBy(r => r.SortOrder).ThenBy(r => r.Name)
+            .ToListAsync(cancellationToken);
+
+        if (active.Count == 0)
+        {
+            throw new BusinessRuleException(
+                "No ethics documents have been configured, so none can be requested. " +
+                "An administrator must set them up under System settings.");
+        }
+
+        db.EthicsApprovalRequirements.AddRange(active.Select(r => new EthicsApprovalRequirement
+        {
+            EthicsApprovalId = approval.Id,
+            EthicsDocumentRequirementId = r.Id,
+            SortOrder = r.SortOrder
+        }));
+    }
+
     private async Task AdvanceToResearchPaperPipelineAsync(PublicationContainer container, CancellationToken cancellationToken)
     {
         container.CurrentPipeline = PipelineStage.ResearchPaper;
@@ -468,6 +549,6 @@ public class EthicsService(
         approval.HeadOfDepartmentReviewedAt, approval.FinalDecisionAt);
 
     private static EthicsDocumentDto ToDocumentDto(EthicsDocument document) => new(
-        document.Id, document.DocumentType.ToString(), document.FileName, document.Version,
+        document.Id, document.EthicsDocumentRequirement.Name, document.FileName, document.Version,
         document.Status.ToString(), document.UploadedAt, document.ReviewComments);
 }

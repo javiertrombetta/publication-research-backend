@@ -169,3 +169,35 @@ public class CommitteeMemberProfileConfiguration : IEntityTypeConfiguration<Comm
             .OnDelete(DeleteBehavior.Cascade);
     }
 }
+
+public class UserInvitationConfiguration : IEntityTypeConfiguration<UserInvitation>
+{
+    public void Configure(EntityTypeBuilder<UserInvitation> builder)
+    {
+        builder.Property(i => i.Email).HasMaxLength(256).IsRequired();
+        builder.Property(i => i.Role).HasMaxLength(100).IsRequired();
+        builder.Property(i => i.FirstName).HasMaxLength(100).IsRequired();
+        builder.Property(i => i.LastName).HasMaxLength(100).IsRequired();
+        builder.Property(i => i.TokenHash).HasMaxLength(200).IsRequired();
+
+        // Accepting an invitation is a lookup by token, and it happens while the caller is
+        // anonymous — so it has to be fast and must not degrade into a table scan.
+        builder.HasIndex(i => i.TokenHash).IsUnique();
+        builder.HasIndex(i => i.Email);
+
+        builder.HasOne(i => i.InvitedByUser)
+            .WithMany()
+            .HasForeignKey(i => i.InvitedByUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(i => i.RevokedByUser)
+            .WithMany()
+            .HasForeignKey(i => i.RevokedByUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(i => i.Department)
+            .WithMany()
+            .HasForeignKey(i => i.DepartmentId)
+            .OnDelete(DeleteBehavior.Restrict);
+    }
+}

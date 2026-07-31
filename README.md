@@ -15,7 +15,7 @@ This is a Web API only (JSON). It is consumed by a separate frontend application
 - **Serilog** (console + rolling file)
 - **FluentValidation**
 - **Swashbuckle** (Swagger / OpenAPI)
-- **MailKit** for outgoing email (verification, password reset, workflow notifications)
+- **MailKit** for outgoing email (verification, password reset, invitations, workflow notifications)
 
 ## Project layout
 
@@ -29,11 +29,13 @@ src/PublicationSite.Api/
     Interfaces/         Service contracts
     Implementations/    Business logic (one service per feature area)
   Controllers/          Thin controllers; auth via [Authorize(Roles = ...)]
-  Common/                RoleNames, ApiResponse envelope, exceptions, middleware, strongly-typed options
+  Common/                RoleNames, SettingKeys, ApiResponse envelope, exceptions, middleware, options
 ```
 
 **Database schema:** see [docs/erd.md](docs/erd.md) for the full entity–relationship diagram (renders
-natively on GitHub) and a table-by-table data dictionary for all 38 tables.
+natively on GitHub) and a table-by-table data dictionary. The diagram predates three tables added since —
+`EthicsDocumentRequirements`, `EthicsApprovalRequirements` and `UserInvitations` — so the schema is currently
+41 tables against the 38 documented there.
 
 ## Getting started
 
@@ -58,8 +60,9 @@ signing key so the project runs out of the box. For any shared/deployed environm
 
 - `ConnectionStrings:Default`
 - `Jwt:SigningKey` — generate your own: `openssl rand -base64 64`
-- `Mail:*` — real SMTP credentials (until then, emails fail silently and are logged — the workflow itself is
-  unaffected since every notification is also stored in-app)
+- `Mail:*` — only needed to get the very first administrator's verification email out. Once someone can sign
+  in, the mail server is configured from the API (`PUT /api/settings/notifications`) and the stored settings
+  take precedence over these.
 - `AzureAd:TenantId` / `AzureAd:ClientId` — only needed once Microsoft Entra SSO is registered; the app runs
   fine without it, the SSO exchange endpoint simply stays unavailable until configured
 
@@ -83,7 +86,7 @@ InternalCommitteeMember, ExternalCommitteeMember, Student, Staff) on first run v
 dotnet run
 ```
 
-- Swagger UI: `http://localhost:5289/swagger` (Development only)
+- Swagger UI: `http://localhost:5020/swagger` (Development only)
 - Health check: `GET /health`
 
 ### 6. Seeding accounts
@@ -99,6 +102,7 @@ export Seed__AdminPassword="SomeStrongPassword123!"
 ```
 
 It only ever creates the account once (never touches an existing one), and logs a warning confirming it did.
+This is the account that then configures everything else and invites everyone else.
 
 **Local test users** (one enabled account per role, **Development environment only** — this is hard-guarded in
 code, not just by config, since every account below shares the same password): created automatically the first
@@ -118,7 +122,8 @@ time you `dotnet run` in Development, no setup needed.
 Coordinator/Supervisor/HeadOfDepartment/Student all share one `Test Department` (code `TEST`), so the
 Coordinator auto-assignment logic works out of the box when the test Student creates a Publication Container.
 
-From there, use the Admin endpoints (`/api/users`, `/api/departments`) to create any additional real accounts.
+From there, use the Admin endpoints (`/api/users`, `/api/departments`, `/api/invitations`) to create any
+additional real accounts.
 
 ### Resetting a shared deployment (frontend team use)
 
@@ -128,12 +133,81 @@ against a shared deployment and wants a clean slate. It's a no-op (403) unless `
 is set, which is **only** appropriate on a deployment holding no real user data — see the warning in
 [render.yaml](render.yaml). Logging in again is required afterwards; tokens issued before a reset stop working.
 
+## Runtime settings
+
+Most of what an institution would want to change is data, not configuration. `SystemSettings` is a key/value
+table read through `ISystemSettingsProvider` (cached in memory, invalidated on write) and edited through
+`/api/settings`, grouped so each group can be validated as a whole. `Common/SettingKeys.cs` is the canonical
+list — nothing outside the provider spells a key as a literal, because a typo in a reader silently yields the
+default rather than failing.
+
+| Group | Covers |
+| --- | --- |
+| `committees` | Required internal/external members and minimum approvals |
+| `ethics-documents` | Which documents the ethics stage asks students for |
+| `deadlines` | Expected days for supervisor response, ethics review and committee review |
+| `uploads` | Maximum file size and permitted extensions |
+| `passwords` | Length, character classes, expiry, lockout threshold and duration |
+| `access` | Registration mode, single sign-on, invitation validity, token lifetimes |
+| `notifications` | SMTP server and the master email switch |
+| `institution` | Name, email domains, contact addresses, privacy policy, academic cycle |
+
+Three of these needed the code that reads them to change, because ASP.NET Core binds the equivalent options
+once at startup and so cannot follow a value edited at runtime:
+
+- **Password rules** — Identity's built-in validator reads `IdentityOptions`. Those are set to the loosest
+  configuration the system will ever allow, and `ConfigurablePasswordValidator` (which replaces the built-in
+  one) is the authority, reading the rules fresh on every check.
+- **Lockout** — same problem, so Identity's lockout is switched off and `IAccountLockoutService` owns it.
+  That also lets it cover changing a password, not just signing in: someone at a borrowed unlocked laptop
+  attacks the change-password form, where the sign-in page's protection would never be consulted.
+- **Token lifetimes** — read per issue rather than from the startup snapshot. The issuer, audience and signing
+  key deliberately stay in configuration: changing one from a web form would invalidate every token in
+  circulation, including the caller's own.
+
+### Settings that must not apply retroactively
+
+Two settings describe what is asked of a piece of research, so changing them cannot be allowed to change the
+rules for work already under way:
+
+- **Committee composition** is copied onto a `PublicationContainer` when it is created, and committee
+  assignment validates against that snapshot rather than against the current setting.
+- **Ethics documents** are copied onto an `EthicsApproval` when documentation is first requested, via
+  `EthicsApprovalRequirements`. Without it, adding a fourth required form would silently reopen every ethics
+  stage already completed under a list of three.
+
+Containers and approvals that predate the snapshots have none, and fall back to whatever is configured now —
+which is the only figure anyone ever agreed for them.
+
+## How people get accounts
+
+`access.registration-mode` is either `Open` or `InviteOnly`. Its default is not a constant: it comes from the
+hosting environment, so an unconfigured system is open in Development and invite-only anywhere else. Open
+registration is **refused** outside a development environment rather than merely discouraged — it would hand
+out accounts to anyone who guessed the email domain.
+
+In production, staff and students are expected to arrive through Microsoft Entra ID. The token plumbing is
+already in place and activates when `AzureAd:TenantId` is configured; `access.azure-sso-enabled` records
+whether the institution intends to use it, and the API reports separately whether a tenant actually exists so
+the interface can say that switching it on would currently do nothing.
+
+External committee members are outside the institution by definition. They have no institutional address, so
+no email domain could say what they are, and they are always invited and always sign in with a password.
+
+**Invitations** (`/api/invitations`) let an administrator invite any address to any role, choosing the role as
+they send it. The role comes from the invitation and never from the acceptance request — otherwise accepting
+one would be a way to award yourself whatever role you liked. Only a SHA-256 hash of the token is stored, so
+the token exists solely in the email that was sent and a leaked database cannot be used to accept anyone's
+invitation. Accepting, re-sending or withdrawing all invalidate the current token.
+
 ## Business rules encoded in the domain
 
-- Email domain decides the auto-assigned role at registration: `@aisstudent.ac.nz` → Student, `@ais.ac.nz` →
-  Staff (an Admin must then grant the actual operational role).
+- Email domain decides the auto-assigned role at registration: the student domain → Student, the staff domain →
+  Staff (an Admin must then grant the actual operational role). Both domains are settings, and the API refuses
+  to let them be identical — the same address cannot mean both.
 - New accounts start `Pending` and only become `Enabled` after email verification, regardless of provider
-  (local or Azure SSO).
+  (local or Azure SSO). Accounts created by accepting an invitation are enabled immediately: the invitation
+  reached that address and was answered, which is the same proof a verification email would give.
 - The publication process is three sequential pipelines per `PublicationContainer`: Research Proposals → Ethics
   Approval → Research Paper. `PublicationContainer.CurrentPipeline` tracks progress; a paper cannot be
   submitted until the Ethics status is `Verified` or `NotRequired`.
@@ -144,6 +218,14 @@ is set, which is **only** appropriate on a deployment holding no real user data 
 - Access to a `PublicationContainer` (and everything under it — proposals, ethics docs, paper versions) is
   gated by `IContainerAccessService`, not just role membership: Admin, the owning Student, the assigned
   Coordinator/Supervisor, the Head of Department of the student's department, and assigned Committee members.
+- **Deleting an account is anonymise-and-lock, not a row delete.** Every foreign key pointing at a user is
+  `RESTRICT`, so a real delete would either be refused or would have to detach published research from its
+  author. `DELETE /api/users/{id}` requires a reason, writes the audit entry *before* stripping anything
+  (recording the former address), then replaces the identifying fields, disables the account and locks it out
+  permanently. The person can no longer sign in and is no longer identifiable; what they did stays
+  attributable.
+- **Deadlines mark work as overdue; they never block it.** A deadline that stopped a supervisor responding
+  late would only strand the student waiting on them.
 
 ## Known scope decisions
 
@@ -153,6 +235,9 @@ is set, which is **only** appropriate on a deployment holding no real user data 
   controller surface for marginal value.
 - File storage is local disk (`IFileStorageService` / `LocalFileStorageService`) behind an interface so it can
   be swapped for Azure Blob Storage later without touching callers.
+- Deadlines are stored and validated, and the API exposes them, but nothing yet acts on them: reminders and
+  escalation need a background scheduler that does not exist here.
+- Publication categories have a table and no endpoints. Nothing consumes them.
 
 ## Deployment
 
@@ -166,10 +251,11 @@ docker compose up -d          # mysql + the containerised API itself, for a loca
 
 ### Postman
 
-[docs/postman/](docs/postman/) has a ready-to-import collection (86 requests, one folder per
-controller) generated from the live OpenAPI spec, plus an environment pointing at the deployed
-Render instance. Import both, run **Auth > Login**, and the access/refresh tokens are saved into
-collection variables automatically — every other request already inherits Bearer auth from them.
+[docs/postman/](docs/postman/) has a ready-to-import collection (one folder per controller) generated from the
+live OpenAPI spec, plus an environment pointing at the deployed Render instance. Import both, run
+**Auth > Login**, and the access/refresh tokens are saved into collection variables automatically — every
+other request already inherits Bearer auth from them. It predates the Settings and Invitations controllers;
+regenerate it from `/swagger/v1/swagger.json` to pick those up.
 
 ## Testing
 
@@ -183,6 +269,8 @@ Run everything:
 ```bash
 dotnet test
 ```
+
+137 tests: 130 unit, 7 integration.
 
 - **Unit tests** exercise the service layer directly against a fresh SQLite in-memory database per test
   (relational/FK-enforcing, unlike the EF Core InMemory provider), with `UserManager`/`SignInManager` mocked via
@@ -205,6 +293,6 @@ dependencies) would have caught, all now fixed:
    didn't). Fixed with a global `datetime(6)` convention in `ApplicationDbContext.ConfigureConventions`.
 3. Newly created `Keyword` entities reached only through the `Publication.Keywords` navigation (never explicitly
    `Add()`-ed) were tracked as `Modified` instead of `Added`, because `Keyword.Id` already has a non-default
-   value from its property initializer — EF Core's heuristic for entities reached only via fixup assumes a
+   value from its property initialiser — EF Core's heuristic for entities reached only via fixup assumes a
    non-default key means "already exists". Fixed by explicitly calling `db.Keywords.Add(...)` for new keywords
    in `PublicationService.UpdateMetadataAsync`.

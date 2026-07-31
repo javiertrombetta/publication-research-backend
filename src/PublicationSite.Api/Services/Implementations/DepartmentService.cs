@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using PublicationSite.Api.Common.Exceptions;
+using PublicationSite.Api.Common;
 using PublicationSite.Api.Data;
 using PublicationSite.Api.DTOs.Departments;
 using PublicationSite.Api.Entities;
@@ -84,9 +85,18 @@ public class DepartmentService(ApplicationDbContext db) : IDepartmentService
 
     public async Task<Guid> SelectCoordinatorForDepartmentAsync(Guid departmentId, CancellationToken cancellationToken = default)
     {
+        // The role is checked as well as the profile. A profile outlives the role that created it
+        // — they are never deleted, because Publication Containers point at them — so someone
+        // moved off Coordinator would otherwise keep being handed new students.
+        var coordinatorRoleId = await db.Roles
+            .Where(r => r.Name == RoleNames.Coordinator)
+            .Select(r => r.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
         var candidate = await db.CoordinatorProfiles
             .Where(c => c.DepartmentId == departmentId && c.IsAvailableForAssignment
-                        && c.User.Status == UserStatus.Enabled)
+                        && c.User.Status == UserStatus.Enabled
+                        && db.UserRoles.Any(ur => ur.UserId == c.UserId && ur.RoleId == coordinatorRoleId))
             .Select(c => new
             {
                 c.UserId,

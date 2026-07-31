@@ -26,6 +26,13 @@ public class PublicationsController(IPublicationService publicationService, ICur
         return Ok(ApiResponse<PublicationDto>.Ok(result));
     }
 
+    [HttpGet("api/publications/{publicationId:guid}")]
+    public async Task<IActionResult> GetById(Guid publicationId)
+    {
+        var result = await publicationService.GetByIdAsync(publicationId, currentUser.UserId);
+        return Ok(ApiResponse<PublicationDto>.Ok(result));
+    }
+
     [HttpPut("api/publications/{publicationId:guid}")]
     [Authorize(Roles = RoleNames.Student)]
     public async Task<IActionResult> UpdateMetadata(Guid publicationId, [FromBody] UpdatePublicationMetadataRequest request)

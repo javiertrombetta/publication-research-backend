@@ -56,6 +56,19 @@ public class PublicationService(
         return ToDto(publication);
     }
 
+    public async Task<PublicationDto> GetByIdAsync(Guid publicationId, Guid requestingUserId, CancellationToken cancellationToken = default)
+    {
+        var publication = await db.Publications
+            .Include(p => p.Keywords).Include(p => p.ResearchAreas)
+            .FirstOrDefaultAsync(p => p.Id == publicationId, cancellationToken)
+            ?? throw new NotFoundException(nameof(Publication), publicationId);
+
+        // Access is a property of the Container, so it is checked there rather than here.
+        await accessService.EnsureAccessAsync(publication.PublicationContainerId, requestingUserId);
+
+        return ToDto(publication);
+    }
+
     public async Task<PublicationDto> UpdateMetadataAsync(Guid publicationId, Guid studentId, UpdatePublicationMetadataRequest request, CancellationToken cancellationToken = default)
     {
         var publication = await GetOwnedPublicationAsync(publicationId, studentId, cancellationToken, includeMetadata: true);

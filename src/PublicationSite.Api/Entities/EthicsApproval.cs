@@ -30,4 +30,10 @@ public class EthicsApproval
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public ICollection<EthicsDocument> Documents { get; set; } = [];
+
+    /// <summary>
+    /// The documents this approval asks for, as they stood when documentation was requested.
+    /// See EthicsApprovalRequirement for why the list is copied rather than read live.
+    /// </summary>
+    public ICollection<EthicsApprovalRequirement> RequiredDocuments { get; set; } = [];
 }

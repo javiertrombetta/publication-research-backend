@@ -22,6 +22,20 @@ public class PublicationContainer
     public PipelineStage CurrentPipeline { get; set; } = PipelineStage.ResearchProposals;
     public ContainerStatus Status { get; set; } = ContainerStatus.InProgress;
 
+    /// <summary>
+    /// The committee composition this publication will be judged by, copied from the system
+    /// settings on the day it was opened.
+    ///
+    /// Snapshotted rather than read live because a publication runs for months: an administrator
+    /// who decides in March that committees now need three external members must not thereby
+    /// change the rules for research that has been under way since January. Null on containers
+    /// created before this existed — those fall back to whatever is configured now, which is the
+    /// only figure anyone ever agreed for them.
+    /// </summary>
+    public int? RequiredInternalCommitteeMembers { get; set; }
+    public int? RequiredExternalCommitteeMembers { get; set; }
+    public int? RequiredCommitteeApprovals { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 

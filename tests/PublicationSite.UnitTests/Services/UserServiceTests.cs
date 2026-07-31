@@ -26,12 +26,15 @@ public class UserServiceTests : IDisposable
     public UserServiceTests()
     {
         _emailSender.Setup(e => e.SendAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
+            .ReturnsAsync(true);
         _userManager.Setup(m => m.GeneratePasswordResetTokenAsync(It.IsAny<ApplicationUser>())).ReturnsAsync("reset-token");
         _userManager.Setup(m => m.GetRolesAsync(It.IsAny<ApplicationUser>())).ReturnsAsync(new List<string>());
 
         _sut = new UserService(_userManager.Object, _fixture.Context, _emailSender.Object, _auditService.Object,
-            _fileStorageService.Object, Options.Create(new FrontendSettings()), Options.Create(new FileStorageSettings()));
+            // The real factory, not a mock: several of these tests assert on the profile row it
+            // writes, which a stub would never produce.
+            _fileStorageService.Object, new UserProfileFactory(_fixture.Context),
+            Options.Create(new FrontendSettings()), Options.Create(new FileStorageSettings()));
     }
 
     public void Dispose() => _fixture.Dispose();
@@ -112,6 +115,7 @@ public class UserServiceTests : IDisposable
     [Fact]
     public async Task ChangeRoleAsync_replaces_existing_roles()
     {
+        var department = TestDataBuilder.Department(_fixture.Context);
         var user = TestDataBuilder.User(_fixture.Context);
         _userManager.Setup(m => m.FindByIdAsync(It.IsAny<string>())).ReturnsAsync((string id) =>
             _fixture.Context.Users.Find(Guid.Parse(id)));
@@ -119,10 +123,36 @@ public class UserServiceTests : IDisposable
         _userManager.Setup(m => m.RemoveFromRolesAsync(user, It.IsAny<IEnumerable<string>>())).ReturnsAsync(IdentityResult.Success);
         _userManager.Setup(m => m.AddToRoleAsync(user, RoleNames.Supervisor)).ReturnsAsync(IdentityResult.Success);
 
-        await _sut.ChangeRoleAsync(user.Id, new ChangeUserRoleRequest(RoleNames.Supervisor, "Promoted"), Guid.NewGuid());
+        await _sut.ChangeRoleAsync(
+            user.Id, new ChangeUserRoleRequest(RoleNames.Supervisor, "Promoted", department.Id), Guid.NewGuid());
 
         _userManager.Verify(m => m.RemoveFromRolesAsync(user, It.Is<IEnumerable<string>>(r => r.Contains(RoleNames.Staff))), Times.Once);
         _userManager.Verify(m => m.AddToRoleAsync(user, RoleNames.Supervisor), Times.Once);
+
+        // The point of the fix: the role never arrives without the profile it needs.
+        _fixture.Context.SupervisorProfiles.Should().ContainSingle(s => s.UserId == user.Id);
+    }
+
+    /// <summary>
+    /// Refused rather than half-applied. Granting the role on its own is what left accounts
+    /// holding a role they could not use — a Coordinator invisible to assignment, a committee
+    /// member nobody could put on a committee.
+    /// </summary>
+    [Fact]
+    public async Task ChangeRoleAsync_refuses_a_department_role_without_a_department()
+    {
+        var user = TestDataBuilder.User(_fixture.Context);
+        _userManager.Setup(m => m.FindByIdAsync(It.IsAny<string>())).ReturnsAsync((string id) =>
+            _fixture.Context.Users.Find(Guid.Parse(id)));
+        _userManager.Setup(m => m.GetRolesAsync(user)).ReturnsAsync([RoleNames.Staff]);
+
+        var act = () => _sut.ChangeRoleAsync(
+            user.Id, new ChangeUserRoleRequest(RoleNames.Coordinator, "Promoted"), Guid.NewGuid());
+
+        await act.Should().ThrowAsync<BusinessRuleException>();
+
+        // Nothing moved: the role is still what it was.
+        _userManager.Verify(m => m.AddToRoleAsync(It.IsAny<ApplicationUser>(), It.IsAny<string>()), Times.Never);
     }
 
     [Fact]

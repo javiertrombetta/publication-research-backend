@@ -18,6 +18,7 @@ public class UserService(
     IEmailSender emailSender,
     IAuditService auditService,
     IFileStorageService fileStorageService,
+    IUserProfileFactory profileFactory,
     IOptions<FrontendSettings> frontendOptions,
     IOptions<FileStorageSettings> fileStorageOptions) : IUserService
 {
@@ -63,7 +64,7 @@ public class UserService(
         return await ToDetailDtoAsync(user, cancellationToken);
     }
 
-    public async Task<UserDetailDto> CreateAsync(CreateUserRequest request, Guid actingAdminId, CancellationToken cancellationToken = default)
+    public async Task<(UserDetailDto User, bool PasswordEmailSent)> CreateAsync(CreateUserRequest request, Guid actingAdminId, CancellationToken cancellationToken = default)
     {
         if (!RoleNames.All.Contains(request.Role))
         {
@@ -89,17 +90,17 @@ public class UserService(
         }
 
         await userManager.AddToRoleAsync(user, request.Role);
-        await CreateProfileForRoleAsync(user, request, cancellationToken);
+        await profileFactory.EnsureForRoleAsync(user, request, cancellationToken);
 
         var token = await userManager.GeneratePasswordResetTokenAsync(user);
         var link = $"{_frontend.BaseUrl}/set-password?email={Uri.EscapeDataString(user.Email!)}&token={Uri.EscapeDataString(token)}";
-        await emailSender.SendAsync(user.Email!, "Set your password",
+        var sent = await emailSender.SendAsync(user.Email!, "Set your password",
             $"<p>An administrator created an account for you on the AIS Research Publication Site.</p><p><a href=\"{link}\">Set your password</a></p>");
 
         await auditService.LogAuditAsync(actingAdminId, "UserCreated", nameof(ApplicationUser), user.Id,
             newValue: request.Role, onBehalfOfUserId: null);
 
-        return await ToDetailDtoAsync(user, cancellationToken);
+        return (await ToDetailDtoAsync(user, cancellationToken), sent);
     }
 
     public async Task<UserDetailDto> UpdateAsync(Guid id, UpdateUserRequest request, Guid actingAdminId, CancellationToken cancellationToken = default)
@@ -129,6 +130,19 @@ public class UserService(
         var user = await FindUserOrThrowAsync(id, cancellationToken);
         var currentRoles = await userManager.GetRolesAsync(user);
 
+        // The profile comes first. If the role needs a department and none was given, this throws
+        // before the role is swapped — better than leaving the account holding a role it cannot
+        // use, which is what happened when the role was changed on its own.
+        await profileFactory.EnsureForRoleAsync(user, new CreateUserRequest
+        {
+            Email = user.Email ?? string.Empty,
+            FirstName = user.FirstName,
+            LastName = user.LastName,
+            Role = request.Role,
+            DepartmentId = request.DepartmentId,
+            Affiliation = request.Affiliation
+        }, cancellationToken);
+
         await userManager.RemoveFromRolesAsync(user, currentRoles);
         await userManager.AddToRoleAsync(user, request.Role);
 
@@ -148,21 +162,66 @@ public class UserService(
 
         var token = await userManager.GeneratePasswordResetTokenAsync(user);
         var link = $"{_frontend.BaseUrl}/reset-password?email={Uri.EscapeDataString(user.Email!)}&token={Uri.EscapeDataString(token)}";
-        await emailSender.SendAsync(user.Email!, "Your password was reset by an administrator",
+        var sent = await emailSender.SendAsync(user.Email!, "Your password was reset by an administrator",
             $"<p>An administrator reset your password. Use the link below to set a new one:</p><p><a href=\"{link}\">Set new password</a></p>");
 
         await auditService.LogAuditAsync(actingAdminId, "UserPasswordResetByAdmin", nameof(ApplicationUser), user.Id,
             comments: comments, onBehalfOfUserId: user.Id);
+
+        if (!sent)
+        {
+            throw new BusinessRuleException(
+                $"Could not email the reset link to {user.Email} — no working mail server is configured. " +
+                "Set one up under System settings, then try again.");
+        }
     }
 
     public async Task DeleteAsync(Guid id, string comments, Guid actingAdminId, CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(comments))
+        {
+            throw new BusinessRuleException("A reason is required when deleting an account.");
+        }
+
+        if (id == actingAdminId)
+        {
+            throw new BusinessRuleException("You cannot delete your own account.");
+        }
+
         var user = await FindUserOrThrowAsync(id, cancellationToken);
 
+        // Recorded before anything is stripped, so the trail still says who this was.
         await auditService.LogAuditAsync(actingAdminId, "UserDeleted", nameof(ApplicationUser), user.Id,
-            comments: comments, onBehalfOfUserId: user.Id);
+            previousValue: user.Email, comments: comments, onBehalfOfUserId: user.Id);
 
-        await userManager.DeleteAsync(user);
+        if (user.ProfilePhotoPath is { } photoPath)
+        {
+            fileStorageService.Delete(photoPath);
+            user.ProfilePhotoPath = null;
+        }
+
+        // A placeholder address rather than null: Identity requires a user name, and .invalid is
+        // reserved by RFC 2606 so nothing can ever be delivered to it. The id keeps it unique.
+        var placeholder = $"deleted-{user.Id}@deleted.invalid";
+
+        user.Email = placeholder;
+        user.NormalizedEmail = placeholder.ToUpperInvariant();
+        user.UserName = placeholder;
+        user.NormalizedUserName = placeholder.ToUpperInvariant();
+        user.FirstName = "Deleted";
+        user.LastName = "account";
+        user.InstitutionalId = null;
+        user.PhoneNumber = null;
+        user.EmailConfirmed = false;
+        user.Status = UserStatus.Disabled;
+        user.UpdatedAt = DateTime.UtcNow;
+
+        // Locks the account out for good and invalidates any token already issued to it.
+        user.LockoutEnabled = true;
+        user.LockoutEnd = DateTimeOffset.MaxValue;
+
+        await userManager.UpdateAsync(user);
+        await userManager.UpdateSecurityStampAsync(user);
     }
 
     public async Task<UserDetailDto> GetOwnProfileAsync(Guid userId, CancellationToken cancellationToken = default)
@@ -345,79 +404,4 @@ public class UserService(
             user.ProfilePhotoPath is not null);
     }
 
-    private async Task CreateProfileForRoleAsync(ApplicationUser user, CreateUserRequest request, CancellationToken cancellationToken)
-    {
-        switch (request.Role)
-        {
-            case RoleNames.Student:
-                RequireDepartment(request);
-                db.StudentProfiles.Add(new StudentProfile
-                {
-                    UserId = user.Id,
-                    DepartmentId = request.DepartmentId!.Value,
-                    StudentIdNumber = request.StudentIdNumber ?? string.Empty,
-                    Programme = request.Programme ?? string.Empty,
-                    Cohort = request.Cohort ?? string.Empty,
-                    ResearchAreas = request.ResearchAreaIds is { Count: > 0 }
-                        ? await db.ResearchAreas.Where(r => request.ResearchAreaIds.Contains(r.Id)).ToListAsync(cancellationToken)
-                        : []
-                });
-                break;
-
-            case RoleNames.Supervisor:
-                RequireDepartment(request);
-                db.SupervisorProfiles.Add(new SupervisorProfile
-                {
-                    UserId = user.Id,
-                    DepartmentId = request.DepartmentId!.Value,
-                    AreasOfExpertise = request.AreasOfExpertise,
-                    ResearchInterests = request.ResearchInterests
-                });
-                break;
-
-            case RoleNames.Coordinator:
-                RequireDepartment(request);
-                db.CoordinatorProfiles.Add(new CoordinatorProfile
-                {
-                    UserId = user.Id,
-                    DepartmentId = request.DepartmentId!.Value
-                });
-                break;
-
-            case RoleNames.HeadOfDepartment:
-                RequireDepartment(request);
-                if (await db.HeadOfDepartmentProfiles.AnyAsync(h => h.DepartmentId == request.DepartmentId, cancellationToken))
-                {
-                    throw new ConflictException("This department already has a Head of Department assigned.");
-                }
-                db.HeadOfDepartmentProfiles.Add(new HeadOfDepartmentProfile
-                {
-                    UserId = user.Id,
-                    DepartmentId = request.DepartmentId!.Value
-                });
-                break;
-
-            case RoleNames.InternalCommitteeMember:
-            case RoleNames.ExternalCommitteeMember:
-                db.CommitteeMemberProfiles.Add(new CommitteeMemberProfile
-                {
-                    UserId = user.Id,
-                    Type = request.Role == RoleNames.InternalCommitteeMember
-                        ? CommitteeMemberRoleType.Internal
-                        : CommitteeMemberRoleType.External,
-                    Affiliation = request.Affiliation
-                });
-                break;
-        }
-
-        await db.SaveChangesAsync(cancellationToken);
-    }
-
-    private static void RequireDepartment(CreateUserRequest request)
-    {
-        if (request.DepartmentId is null)
-        {
-            throw new BusinessRuleException($"A department is required for the '{request.Role}' role.");
-        }
-    }
 }

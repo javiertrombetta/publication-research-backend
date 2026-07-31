@@ -37,4 +37,12 @@ public class NotificationQueryService(ApplicationDbContext db) : INotificationQu
         notification.IsRead = true;
         await db.SaveChangesAsync(cancellationToken);
     }
+
+    public Task<int> MarkAllAsReadAsync(Guid userId, CancellationToken cancellationToken = default) =>
+        db.Notifications
+            .Where(n => n.UserId == userId && !n.IsRead)
+            .ExecuteUpdateAsync(n => n.SetProperty(x => x.IsRead, true), cancellationToken);
+
+    public Task<int> GetUnreadCountAsync(Guid userId, CancellationToken cancellationToken = default) =>
+        db.Notifications.CountAsync(n => n.UserId == userId && !n.IsRead, cancellationToken);
 }

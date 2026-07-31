@@ -53,6 +53,15 @@ public class FullPublicationJourneyTests(ApiTestFactory factory)
         var externalMemberClient = AuthenticatedClient(externalMember.Email!);
         var adminClient = AuthenticatedClient(admin.Email!);
 
+        // Set before the container exists, deliberately: a container records the committee rules
+        // in force when it is opened, so configuring them afterwards would not reach it. This
+        // journey has one member of each type.
+        var (committeeSettingsStatus, _) = await adminClient.PutAsync<object>("/api/settings/committees", new
+        {
+            internalMembers = 1, externalMembers = 1, minimumApprovals = 2
+        });
+        committeeSettingsStatus.Should().Be(HttpStatusCode.OK);
+
         // ---------- Pipeline 1: Research Proposals ----------
         var (createContainerStatus, containerBody) = await studentClient.PostAsync<PublicationContainerDto>("/api/containers", new { });
         createContainerStatus.Should().Be(HttpStatusCode.Created);

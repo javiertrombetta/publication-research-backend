@@ -136,4 +136,48 @@ public static class TestDataBuilder
         db.SaveChanges();
         return proposal;
     }
+
+    /// <summary>
+    /// Puts a user in a role, creating the role row if this is the first test to need it.
+    ///
+    /// Roles matter to more than authorisation now: the queries that look for a coordinator to
+    /// assign, or check who may sit on a committee, ask whether the person still holds the role
+    /// rather than whether a profile exists — because a profile outlives the role that created it.
+    /// </summary>
+    public static void GrantRole(ApplicationDbContext db, ApplicationUser user, string roleName)
+    {
+        var role = db.Roles.FirstOrDefault(r => r.Name == roleName);
+        if (role is null)
+        {
+            role = new ApplicationRole { Name = roleName, NormalizedName = roleName.ToUpperInvariant() };
+            db.Roles.Add(role);
+            db.SaveChanges();
+        }
+
+        db.UserRoles.Add(new Microsoft.AspNetCore.Identity.IdentityUserRole<Guid>
+        {
+            UserId = user.Id,
+            RoleId = role.Id
+        });
+        db.SaveChanges();
+    }
+
+    /// <summary>
+    /// The ethics documents a test's publications will be asked for. These are data now rather
+    /// than an enum, so a context with none configured cannot start an ethics stage at all.
+    /// Named as the old enum members were, since uploads may be addressed by name.
+    /// </summary>
+    public static IReadOnlyList<EthicsDocumentRequirement> EthicsDocumentRequirements(ApplicationDbContext context)
+    {
+        var requirements = new List<EthicsDocumentRequirement>
+        {
+            new() { Name = "ApprovalCertificate", SortOrder = 1 },
+            new() { Name = "ApplicationForm", SortOrder = 2 },
+            new() { Name = "ParticipantConsentForm", SortOrder = 3 }
+        };
+
+        context.EthicsDocumentRequirements.AddRange(requirements);
+        context.SaveChanges();
+        return requirements;
+    }
 }
