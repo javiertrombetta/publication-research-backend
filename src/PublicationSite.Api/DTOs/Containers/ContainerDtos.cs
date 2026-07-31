@@ -1,3 +1,5 @@
+using PublicationSite.Api.DTOs.Common;
+
 namespace PublicationSite.Api.DTOs.Containers;
 
 /// <param name="Title">Best available label for this container: the research paper's title once one exists, otherwise the approved proposal's title. Null while the student is still drafting proposals. Needed because a student can have several containers at once, and the container itself carries no name of its own.</param>
@@ -24,6 +26,10 @@ public record PublicationContainerDto(
     string? EthicsStatus = null,
     string? EthicsAwaitingRole = null,
     string? PaperAwaitingRole = null,
+    /// <summary>
+    /// Which ethics decision this is waiting for, by name. See Common/EthicsSteps.
+    /// </summary>
+    string? EthicsAwaitingStep = null,
     int? RequiredInternalCommitteeMembers = null,
     int? RequiredExternalCommitteeMembers = null);
 
@@ -48,3 +54,25 @@ public record AssignCoordinatorRequest(
     Guid CoordinatorUserId,
     string Comments,
     Guid? PublicationContainerId = null);
+
+/// <summary>
+/// How much of the container list a caller wants, and which of it.
+///
+/// EthicsStep is what lets a screen ask for its own queue instead of everything: the screens used
+/// to fetch every container and filter in the browser, which meant no page could be a page of one
+/// screen. Comma-separated, because the Coordinator's first ethics screen covers two steps that
+/// arrive at the same moment.
+/// </summary>
+public class ContainerQuery : PageRequest
+{
+    public Guid? StudentId { get; set; }
+    public Guid? CoordinatorId { get; set; }
+    public string? Status { get; set; }
+
+    /// <summary>One or more names from Common/EthicsSteps, comma-separated.</summary>
+    public string? EthicsSteps { get; set; }
+
+    public IReadOnlyList<string>? EthicsStep => string.IsNullOrWhiteSpace(EthicsSteps)
+        ? null
+        : EthicsSteps.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+}

@@ -36,6 +36,7 @@ public record SupervisorInvitationDto(
 public record ProposalWithInvitationsDto(
     Guid Id,
     Guid PublicationContainerId,
+    string StudentName,
     string Title,
     string Abstract,
     string Status,

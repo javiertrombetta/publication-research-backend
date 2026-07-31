@@ -9,6 +9,7 @@ using PublicationSite.Api.DTOs.Proposals;
 using PublicationSite.Api.DTOs.Publications;
 using PublicationSite.IntegrationTests.Infrastructure;
 using Xunit;
+using PublicationSite.Api.DTOs.Common;
 
 namespace PublicationSite.IntegrationTests.Flows;
 
@@ -75,8 +76,10 @@ public class FullPublicationJourneyTests(ApiTestFactory factory)
         var (finishStatus, _) = await studentClient.PostAsync<object>($"/api/containers/{container.Id}/proposals/finish-submission", new { });
         finishStatus.Should().Be(HttpStatusCode.OK);
 
-        var (_, pendingBody) = await coordinatorClient.GetAsync<IReadOnlyList<ProposalDto>>("/api/proposals/pending");
-        pendingBody!.Data.Should().ContainSingle(p => p.Id == proposal.Id);
+        // Paged now, as every queue endpoint is: the coordinator asks for a page rather than for
+        // every proposal in the institution.
+        var (_, pendingBody) = await coordinatorClient.GetAsync<PagedResult<ProposalDto>>("/api/proposals/pending");
+        pendingBody!.Data!.Items.Should().ContainSingle(p => p.Id == proposal.Id);
 
         var (sendStatus, _) = await coordinatorClient.PostAsync<object>("/api/proposals/send-to-supervisors", new
         {
@@ -133,8 +136,8 @@ public class FullPublicationJourneyTests(ApiTestFactory factory)
         var (submitStatus, _) = await studentClient.PostAsync<object>($"/api/publications/{publication.Id}/submit", new { });
         submitStatus.Should().Be(HttpStatusCode.OK);
 
-        var (_, pendingPapersBody) = await supervisorClient.GetAsync<IReadOnlyList<PublicationDto>>("/api/publications/pending");
-        pendingPapersBody!.Data.Should().ContainSingle(p => p.Id == publication.Id);
+        var (_, pendingPapersBody) = await supervisorClient.GetAsync<PagedResult<PublicationDto>>("/api/publications/pending");
+        pendingPapersBody!.Data!.Items.Should().ContainSingle(p => p.Id == publication.Id);
 
         var (supervisorReviewStatus, _) = await supervisorClient.PostAsync<object>(
             $"/api/publications/{publication.Id}/supervisor-review", new { accept = true, comments = "Well written" });

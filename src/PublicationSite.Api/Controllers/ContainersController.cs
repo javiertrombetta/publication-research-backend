@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PublicationSite.Api.Common;
+using PublicationSite.Api.DTOs.Common;
 using PublicationSite.Api.DTOs.Containers;
 using PublicationSite.Api.Services.Interfaces;
 
@@ -22,29 +23,29 @@ public class ContainersController(IContainerService containerService, ICurrentUs
 
     [HttpGet("me")]
     [Authorize(Roles = RoleNames.Student)]
-    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<PublicationContainerDto>>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetMine()
+    [ProducesResponseType(typeof(ApiResponse<PagedResult<PublicationContainerDto>>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetMine([FromQuery] PageRequest paging)
     {
-        var result = await containerService.GetMineAsync(currentUser.UserId);
-        return Ok(ApiResponse<IReadOnlyList<PublicationContainerDto>>.Ok(result));
+        var result = await containerService.GetMineAsync(currentUser.UserId, paging);
+        return Ok(ApiResponse<PagedResult<PublicationContainerDto>>.Ok(result));
     }
 
     [HttpGet("supervising")]
     [Authorize(Roles = RoleNames.Supervisor)]
-    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<PublicationContainerDto>>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetSupervising()
+    [ProducesResponseType(typeof(ApiResponse<PagedResult<PublicationContainerDto>>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetSupervising([FromQuery] ContainerQuery query)
     {
-        var result = await containerService.GetSupervisingAsync(currentUser.UserId);
-        return Ok(ApiResponse<IReadOnlyList<PublicationContainerDto>>.Ok(result));
+        var result = await containerService.GetSupervisingAsync(currentUser.UserId, query);
+        return Ok(ApiResponse<PagedResult<PublicationContainerDto>>.Ok(result));
     }
 
     [HttpGet("in-my-department")]
     [Authorize(Roles = RoleNames.HeadOfDepartment)]
-    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<PublicationContainerDto>>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetInMyDepartment()
+    [ProducesResponseType(typeof(ApiResponse<PagedResult<PublicationContainerDto>>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetInMyDepartment([FromQuery] ContainerQuery query)
     {
-        var result = await containerService.GetInMyDepartmentAsync(currentUser.UserId);
-        return Ok(ApiResponse<IReadOnlyList<PublicationContainerDto>>.Ok(result));
+        var result = await containerService.GetInMyDepartmentAsync(currentUser.UserId, query);
+        return Ok(ApiResponse<PagedResult<PublicationContainerDto>>.Ok(result));
     }
 
     [HttpDelete("{id:guid}")]
@@ -74,11 +75,11 @@ public class ContainersController(IContainerService containerService, ICurrentUs
 
     [HttpGet]
     [Authorize(Roles = $"{RoleNames.Admin},{RoleNames.Coordinator}")]
-    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<PublicationContainerDto>>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetAll([FromQuery] Guid? studentId, [FromQuery] Guid? coordinatorId, [FromQuery] string? status)
+    [ProducesResponseType(typeof(ApiResponse<PagedResult<PublicationContainerDto>>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetAll([FromQuery] ContainerQuery query)
     {
-        var result = await containerService.GetAllAsync(studentId, coordinatorId, status);
-        return Ok(ApiResponse<IReadOnlyList<PublicationContainerDto>>.Ok(result));
+        var result = await containerService.GetAllAsync(query);
+        return Ok(ApiResponse<PagedResult<PublicationContainerDto>>.Ok(result));
     }
 
     [HttpPost("assign-coordinator")]

@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using PublicationSite.Api.Common;
 using PublicationSite.Api.Common.Exceptions;
 using PublicationSite.Api.Data;
+using PublicationSite.Api.DTOs.Common;
 using PublicationSite.Api.DTOs.Publications;
 using PublicationSite.Api.Entities;
 using PublicationSite.Api.Enums;
@@ -222,18 +223,29 @@ public class PublicationService(
         }
     }
 
-    public async Task<IReadOnlyList<PublicationDto>> GetPendingForSupervisorAsync(Guid supervisorId, CancellationToken cancellationToken = default)
+    public async Task<PagedResult<PublicationDto>> GetPendingForSupervisorAsync(
+        Guid supervisorId, PageRequest page, CancellationToken cancellationToken = default)
     {
-        var publications = await db.Publications
-            .Include(p => p.Keywords).Include(p => p.ResearchAreas)
+        var query = db.Publications
             .Where(p => p.PublicationContainer.AssignedSupervisorId == supervisorId
                         && (p.Status == PublicationStatus.UnderReview || p.Status == PublicationStatus.Resubmitted))
             // Approving a paper leaves it UnderReview, so without this a Supervisor kept seeing
             // every paper they had already dealt with alongside the ones still waiting.
             .WhereLatestVersionApprovedBySupervisor(false)
+            .OrderBy(p => p.UpdatedAt);
+
+        var total = await query.CountAsync(cancellationToken);
+
+        // Materialised one page at a time. Keywords and research areas are collections, so they
+        // are included after the page is chosen rather than for every paper in the department.
+        var publications = await query
+            .Skip((page.SafePage - 1) * page.SafePageSize)
+            .Take(page.SafePageSize)
+            .Include(p => p.Keywords).Include(p => p.ResearchAreas)
             .ToListAsync(cancellationToken);
 
-        return publications.Select(ToDto).ToList();
+        return new PagedResult<PublicationDto>(
+            publications.Select(ToDto).ToList(), page.SafePage, page.SafePageSize, total);
     }
 
     public async Task<IReadOnlyList<AwaitingCommitteeDto>> GetAwaitingCommitteeAsync(CancellationToken cancellationToken = default)

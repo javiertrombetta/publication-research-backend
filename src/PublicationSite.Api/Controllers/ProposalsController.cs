@@ -19,7 +19,6 @@ public class ProposalsController(IProposalService proposalService, ICurrentUserS
         var result = await proposalService.CreateAsync(containerId, currentUser.UserId, request);
         return Ok(ApiResponse<ProposalDto>.Ok(result));
     }
-
     [HttpPut("api/proposals/{proposalId:guid}")]
     [Authorize(Roles = RoleNames.Student)]
     [ProducesResponseType(typeof(ApiResponse<ProposalDto>), StatusCodes.Status200OK)]
@@ -28,7 +27,6 @@ public class ProposalsController(IProposalService proposalService, ICurrentUserS
         var result = await proposalService.UpdateAsync(proposalId, currentUser.UserId, request);
         return Ok(ApiResponse<ProposalDto>.Ok(result));
     }
-
     [HttpGet("api/containers/{containerId:guid}/proposals")]
     [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<ProposalDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetByContainer(Guid containerId)
@@ -36,7 +34,6 @@ public class ProposalsController(IProposalService proposalService, ICurrentUserS
         var result = await proposalService.GetByContainerAsync(containerId, currentUser.UserId);
         return Ok(ApiResponse<IReadOnlyList<ProposalDto>>.Ok(result));
     }
-
     [HttpPost("api/containers/{containerId:guid}/proposals/finish-submission")]
     [Authorize(Roles = RoleNames.Student)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
@@ -45,7 +42,6 @@ public class ProposalsController(IProposalService proposalService, ICurrentUserS
         await proposalService.FinishSubmissionAsync(containerId, currentUser.UserId);
         return Ok(ApiResponse.Ok("Proposals submitted."));
     }
-
     [HttpPost("api/containers/{containerId:guid}/proposals/request-resubmission")]
     [Authorize(Roles = $"{RoleNames.Admin},{RoleNames.Coordinator}")]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
@@ -54,50 +50,34 @@ public class ProposalsController(IProposalService proposalService, ICurrentUserS
         await proposalService.RequestNewSubmissionAsync(containerId, request.Comments, currentUser.UserId);
         return Ok(ApiResponse.Ok("Student asked to resubmit proposals."));
     }
-
     [HttpGet("api/proposals/for-coordinator")]
-
     [Authorize(Roles = RoleNames.Coordinator)]
-
-    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<ProposalWithInvitationsDto>>), StatusCodes.Status200OK)]
-
-    public async Task<IActionResult> GetForCoordinator()
-
+    [ProducesResponseType(typeof(ApiResponse<PagedResult<ProposalWithInvitationsDto>>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetForCoordinator([FromQuery] PageRequest paging, [FromQuery] bool awaitingAllocation = false)
     {
-
-        var result = await proposalService.GetForCoordinatorAsync(currentUser.UserId);
-
-        return Ok(ApiResponse<IReadOnlyList<ProposalWithInvitationsDto>>.Ok(result));
-
+        var result = await proposalService.GetForCoordinatorAsync(currentUser.UserId, paging, awaitingAllocation);
+        return Ok(ApiResponse<PagedResult<ProposalWithInvitationsDto>>.Ok(result));
     }
 
 
     [HttpGet("api/proposals/in-my-department")]
-
     [Authorize(Roles = RoleNames.HeadOfDepartment)]
-
-    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<ProposalWithInvitationsDto>>), StatusCodes.Status200OK)]
-
-    public async Task<IActionResult> GetInMyDepartment()
-
+    [ProducesResponseType(typeof(ApiResponse<PagedResult<ProposalWithInvitationsDto>>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetInMyDepartment([FromQuery] PageRequest paging)
     {
-
-        var result = await proposalService.GetInDepartmentAsync(currentUser.UserId);
-
-        return Ok(ApiResponse<IReadOnlyList<ProposalWithInvitationsDto>>.Ok(result));
-
+        var result = await proposalService.GetInDepartmentAsync(currentUser.UserId, paging);
+        return Ok(ApiResponse<PagedResult<ProposalWithInvitationsDto>>.Ok(result));
     }
 
 
     [HttpGet("api/proposals/pending")]
     [Authorize(Roles = RoleNames.Coordinator)]
-    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<ProposalDto>>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetPendingForCoordinator()
+    [ProducesResponseType(typeof(ApiResponse<PagedResult<ProposalDto>>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetPendingForCoordinator([FromQuery] PageRequest paging)
     {
-        var result = await proposalService.GetPendingForCoordinatorAsync(currentUser.UserId);
-        return Ok(ApiResponse<IReadOnlyList<ProposalDto>>.Ok(result));
+        var result = await proposalService.GetPendingForCoordinatorAsync(currentUser.UserId, paging);
+        return Ok(ApiResponse<PagedResult<ProposalDto>>.Ok(result));
     }
-
     [HttpPost("api/proposals/send-to-supervisors")]
     [Authorize(Roles = RoleNames.Coordinator)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
@@ -106,7 +86,6 @@ public class ProposalsController(IProposalService proposalService, ICurrentUserS
         await proposalService.SendToSupervisorsAsync(request, currentUser.UserId);
         return Ok(ApiResponse.Ok("Proposals sent to supervisors."));
     }
-
     [HttpGet("api/proposals/invited")]
     [Authorize(Roles = RoleNames.Supervisor)]
     [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<ProposalDto>>), StatusCodes.Status200OK)]
@@ -115,7 +94,6 @@ public class ProposalsController(IProposalService proposalService, ICurrentUserS
         var result = await proposalService.GetInvitedProposalsForSupervisorAsync(currentUser.UserId);
         return Ok(ApiResponse<IReadOnlyList<ProposalDto>>.Ok(result));
     }
-
     [HttpPost("api/proposals/{proposalId:guid}/supervisor-selection")]
     [Authorize(Roles = RoleNames.Supervisor)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
@@ -124,7 +102,6 @@ public class ProposalsController(IProposalService proposalService, ICurrentUserS
         await proposalService.SelectAsFeasibleAsync(proposalId, currentUser.UserId, request);
         return Ok(ApiResponse.Ok("Proposal marked as feasible."));
     }
-
     [HttpGet("api/proposals/{proposalId:guid}/selections")]
     [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<SupervisorInvitationDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetSelections(Guid proposalId)
@@ -132,7 +109,6 @@ public class ProposalsController(IProposalService proposalService, ICurrentUserS
         var result = await proposalService.GetSelectionsAsync(proposalId, currentUser.UserId);
         return Ok(ApiResponse<IReadOnlyList<SupervisorInvitationDto>>.Ok(result));
     }
-
     [HttpPost("api/proposals/{proposalId:guid}/assign-supervisor")]
     [Authorize(Roles = RoleNames.Coordinator)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
@@ -141,7 +117,6 @@ public class ProposalsController(IProposalService proposalService, ICurrentUserS
         await proposalService.AssignSupervisorAsync(proposalId, request, currentUser.UserId);
         return Ok(ApiResponse.Ok("Supervisor assigned."));
     }
-
     [HttpPost("api/containers/{containerId:guid}/proposals/defer-to-next-cycle")]
     [Authorize(Roles = RoleNames.Coordinator)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]

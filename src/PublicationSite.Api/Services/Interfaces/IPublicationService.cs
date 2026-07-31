@@ -1,3 +1,4 @@
+using PublicationSite.Api.DTOs.Common;
 using PublicationSite.Api.DTOs.Publications;
 
 namespace PublicationSite.Api.Services.Interfaces;
@@ -19,7 +20,7 @@ public interface IPublicationService
 
     Task SubmitAsync(Guid publicationId, Guid studentId, CancellationToken cancellationToken = default);
 
-    Task<IReadOnlyList<PublicationDto>> GetPendingForSupervisorAsync(Guid supervisorId, CancellationToken cancellationToken = default);
+    Task<PagedResult<PublicationDto>> GetPendingForSupervisorAsync(Guid supervisorId, PageRequest page, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// The file of one version of a research paper, for anyone with access to its publication.

@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Moq;
 using PublicationSite.Api.Common.Exceptions;
 using PublicationSite.Api.DTOs.Proposals;
+using PublicationSite.Api.DTOs.Common;
 using PublicationSite.Api.Entities;
 using PublicationSite.Api.Enums;
 using PublicationSite.Api.Services.Implementations;
@@ -144,8 +145,8 @@ public class ProposalServiceTests : IDisposable
         await _sut.FinishSubmissionAsync(container.Id, student.Id);
 
         var otherCoordinator = TestDataBuilder.User(_fixture.Context);
-        var result = await _sut.GetPendingForCoordinatorAsync(coordinator.Id);
-        var otherResult = await _sut.GetPendingForCoordinatorAsync(otherCoordinator.Id);
+        var result = (await _sut.GetPendingForCoordinatorAsync(coordinator.Id, new PageRequest())).Items;
+        var otherResult = (await _sut.GetPendingForCoordinatorAsync(otherCoordinator.Id, new PageRequest())).Items;
 
         result.Should().ContainSingle(p => p.Id == pending.Id);
         otherResult.Should().BeEmpty();

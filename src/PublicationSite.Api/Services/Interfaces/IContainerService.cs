@@ -1,3 +1,4 @@
+using PublicationSite.Api.DTOs.Common;
 using PublicationSite.Api.DTOs.Containers;
 
 namespace PublicationSite.Api.Services.Interfaces;
@@ -10,7 +11,7 @@ public interface IContainerService
     Task<PublicationContainerDto> GetByIdAsync(Guid id, Guid requestingUserId, CancellationToken cancellationToken = default);
 
     /// <summary>Student-initiated: all of the acting student's own Containers, newest first. Empty when they haven't started any.</summary>
-    Task<IReadOnlyList<PublicationContainerDto>> GetMineAsync(Guid studentUserId, CancellationToken cancellationToken = default);
+    Task<PagedResult<PublicationContainerDto>> GetMineAsync(Guid studentUserId, PageRequest page, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Student-initiated: discards one of their own Containers created by mistake. Only allowed
@@ -24,18 +25,18 @@ public interface IContainerService
     /// A Supervisor cannot list Containers any other way, and without this they have no way to
     /// find the ones waiting on their ethics decision or document review.
     /// </summary>
-    Task<IReadOnlyList<PublicationContainerDto>> GetSupervisingAsync(Guid supervisorUserId, CancellationToken cancellationToken = default);
+    Task<PagedResult<PublicationContainerDto>> GetSupervisingAsync(Guid supervisorUserId, ContainerQuery query, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Head of Department-initiated: every Container belonging to a student in their Department,
     /// newest first. ContainerAccessService already lets them open any of these individually;
     /// this is how they find the ones waiting on their ethics review.
     /// </summary>
-    Task<IReadOnlyList<PublicationContainerDto>> GetInMyDepartmentAsync(Guid headOfDepartmentUserId, CancellationToken cancellationToken = default);
+    Task<PagedResult<PublicationContainerDto>> GetInMyDepartmentAsync(Guid headOfDepartmentUserId, ContainerQuery query, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<ActivityHistoryEntryDto>> GetActivityHistoryAsync(Guid id, Guid requestingUserId, CancellationToken cancellationToken = default);
 
-    Task<IReadOnlyList<PublicationContainerDto>> GetAllAsync(Guid? studentId, Guid? coordinatorId, string? status, CancellationToken cancellationToken = default);
+    Task<PagedResult<PublicationContainerDto>> GetAllAsync(ContainerQuery query, CancellationToken cancellationToken = default);
 
     /// <summary>Admin-only manual assignment; creates the Container if the student does not have one yet.</summary>
     Task<PublicationContainerDto> AssignCoordinatorManuallyAsync(AssignCoordinatorRequest request, Guid actingUserId, CancellationToken cancellationToken = default);

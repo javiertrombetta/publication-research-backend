@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PublicationSite.Api.Common;
 using PublicationSite.Api.DTOs.Committees;
+using PublicationSite.Api.DTOs.Common;
 using PublicationSite.Api.Services.Interfaces;
 
 namespace PublicationSite.Api.Controllers;
@@ -29,11 +30,11 @@ public class CommitteesController(ICommitteeService committeeService, ICurrentUs
 
     [HttpGet("api/committees/my-assignments")]
     [Authorize(Roles = $"{RoleNames.InternalCommitteeMember},{RoleNames.ExternalCommitteeMember}")]
-    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<CommitteeDto>>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetMyAssignments()
+    [ProducesResponseType(typeof(ApiResponse<PagedResult<CommitteeDto>>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetMyAssignments([FromQuery] PageRequest paging)
     {
-        var result = await committeeService.GetAssignmentsForMemberAsync(currentUser.UserId);
-        return Ok(ApiResponse<IReadOnlyList<CommitteeDto>>.Ok(result));
+        var result = await committeeService.GetAssignmentsForMemberAsync(currentUser.UserId, paging);
+        return Ok(ApiResponse<PagedResult<CommitteeDto>>.Ok(result));
     }
 
     [HttpPost("api/committees/{committeeId:guid}/review")]

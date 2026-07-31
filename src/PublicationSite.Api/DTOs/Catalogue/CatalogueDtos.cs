@@ -1,3 +1,5 @@
+using PublicationSite.Api.DTOs.Common;
+
 namespace PublicationSite.Api.DTOs.Catalogue;
 
 public record CatalogueEntryDto(
@@ -26,6 +28,5 @@ public class CatalogueSearchRequest
     public int PageSize { get; set; } = 20;
 }
 
-public record PagedResult<T>(IReadOnlyList<T> Items, int Page, int PageSize, int TotalCount);
 
 public record CitationDto(string Apa, string Mla);
