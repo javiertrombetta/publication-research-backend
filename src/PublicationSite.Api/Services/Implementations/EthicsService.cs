@@ -129,7 +129,7 @@ public class EthicsService(
             throw new BusinessRuleException($"'{documentType}' is not a recognised ethics document type.");
         }
 
-        var stored = await fileStorageService.SaveAsync(content, fileName, $"ethics/{container.Id}", cancellationToken);
+        var stored = await fileStorageService.SaveAsync(content, fileName, $"ethics/{container.Id}", cancellationToken: cancellationToken);
         var version = approval.Documents.Where(d => d.DocumentType == type).Select(d => d.Version).DefaultIfEmpty(0).Max() + 1;
 
         var document = new EthicsDocument
@@ -404,7 +404,7 @@ public class EthicsService(
         var approval = await db.EthicsApprovals.FirstOrDefaultAsync(a => a.PublicationContainerId == containerId, cancellationToken);
         if (approval is null)
         {
-            approval = new EthicsApproval { PublicationContainerId = containerId, Status = EthicsStatus.NotRequired };
+            approval = new EthicsApproval { PublicationContainerId = containerId, Status = EthicsStatus.PendingSupervisorDecision };
             db.EthicsApprovals.Add(approval);
         }
 

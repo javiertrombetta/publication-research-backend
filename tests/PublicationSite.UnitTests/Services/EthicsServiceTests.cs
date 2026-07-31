@@ -24,8 +24,10 @@ public class EthicsServiceTests : IDisposable
     public EthicsServiceTests()
     {
         _accessService.Setup(a => a.EnsureAccessAsync(It.IsAny<Guid>(), It.IsAny<Guid>())).Returns(Task.CompletedTask);
-        _fileStorageService.Setup(f => f.SaveAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((Stream _, string fileName, string _, CancellationToken _) => new StoredFile($"stored/{fileName}", fileName));
+        _fileStorageService.Setup(f => f.SaveAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<IReadOnlyCollection<string>?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Stream _, string fileName, string _, IReadOnlyCollection<string>? _, CancellationToken _) =>
+                new StoredFile($"stored/{fileName}", fileName));
 
         _sut = new EthicsService(_fixture.Context, _accessService.Object, _auditService.Object, _notificationService.Object, _fileStorageService.Object);
     }
