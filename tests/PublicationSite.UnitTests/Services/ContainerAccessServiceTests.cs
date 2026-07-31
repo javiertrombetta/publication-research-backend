@@ -12,21 +12,42 @@ namespace PublicationSite.UnitTests.Services;
 public class ContainerAccessServiceTests : IDisposable
 {
     private readonly SqliteDbContextFactory _fixture = new();
-    private readonly Mock<Microsoft.AspNetCore.Identity.UserManager<ApplicationUser>> _userManager = IdentityMockFactory.MockUserManager();
     private readonly ContainerAccessService _sut;
 
     public ContainerAccessServiceTests()
     {
-        _sut = new ContainerAccessService(_fixture.Context, _userManager.Object);
+        _sut = new ContainerAccessService(_fixture.Context);
     }
 
     public void Dispose() => _fixture.Dispose();
 
+    /// <summary>
+    /// Grants a role by writing the rows Identity would, rather than by telling a mock what to
+    /// answer. The service reads roles from the database now — one query instead of a call per
+    /// question — so a mocked UserManager would no longer be testing anything it uses.
+    /// </summary>
     private void SetupUser(ApplicationUser user, bool isAdmin = false, bool isHeadOfDepartment = false)
     {
-        _userManager.Setup(m => m.FindByIdAsync(user.Id.ToString())).ReturnsAsync(user);
-        _userManager.Setup(m => m.IsInRoleAsync(user, RoleNames.Admin)).ReturnsAsync(isAdmin);
-        _userManager.Setup(m => m.IsInRoleAsync(user, RoleNames.HeadOfDepartment)).ReturnsAsync(isHeadOfDepartment);
+        if (isAdmin) GrantRole(user, RoleNames.Admin);
+        if (isHeadOfDepartment) GrantRole(user, RoleNames.HeadOfDepartment);
+    }
+
+    private void GrantRole(ApplicationUser user, string roleName)
+    {
+        var role = _fixture.Context.Roles.FirstOrDefault(r => r.Name == roleName);
+        if (role is null)
+        {
+            role = new ApplicationRole(roleName) { NormalizedName = roleName.ToUpperInvariant() };
+            _fixture.Context.Roles.Add(role);
+            _fixture.Context.SaveChanges();
+        }
+
+        _fixture.Context.UserRoles.Add(new Microsoft.AspNetCore.Identity.IdentityUserRole<Guid>
+        {
+            UserId = user.Id,
+            RoleId = role.Id
+        });
+        _fixture.Context.SaveChanges();
     }
 
     [Fact]

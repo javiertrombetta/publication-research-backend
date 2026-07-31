@@ -129,6 +129,59 @@ public class ProposalService(
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<ProposalWithInvitationsDto>> GetForCoordinatorAsync(
+        Guid coordinatorId, CancellationToken cancellationToken = default) =>
+        await ProjectWithInvitations(
+            db.ResearchProposals.Where(p => p.PublicationContainer.CoordinatorId == coordinatorId))
+            .ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<ProposalWithInvitationsDto>> GetInDepartmentAsync(
+        Guid headOfDepartmentUserId, CancellationToken cancellationToken = default)
+    {
+        // Exactly one Head of Department per department, so a single id is all there is to match.
+        var departmentId = await db.HeadOfDepartmentProfiles
+            .Where(h => h.UserId == headOfDepartmentUserId)
+            .Select(h => (Guid?)h.DepartmentId)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (departmentId is null)
+        {
+            return [];
+        }
+
+        return await ProjectWithInvitations(db.ResearchProposals
+                .Where(p => p.PublicationContainer.Student.StudentProfile != null
+                            && p.PublicationContainer.Student.StudentProfile.DepartmentId == departmentId))
+            .ToListAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// One query for the proposals and their invitations together. The invitations are a
+    /// correlated collection rather than a request each — which is what the screens built from
+    /// the per-proposal endpoint were doing, once per row.
+    /// </summary>
+    private static IQueryable<ProposalWithInvitationsDto> ProjectWithInvitations(IQueryable<ResearchProposal> query) =>
+        query
+            .OrderBy(p => p.PublicationContainerId).ThenBy(p => p.CreatedAt)
+            .Select(p => new ProposalWithInvitationsDto(
+                p.Id,
+                p.PublicationContainerId,
+                p.Title,
+                p.Abstract,
+                p.Status.ToString(),
+                p.SubmittedAt,
+                p.SupervisorSelections
+                    .OrderBy(s => s.InvitedAt)
+                    .Select(s => new SupervisorInvitationDto(
+                        s.ProposalId,
+                        s.SupervisorId,
+                        s.Supervisor.FirstName + " " + s.Supervisor.LastName,
+                        s.IsSelected,
+                        s.Comments,
+                        s.InvitedAt,
+                        s.SelectedAt))
+                    .ToList()));
+
     public async Task SendToSupervisorsAsync(SendToSupervisorsRequest request, Guid coordinatorId, CancellationToken cancellationToken = default)
     {
         var proposals = await db.ResearchProposals

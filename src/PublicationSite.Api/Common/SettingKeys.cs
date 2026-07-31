@@ -114,6 +114,21 @@ public static class SettingKeys
     /// </summary>
     public const string AzureSsoEnabled = "access.azure-sso-enabled";
 
+    /// <summary>
+    /// Whether the public catalogue is served to people without an account.
+    ///
+    /// On, it is the site's front door and the first thing a visitor sees. Off, there is no public
+    /// face at all: the sign-in page becomes the landing page and the catalogue is not reachable,
+    /// which is what an institution wants while it is still deciding what to publish, or where
+    /// research is not for general release.
+    ///
+    /// This is enforced here rather than by hiding a link. A catalogue that is merely unlinked is
+    /// still readable by anyone who knows the address, which is not what turning it off means.
+    /// </summary>
+    public const string PublicCatalogueEnabled = "access.public-catalogue";
+
+    public const bool DefaultPublicCatalogueEnabled = true;
+
     /// <summary>How long an invitation stays usable before it has to be sent again.</summary>
     public const string InvitationValidDays = "access.invitation-valid-days";
 
