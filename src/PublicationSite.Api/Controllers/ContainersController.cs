@@ -19,6 +19,22 @@ public class ContainersController(IContainerService containerService, ICurrentUs
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, ApiResponse<PublicationContainerDto>.Ok(result));
     }
 
+    [HttpGet("me")]
+    [Authorize(Roles = RoleNames.Student)]
+    public async Task<IActionResult> GetMine()
+    {
+        var result = await containerService.GetMineAsync(currentUser.UserId);
+        return Ok(ApiResponse<IReadOnlyList<PublicationContainerDto>>.Ok(result));
+    }
+
+    [HttpDelete("{id:guid}")]
+    [Authorize(Roles = RoleNames.Student)]
+    public async Task<IActionResult> DeleteOwn(Guid id)
+    {
+        await containerService.DeleteOwnAsync(id, currentUser.UserId);
+        return Ok(ApiResponse.Ok("Publication deleted."));
+    }
+
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetById(Guid id)
     {
