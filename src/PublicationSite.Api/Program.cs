@@ -221,6 +221,16 @@ builder.Services.AddSwaggerGen(options =>
     {
         { new OpenApiSecurityScheme { Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" } }, [] }
     });
+
+    // The summaries written against each action and DTO, which is where the reasoning behind an
+    // endpoint already lives — why a decision needs a comment, which figures a committee is judged
+    // by, what a status actually covers. Swagger showed none of it until the documentation file was
+    // switched on in the csproj alongside this.
+    var documentation = Path.Combine(AppContext.BaseDirectory, $"{Assembly.GetExecutingAssembly().GetName().Name}.xml");
+    if (File.Exists(documentation))
+    {
+        options.IncludeXmlComments(documentation, includeControllerXmlComments: true);
+    }
 });
 
 var app = builder.Build();

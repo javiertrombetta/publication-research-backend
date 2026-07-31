@@ -13,6 +13,7 @@ public class ProposalsController(IProposalService proposalService, ICurrentUserS
 {
     [HttpPost("api/containers/{containerId:guid}/proposals")]
     [Authorize(Roles = RoleNames.Student)]
+    [ProducesResponseType(typeof(ApiResponse<ProposalDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> Create(Guid containerId, [FromBody] SaveProposalRequest request)
     {
         var result = await proposalService.CreateAsync(containerId, currentUser.UserId, request);
@@ -21,6 +22,7 @@ public class ProposalsController(IProposalService proposalService, ICurrentUserS
 
     [HttpPut("api/proposals/{proposalId:guid}")]
     [Authorize(Roles = RoleNames.Student)]
+    [ProducesResponseType(typeof(ApiResponse<ProposalDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> Update(Guid proposalId, [FromBody] SaveProposalRequest request)
     {
         var result = await proposalService.UpdateAsync(proposalId, currentUser.UserId, request);
@@ -28,6 +30,7 @@ public class ProposalsController(IProposalService proposalService, ICurrentUserS
     }
 
     [HttpGet("api/containers/{containerId:guid}/proposals")]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<ProposalDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetByContainer(Guid containerId)
     {
         var result = await proposalService.GetByContainerAsync(containerId, currentUser.UserId);
@@ -36,6 +39,7 @@ public class ProposalsController(IProposalService proposalService, ICurrentUserS
 
     [HttpPost("api/containers/{containerId:guid}/proposals/finish-submission")]
     [Authorize(Roles = RoleNames.Student)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     public async Task<IActionResult> FinishSubmission(Guid containerId)
     {
         await proposalService.FinishSubmissionAsync(containerId, currentUser.UserId);
@@ -44,6 +48,7 @@ public class ProposalsController(IProposalService proposalService, ICurrentUserS
 
     [HttpPost("api/containers/{containerId:guid}/proposals/request-resubmission")]
     [Authorize(Roles = $"{RoleNames.Admin},{RoleNames.Coordinator}")]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     public async Task<IActionResult> RequestNewSubmission(Guid containerId, [FromBody] CommentsRequest request)
     {
         await proposalService.RequestNewSubmissionAsync(containerId, request.Comments, currentUser.UserId);
@@ -52,6 +57,7 @@ public class ProposalsController(IProposalService proposalService, ICurrentUserS
 
     [HttpGet("api/proposals/pending")]
     [Authorize(Roles = RoleNames.Coordinator)]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<ProposalDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetPendingForCoordinator()
     {
         var result = await proposalService.GetPendingForCoordinatorAsync(currentUser.UserId);
@@ -60,6 +66,7 @@ public class ProposalsController(IProposalService proposalService, ICurrentUserS
 
     [HttpPost("api/proposals/send-to-supervisors")]
     [Authorize(Roles = RoleNames.Coordinator)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     public async Task<IActionResult> SendToSupervisors([FromBody] SendToSupervisorsRequest request)
     {
         await proposalService.SendToSupervisorsAsync(request, currentUser.UserId);
@@ -68,6 +75,7 @@ public class ProposalsController(IProposalService proposalService, ICurrentUserS
 
     [HttpGet("api/proposals/invited")]
     [Authorize(Roles = RoleNames.Supervisor)]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<ProposalDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetInvited()
     {
         var result = await proposalService.GetInvitedProposalsForSupervisorAsync(currentUser.UserId);
@@ -76,6 +84,7 @@ public class ProposalsController(IProposalService proposalService, ICurrentUserS
 
     [HttpPost("api/proposals/{proposalId:guid}/supervisor-selection")]
     [Authorize(Roles = RoleNames.Supervisor)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     public async Task<IActionResult> SelectAsFeasible(Guid proposalId, [FromBody] SupervisorSelectionRequest request)
     {
         await proposalService.SelectAsFeasibleAsync(proposalId, currentUser.UserId, request);
@@ -83,6 +92,7 @@ public class ProposalsController(IProposalService proposalService, ICurrentUserS
     }
 
     [HttpGet("api/proposals/{proposalId:guid}/selections")]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<SupervisorInvitationDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetSelections(Guid proposalId)
     {
         var result = await proposalService.GetSelectionsAsync(proposalId, currentUser.UserId);
@@ -91,6 +101,7 @@ public class ProposalsController(IProposalService proposalService, ICurrentUserS
 
     [HttpPost("api/proposals/{proposalId:guid}/assign-supervisor")]
     [Authorize(Roles = RoleNames.Coordinator)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     public async Task<IActionResult> AssignSupervisor(Guid proposalId, [FromBody] AssignSupervisorRequest request)
     {
         await proposalService.AssignSupervisorAsync(proposalId, request, currentUser.UserId);
@@ -99,6 +110,7 @@ public class ProposalsController(IProposalService proposalService, ICurrentUserS
 
     [HttpPost("api/containers/{containerId:guid}/proposals/defer-to-next-cycle")]
     [Authorize(Roles = RoleNames.Coordinator)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     public async Task<IActionResult> DeferToNextCycle(Guid containerId, [FromBody] CommentsRequest request)
     {
         await proposalService.DeferToNextCycleAsync(containerId, request.Comments, currentUser.UserId);

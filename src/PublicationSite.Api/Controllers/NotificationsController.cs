@@ -12,6 +12,7 @@ namespace PublicationSite.Api.Controllers;
 public class NotificationsController(INotificationQueryService notificationQueryService, ICurrentUserService currentUser) : ControllerBase
 {
     [HttpGet]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<NotificationDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetAll([FromQuery] bool? unreadOnly)
     {
         var result = await notificationQueryService.GetForUserAsync(currentUser.UserId, unreadOnly);
@@ -23,6 +24,7 @@ public class NotificationsController(INotificationQueryService notificationQuery
     /// deliberately a count rather than a listing the caller has to measure.
     /// </summary>
     [HttpGet("unread-count")]
+    [ProducesResponseType(typeof(ApiResponse<int>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetUnreadCount()
     {
         var result = await notificationQueryService.GetUnreadCountAsync(currentUser.UserId);
@@ -30,6 +32,7 @@ public class NotificationsController(INotificationQueryService notificationQuery
     }
 
     [HttpPut("{id:guid}/read")]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     public async Task<IActionResult> MarkAsRead(Guid id)
     {
         await notificationQueryService.MarkAsReadAsync(id, currentUser.UserId);
@@ -37,6 +40,7 @@ public class NotificationsController(INotificationQueryService notificationQuery
     }
 
     [HttpPut("read")]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     public async Task<IActionResult> MarkAllAsRead()
     {
         var count = await notificationQueryService.MarkAllAsReadAsync(currentUser.UserId);

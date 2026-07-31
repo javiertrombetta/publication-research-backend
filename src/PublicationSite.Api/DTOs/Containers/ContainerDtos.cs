@@ -1,5 +1,11 @@
 namespace PublicationSite.Api.DTOs.Containers;
 
+/// <param name="Title">Best available label for this container: the research paper's title once one exists, otherwise the approved proposal's title. Null while the student is still drafting proposals. Needed because a student can have several containers at once, and the container itself carries no name of its own.</param>
+/// <param name="ProposalCount">How many research proposals this Container holds. Zero means it is still empty, which is the only point at which its owning student may discard it.</param>
+/// <param name="PaperStatus">The research paper's own status, or null while no paper exists yet. The Container's Status only distinguishes InProgress from Completed, so without this a listing cannot tell an accepted paper awaiting its publication decision from one still being reviewed.</param>
+/// <param name="EthicsStatus">The ethics approval's status, or null before the student has declared. Lets a listing show what a Container is waiting on without a request per row.</param>
+/// <param name="EthicsAwaitingRole">Whose turn it is in the ethics workflow, as a role name, or null when nothing is pending. EthicsStatus alone cannot answer this. PendingVerification covers four different waits — the Supervisor checking the documents, the Coordinator reviewing them, the Head of Department commenting, and the Coordinator's final decision — told apart only by which timestamps have been set. Deriving that belongs here rather than in every client.</param>
+/// <param name="RequiredInternalCommitteeMembers">The evaluation committee this publication needs, as agreed when it was opened rather than as configured today — so an administrator assigning a committee months later is told the figures this piece of research was actually started under. Null on containers created before the figures were recorded; the current settings apply to those.</param>
 public record PublicationContainerDto(
     Guid Id,
     Guid StudentId,
@@ -11,55 +17,18 @@ public record PublicationContainerDto(
     int CurrentPipeline,
     string Status,
     DateTime CreatedAt,
-    /// <summary>
-    /// Best available label for this container: the research paper's title once one exists,
-    /// otherwise the approved proposal's title. Null while the student is still drafting
-    /// proposals. Needed because a student can have several containers at once, and the
-    /// container itself carries no name of its own.
-    /// </summary>
     string? Title,
-    /// <summary>
-    /// How many research proposals this Container holds. Zero means it is still empty, which is
-    /// the only point at which its owning student may discard it.
-    /// </summary>
     int ProposalCount,
-    /// <summary>
-    /// The research paper's own status, or null while no paper exists yet. The Container's
-    /// Status only distinguishes InProgress from Completed, so without this a listing cannot
-    /// tell an accepted paper awaiting its publication decision from one still being reviewed.
-    /// </summary>
     string? PaperStatus = null,
-    /// <summary>
-    /// The ethics approval's status, or null before the student has declared. Lets a listing
-    /// show what a Container is waiting on without a request per row.
-    /// </summary>
     string? EthicsStatus = null,
-    /// <summary>
-    /// Whose turn it is in the ethics workflow, as a role name, or null when nothing is pending.
-    ///
-    /// EthicsStatus alone cannot answer this. PendingVerification covers four different waits —
-    /// the Supervisor checking the documents, the Coordinator reviewing them, the Head of
-    /// Department commenting, and the Coordinator's final decision — told apart only by which
-    /// timestamps have been set. Deriving that belongs here rather than in every client.
-    /// </summary>
     string? EthicsAwaitingRole = null,
-    /// <summary>
-    /// The evaluation committee this publication needs, as agreed when it was opened rather than
-    /// as configured today — so an administrator assigning a committee months later is told the
-    /// figures this piece of research was actually started under. Null on containers created
-    /// before the figures were recorded; the current settings apply to those.
-    /// </summary>
     int? RequiredInternalCommitteeMembers = null,
     int? RequiredExternalCommitteeMembers = null);
 
+/// <param name="ActorRole">The capacity the actor was acting in (Coordinator, Supervisor, ...). Without it the history is a list of names, and a student reading it can't tell who decided what. Null only if the account somehow carries no role.</param>
 public record ActivityHistoryEntryDto(
     Guid Id,
     string ActorName,
-    /// <summary>
-    /// The capacity the actor was acting in (Coordinator, Supervisor, ...). Without it the
-    /// history is a list of names, and a student reading it can't tell who decided what.
-    /// Null only if the account somehow carries no role.
-    /// </summary>
     string? ActorRole,
     string? OnBehalfOfName,
     string Action,

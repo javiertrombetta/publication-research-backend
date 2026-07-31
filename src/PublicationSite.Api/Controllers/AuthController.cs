@@ -12,6 +12,7 @@ public class AuthController(IAuthService authService, ICurrentUserService curren
 {
     [HttpPost("register")]
     [AllowAnonymous]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     public async Task<IActionResult> Register([FromBody] RegisterRequest request)
     {
         var emailSent = await authService.RegisterAsync(request);
@@ -24,6 +25,7 @@ public class AuthController(IAuthService authService, ICurrentUserService curren
 
     [HttpPost("login")]
     [AllowAnonymous]
+    [ProducesResponseType(typeof(ApiResponse<AuthResponse>), StatusCodes.Status200OK)]
     public async Task<IActionResult> Login([FromBody] LoginRequest request)
     {
         var result = await authService.LoginAsync(request);
@@ -32,6 +34,7 @@ public class AuthController(IAuthService authService, ICurrentUserService curren
 
     [HttpPost("azure-sso/exchange")]
     [Authorize(AuthenticationSchemes = "AzureAd")]
+    [ProducesResponseType(typeof(ApiResponse<AuthResponse>), StatusCodes.Status200OK)]
     public async Task<IActionResult> AzureSsoExchange()
     {
         var result = await authService.LoginWithAzureSsoAsync(User);
@@ -40,6 +43,7 @@ public class AuthController(IAuthService authService, ICurrentUserService curren
 
     [HttpPost("refresh")]
     [AllowAnonymous]
+    [ProducesResponseType(typeof(ApiResponse<AuthResponse>), StatusCodes.Status200OK)]
     public async Task<IActionResult> Refresh([FromBody] RefreshTokenRequest request)
     {
         var result = await authService.RefreshAsync(request.RefreshToken);
@@ -48,6 +52,7 @@ public class AuthController(IAuthService authService, ICurrentUserService curren
 
     [HttpPost("logout")]
     [AllowAnonymous]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     public async Task<IActionResult> Logout([FromBody] RefreshTokenRequest request)
     {
         await authService.LogoutAsync(request.RefreshToken);
@@ -56,6 +61,7 @@ public class AuthController(IAuthService authService, ICurrentUserService curren
 
     [HttpGet("verify-email")]
     [AllowAnonymous]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     public async Task<IActionResult> VerifyEmail([FromQuery] Guid userId, [FromQuery] string token)
     {
         await authService.VerifyEmailAsync(userId, token);
@@ -64,6 +70,7 @@ public class AuthController(IAuthService authService, ICurrentUserService curren
 
     [HttpPost("forgot-password")]
     [AllowAnonymous]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request)
     {
         await authService.ForgotPasswordAsync(request.Email);
@@ -72,6 +79,7 @@ public class AuthController(IAuthService authService, ICurrentUserService curren
 
     [HttpPost("reset-password")]
     [AllowAnonymous]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request)
     {
         await authService.ResetPasswordAsync(request);
@@ -80,6 +88,7 @@ public class AuthController(IAuthService authService, ICurrentUserService curren
 
     [HttpPost("change-password")]
     [Authorize]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request)
     {
         await authService.ChangePasswordAsync(currentUser.UserId, request);

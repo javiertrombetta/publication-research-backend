@@ -17,6 +17,7 @@ public class CatalogueController(ICatalogueService catalogueService) : Controlle
 {
     [HttpGet]
     [AllowAnonymous]
+    [ProducesResponseType(typeof(ApiResponse<PagedResult<CatalogueEntryDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> Search([FromQuery] CatalogueSearchRequest request)
     {
         var result = await catalogueService.SearchAsync(request);
@@ -25,6 +26,7 @@ public class CatalogueController(ICatalogueService catalogueService) : Controlle
 
     [HttpGet("{id:guid}")]
     [AllowAnonymous]
+    [ProducesResponseType(typeof(ApiResponse<CatalogueEntryDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetById(Guid id)
     {
         var result = await catalogueService.GetByIdAsync(id);
@@ -37,6 +39,7 @@ public class CatalogueController(ICatalogueService catalogueService) : Controlle
     /// </summary>
     [HttpGet("{id:guid}/download")]
     [Authorize]
+    [ProducesResponseType(typeof(FileResult), StatusCodes.Status200OK)]
     public async Task<IActionResult> Download(Guid id)
     {
         var (content, fileName) = await catalogueService.DownloadAsync(id);
@@ -45,6 +48,7 @@ public class CatalogueController(ICatalogueService catalogueService) : Controlle
 
     [HttpGet("{id:guid}/citation")]
     [AllowAnonymous]
+    [ProducesResponseType(typeof(ApiResponse<CitationDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetCitation(Guid id)
     {
         var result = await catalogueService.GetCitationAsync(id);

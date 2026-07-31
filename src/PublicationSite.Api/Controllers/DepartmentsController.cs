@@ -13,6 +13,7 @@ public class DepartmentsController(IDepartmentService departmentService) : Contr
 {
     [HttpGet]
     [AllowAnonymous]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<DepartmentDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetAll()
     {
         var result = await departmentService.GetAllAsync();
@@ -20,6 +21,7 @@ public class DepartmentsController(IDepartmentService departmentService) : Contr
     }
 
     [HttpGet("{id:guid}")]
+    [ProducesResponseType(typeof(ApiResponse<DepartmentDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetById(Guid id)
     {
         var result = await departmentService.GetByIdAsync(id);
@@ -28,6 +30,7 @@ public class DepartmentsController(IDepartmentService departmentService) : Contr
 
     [HttpPost]
     [Authorize(Roles = RoleNames.Admin)]
+    [ProducesResponseType(typeof(ApiResponse<DepartmentDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> Create([FromBody] CreateDepartmentRequest request)
     {
         var result = await departmentService.CreateAsync(request);
@@ -36,6 +39,7 @@ public class DepartmentsController(IDepartmentService departmentService) : Contr
 
     [HttpPut("{id:guid}")]
     [Authorize(Roles = RoleNames.Admin)]
+    [ProducesResponseType(typeof(ApiResponse<DepartmentDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateDepartmentRequest request)
     {
         var result = await departmentService.UpdateAsync(id, request);
@@ -44,6 +48,7 @@ public class DepartmentsController(IDepartmentService departmentService) : Contr
 
     [HttpDelete("{id:guid}")]
     [Authorize(Roles = RoleNames.Admin)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     public async Task<IActionResult> Delete(Guid id)
     {
         await departmentService.DeleteAsync(id);
@@ -52,6 +57,7 @@ public class DepartmentsController(IDepartmentService departmentService) : Contr
 
     [HttpPut("coordinators/{coordinatorUserId:guid}/availability")]
     [Authorize(Roles = RoleNames.Admin)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     public async Task<IActionResult> SetCoordinatorAvailability(Guid coordinatorUserId, [FromQuery] bool isAvailable)
     {
         await departmentService.SetCoordinatorAvailabilityAsync(coordinatorUserId, isAvailable);

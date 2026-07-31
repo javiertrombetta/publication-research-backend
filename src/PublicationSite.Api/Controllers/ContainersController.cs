@@ -13,6 +13,7 @@ public class ContainersController(IContainerService containerService, ICurrentUs
 {
     [HttpPost]
     [Authorize(Roles = RoleNames.Student)]
+    [ProducesResponseType(typeof(ApiResponse<PublicationContainerDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> Create()
     {
         var result = await containerService.CreateAsync(currentUser.UserId);
@@ -21,6 +22,7 @@ public class ContainersController(IContainerService containerService, ICurrentUs
 
     [HttpGet("me")]
     [Authorize(Roles = RoleNames.Student)]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<PublicationContainerDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetMine()
     {
         var result = await containerService.GetMineAsync(currentUser.UserId);
@@ -29,6 +31,7 @@ public class ContainersController(IContainerService containerService, ICurrentUs
 
     [HttpGet("supervising")]
     [Authorize(Roles = RoleNames.Supervisor)]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<PublicationContainerDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetSupervising()
     {
         var result = await containerService.GetSupervisingAsync(currentUser.UserId);
@@ -37,6 +40,7 @@ public class ContainersController(IContainerService containerService, ICurrentUs
 
     [HttpGet("in-my-department")]
     [Authorize(Roles = RoleNames.HeadOfDepartment)]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<PublicationContainerDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetInMyDepartment()
     {
         var result = await containerService.GetInMyDepartmentAsync(currentUser.UserId);
@@ -45,6 +49,7 @@ public class ContainersController(IContainerService containerService, ICurrentUs
 
     [HttpDelete("{id:guid}")]
     [Authorize(Roles = RoleNames.Student)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     public async Task<IActionResult> DeleteOwn(Guid id)
     {
         await containerService.DeleteOwnAsync(id, currentUser.UserId);
@@ -52,6 +57,7 @@ public class ContainersController(IContainerService containerService, ICurrentUs
     }
 
     [HttpGet("{id:guid}")]
+    [ProducesResponseType(typeof(ApiResponse<PublicationContainerDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetById(Guid id)
     {
         var result = await containerService.GetByIdAsync(id, currentUser.UserId);
@@ -59,6 +65,7 @@ public class ContainersController(IContainerService containerService, ICurrentUs
     }
 
     [HttpGet("{id:guid}/activity-history")]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<ActivityHistoryEntryDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetActivityHistory(Guid id)
     {
         var result = await containerService.GetActivityHistoryAsync(id, currentUser.UserId);
@@ -67,6 +74,7 @@ public class ContainersController(IContainerService containerService, ICurrentUs
 
     [HttpGet]
     [Authorize(Roles = $"{RoleNames.Admin},{RoleNames.Coordinator}")]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<PublicationContainerDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetAll([FromQuery] Guid? studentId, [FromQuery] Guid? coordinatorId, [FromQuery] string? status)
     {
         var result = await containerService.GetAllAsync(studentId, coordinatorId, status);
@@ -75,6 +83,7 @@ public class ContainersController(IContainerService containerService, ICurrentUs
 
     [HttpPost("assign-coordinator")]
     [Authorize(Roles = RoleNames.Admin)]
+    [ProducesResponseType(typeof(ApiResponse<PublicationContainerDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> AssignCoordinator([FromBody] AssignCoordinatorRequest request)
     {
         var result = await containerService.AssignCoordinatorManuallyAsync(request, currentUser.UserId);

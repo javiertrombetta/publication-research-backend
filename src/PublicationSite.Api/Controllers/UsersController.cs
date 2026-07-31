@@ -14,6 +14,7 @@ namespace PublicationSite.Api.Controllers;
 public class UsersController(IUserService userService, ICurrentUserService currentUser) : ControllerBase
 {
     [HttpGet("me")]
+    [ProducesResponseType(typeof(ApiResponse<UserDetailDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetMe()
     {
         var result = await userService.GetOwnProfileAsync(currentUser.UserId);
@@ -21,6 +22,7 @@ public class UsersController(IUserService userService, ICurrentUserService curre
     }
 
     [HttpPut("me")]
+    [ProducesResponseType(typeof(ApiResponse<UserDetailDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> UpdateMe([FromBody] UpdateMyProfileRequest request)
     {
         var result = await userService.UpdateOwnProfileAsync(currentUser.UserId, request);
@@ -30,6 +32,7 @@ public class UsersController(IUserService userService, ICurrentUserService curre
     /// <summary>Any signed-in user manages their own profile photo — this is not role-specific.</summary>
     [HttpPost("me/photo")]
     [RequestSizeLimit(10_000_000)]
+    [ProducesResponseType(typeof(ApiResponse<UserDetailDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> UploadMyPhoto([FromForm] ProfilePhotoUploadForm form)
     {
         await using var stream = form.File.OpenReadStream();
@@ -38,6 +41,7 @@ public class UsersController(IUserService userService, ICurrentUserService curre
     }
 
     [HttpDelete("me/photo")]
+    [ProducesResponseType(typeof(ApiResponse<UserDetailDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> DeleteMyPhoto()
     {
         var result = await userService.RemoveOwnProfilePhotoAsync(currentUser.UserId);
@@ -47,6 +51,7 @@ public class UsersController(IUserService userService, ICurrentUserService curre
     /// <summary>Streams a user's photo. Any signed-in user may read it, so avatars can be shown
     /// wherever people appear in the workflow — 404 when that user has none.</summary>
     [HttpGet("{id:guid}/photo")]
+    [ProducesResponseType(typeof(FileResult), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetPhoto(Guid id)
     {
         var (content, contentType) = await userService.OpenProfilePhotoAsync(id);
@@ -55,6 +60,7 @@ public class UsersController(IUserService userService, ICurrentUserService curre
 
     [HttpGet]
     [Authorize(Roles = RoleNames.Admin)]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<UserListItemDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetAll([FromQuery] string? role, [FromQuery] string? status, [FromQuery] string? search)
     {
         var result = await userService.GetAllAsync(role, status, search);
@@ -69,6 +75,7 @@ public class UsersController(IUserService userService, ICurrentUserService curre
     /// </summary>
     [HttpGet("supervisors")]
     [Authorize(Roles = $"{RoleNames.Admin},{RoleNames.Coordinator}")]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<UserListItemDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetSupervisors([FromQuery] string? search)
     {
         var result = await userService.GetAllAsync(RoleNames.Supervisor, nameof(UserStatus.Enabled), search);
@@ -77,6 +84,7 @@ public class UsersController(IUserService userService, ICurrentUserService curre
 
     [HttpGet("{id:guid}")]
     [Authorize(Roles = RoleNames.Admin)]
+    [ProducesResponseType(typeof(ApiResponse<UserDetailDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetById(Guid id)
     {
         var result = await userService.GetByIdAsync(id);
@@ -85,6 +93,7 @@ public class UsersController(IUserService userService, ICurrentUserService curre
 
     [HttpPost]
     [Authorize(Roles = RoleNames.Admin)]
+    [ProducesResponseType(typeof(ApiResponse<UserDetailDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> Create([FromBody] CreateUserRequest request)
     {
         var (user, passwordEmailSent) = await userService.CreateAsync(request, currentUser.UserId);
@@ -98,6 +107,7 @@ public class UsersController(IUserService userService, ICurrentUserService curre
 
     [HttpPut("{id:guid}")]
     [Authorize(Roles = RoleNames.Admin)]
+    [ProducesResponseType(typeof(ApiResponse<UserDetailDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateUserRequest request)
     {
         var result = await userService.UpdateAsync(id, request, currentUser.UserId);
@@ -106,6 +116,7 @@ public class UsersController(IUserService userService, ICurrentUserService curre
 
     [HttpPut("{id:guid}/role")]
     [Authorize(Roles = RoleNames.Admin)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     public async Task<IActionResult> ChangeRole(Guid id, [FromBody] ChangeUserRoleRequest request)
     {
         await userService.ChangeRoleAsync(id, request, currentUser.UserId);
@@ -114,6 +125,7 @@ public class UsersController(IUserService userService, ICurrentUserService curre
 
     [HttpPut("{id:guid}/enable")]
     [Authorize(Roles = RoleNames.Admin)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     public async Task<IActionResult> Enable(Guid id, [FromBody] CommentsRequest request)
     {
         await userService.EnableAsync(id, request.Comments, currentUser.UserId);
@@ -122,6 +134,7 @@ public class UsersController(IUserService userService, ICurrentUserService curre
 
     [HttpPut("{id:guid}/disable")]
     [Authorize(Roles = RoleNames.Admin)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     public async Task<IActionResult> Disable(Guid id, [FromBody] CommentsRequest request)
     {
         await userService.DisableAsync(id, request.Comments, currentUser.UserId);
@@ -130,6 +143,7 @@ public class UsersController(IUserService userService, ICurrentUserService curre
 
     [HttpPost("{id:guid}/reset-password")]
     [Authorize(Roles = RoleNames.Admin)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     public async Task<IActionResult> ResetPassword(Guid id, [FromBody] CommentsRequest request)
     {
         await userService.ResetPasswordAsync(id, request.Comments, currentUser.UserId);
@@ -138,6 +152,7 @@ public class UsersController(IUserService userService, ICurrentUserService curre
 
     [HttpDelete("{id:guid}")]
     [Authorize(Roles = RoleNames.Admin)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     public async Task<IActionResult> Delete(Guid id, [FromBody] CommentsRequest request)
     {
         await userService.DeleteAsync(id, request.Comments, currentUser.UserId);

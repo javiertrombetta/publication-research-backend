@@ -13,6 +13,7 @@ namespace PublicationSite.Api.Controllers;
 public class AuditLogController(IAuditLogQueryService auditLogQueryService) : ControllerBase
 {
     [HttpGet]
+    [ProducesResponseType(typeof(ApiResponse<PagedResult<AuditLogEntryDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetAll([FromQuery] AuditLogQuery query)
     {
         var result = await auditLogQueryService.GetAsync(query);
@@ -20,6 +21,7 @@ public class AuditLogController(IAuditLogQueryService auditLogQueryService) : Co
     }
 
     [HttpGet("export")]
+    [ProducesResponseType(typeof(FileResult), StatusCodes.Status200OK)]
     public async Task<IActionResult> Export([FromQuery] AuditLogQuery query)
     {
         var csv = await auditLogQueryService.ExportCsvAsync(query);

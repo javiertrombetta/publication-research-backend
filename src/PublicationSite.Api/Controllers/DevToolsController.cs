@@ -32,6 +32,7 @@ public class DevToolsController(
     /// Poll <c>GET api/dev/demo-data</c> to see when it has finished.
     /// </summary>
     [HttpPost("reset-database")]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     public async Task<IActionResult> ResetDatabase()
     {
         if (!bool.TryParse(configuration["DevTools:EnableDatabaseReset"], out var enabled) || !enabled)
@@ -80,6 +81,7 @@ public class DevToolsController(
     /// something has to be able to say when.
     /// </summary>
     [HttpGet("demo-data")]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     public async Task<IActionResult> DemoDataStatus(CancellationToken cancellationToken)
     {
         return Ok(ApiResponse<object>.Ok(new

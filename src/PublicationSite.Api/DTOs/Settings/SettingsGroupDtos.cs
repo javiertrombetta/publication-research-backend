@@ -109,6 +109,7 @@ public record UpdateUploadSettingsRequest(int MaxMegabytes, string AllowedExtens
 /// The institution itself: its name, the address suffixes that decide what someone is, where
 /// people write for help or to ask for a paper, and the intake currently running.
 /// </summary>
+/// <param name="SelfRegistrationOpen">Whether anyone may sign themselves up. Read-only here and set under access settings — it rides along on this group because this is the one endpoint a signed-out visitor can call, and the sign-up page needs to know before offering a form the API would reject. It discloses nothing: attempting to register reveals the same thing.</param>
 public record InstitutionSettingsDto(
     string Name,
     string StudentEmailDomain,
@@ -117,12 +118,6 @@ public record InstitutionSettingsDto(
     string? ResearchEnquiriesEmail,
     string? PrivacyPolicyUrl,
     string? CurrentAcademicCycle,
-    /// <summary>
-    /// Whether anyone may sign themselves up. Read-only here and set under access settings —
-    /// it rides along on this group because this is the one endpoint a signed-out visitor can
-    /// call, and the sign-up page needs to know before offering a form the API would reject.
-    /// It discloses nothing: attempting to register reveals the same thing.
-    /// </summary>
     bool SelfRegistrationOpen = false);
 
 public record UpdateInstitutionSettingsRequest(

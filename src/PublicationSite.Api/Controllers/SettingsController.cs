@@ -20,6 +20,7 @@ public class SettingsController(
     ICurrentUserService currentUser) : ControllerBase
 {
     [HttpGet]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<SystemSettingDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetAll()
     {
         var result = await systemSettingService.GetAllAsync();
@@ -29,6 +30,7 @@ public class SettingsController(
     // ---------- Committees ----------
 
     [HttpGet("committees")]
+    [ProducesResponseType(typeof(ApiResponse<CommitteeSettingsDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetCommittees()
     {
         var result = await systemSettingService.GetCommitteeSettingsAsync();
@@ -36,6 +38,7 @@ public class SettingsController(
     }
 
     [HttpPut("committees")]
+    [ProducesResponseType(typeof(ApiResponse<CommitteeSettingsDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> UpdateCommittees([FromBody] UpdateCommitteeSettingsRequest request)
     {
         var result = await systemSettingService.UpdateCommitteeSettingsAsync(request, currentUser.UserId);
@@ -46,6 +49,7 @@ public class SettingsController(
     // ---------- Passwords ----------
 
     [HttpGet("passwords")]
+    [ProducesResponseType(typeof(ApiResponse<PasswordSettingsDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetPasswords()
     {
         var result = await systemSettingService.GetPasswordSettingsAsync();
@@ -53,6 +57,7 @@ public class SettingsController(
     }
 
     [HttpPut("passwords")]
+    [ProducesResponseType(typeof(ApiResponse<PasswordSettingsDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> UpdatePasswords([FromBody] UpdatePasswordSettingsRequest request)
     {
         var result = await systemSettingService.UpdatePasswordSettingsAsync(request, currentUser.UserId);
@@ -63,6 +68,7 @@ public class SettingsController(
     // ---------- Notifications ----------
 
     [HttpGet("notifications")]
+    [ProducesResponseType(typeof(ApiResponse<NotificationSettingsDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetNotifications()
     {
         var result = await systemSettingService.GetNotificationSettingsAsync();
@@ -70,6 +76,7 @@ public class SettingsController(
     }
 
     [HttpPut("notifications")]
+    [ProducesResponseType(typeof(ApiResponse<NotificationSettingsDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> UpdateNotifications([FromBody] UpdateNotificationSettingsRequest request)
     {
         var result = await systemSettingService.UpdateNotificationSettingsAsync(request, currentUser.UserId);
@@ -83,6 +90,7 @@ public class SettingsController(
     /// administrator can see what was once required and bring it back if needed.
     /// </summary>
     [HttpGet("ethics-documents")]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<EthicsDocumentRequirementDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetEthicsDocuments()
     {
         var result = await ethicsRequirementService.GetAllAsync();
@@ -90,6 +98,7 @@ public class SettingsController(
     }
 
     [HttpPost("ethics-documents")]
+    [ProducesResponseType(typeof(ApiResponse<EthicsDocumentRequirementDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> CreateEthicsDocument([FromBody] SaveEthicsDocumentRequirementRequest request)
     {
         var result = await ethicsRequirementService.CreateAsync(request, currentUser.UserId);
@@ -98,6 +107,7 @@ public class SettingsController(
     }
 
     [HttpPut("ethics-documents/{id:guid}")]
+    [ProducesResponseType(typeof(ApiResponse<EthicsDocumentRequirementDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> UpdateEthicsDocument(Guid id, [FromBody] SaveEthicsDocumentRequirementRequest request)
     {
         var result = await ethicsRequirementService.UpdateAsync(id, request, currentUser.UserId);
@@ -109,6 +119,7 @@ public class SettingsController(
     /// has been asked of anyone is referenced by what they uploaded.
     /// </summary>
     [HttpPut("ethics-documents/{id:guid}/active")]
+    [ProducesResponseType(typeof(ApiResponse<EthicsDocumentRequirementDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> SetEthicsDocumentActive(Guid id, [FromQuery] bool isActive)
     {
         var result = await ethicsRequirementService.SetActiveAsync(id, isActive, currentUser.UserId);
@@ -119,6 +130,7 @@ public class SettingsController(
     // ---------- Access ----------
 
     [HttpGet("access")]
+    [ProducesResponseType(typeof(ApiResponse<AccessSettingsDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetAccess()
     {
         var result = await systemSettingService.GetAccessSettingsAsync();
@@ -126,6 +138,7 @@ public class SettingsController(
     }
 
     [HttpPut("access")]
+    [ProducesResponseType(typeof(ApiResponse<AccessSettingsDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> UpdateAccess([FromBody] UpdateAccessSettingsRequest request)
     {
         var result = await systemSettingService.UpdateAccessSettingsAsync(request, currentUser.UserId);
@@ -135,6 +148,7 @@ public class SettingsController(
     // ---------- Uploads ----------
 
     [HttpGet("uploads")]
+    [ProducesResponseType(typeof(ApiResponse<UploadSettingsDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetUploads()
     {
         var result = await systemSettingService.GetUploadSettingsAsync();
@@ -142,6 +156,7 @@ public class SettingsController(
     }
 
     [HttpPut("uploads")]
+    [ProducesResponseType(typeof(ApiResponse<UploadSettingsDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> UpdateUploads([FromBody] UpdateUploadSettingsRequest request)
     {
         var result = await systemSettingService.UpdateUploadSettingsAsync(request, currentUser.UserId);
@@ -156,6 +171,7 @@ public class SettingsController(
     /// </summary>
     [HttpGet("institution")]
     [AllowAnonymous]
+    [ProducesResponseType(typeof(ApiResponse<InstitutionSettingsDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetInstitution()
     {
         var result = await systemSettingService.GetInstitutionSettingsAsync();
@@ -163,6 +179,7 @@ public class SettingsController(
     }
 
     [HttpPut("institution")]
+    [ProducesResponseType(typeof(ApiResponse<InstitutionSettingsDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> UpdateInstitution([FromBody] UpdateInstitutionSettingsRequest request)
     {
         var result = await systemSettingService.UpdateInstitutionSettingsAsync(request, currentUser.UserId);
@@ -172,6 +189,7 @@ public class SettingsController(
     // ---------- Deadlines ----------
 
     [HttpGet("deadlines")]
+    [ProducesResponseType(typeof(ApiResponse<DeadlineSettingsDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetDeadlines()
     {
         var result = await systemSettingService.GetDeadlineSettingsAsync();
@@ -179,6 +197,7 @@ public class SettingsController(
     }
 
     [HttpPut("deadlines")]
+    [ProducesResponseType(typeof(ApiResponse<DeadlineSettingsDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> UpdateDeadlines([FromBody] UpdateDeadlineSettingsRequest request)
     {
         var result = await systemSettingService.UpdateDeadlineSettingsAsync(request, currentUser.UserId);
