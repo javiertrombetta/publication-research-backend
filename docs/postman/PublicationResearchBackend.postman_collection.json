@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "084676b9-7af0-4ea4-9de0-61e3be6a4298",
     "name": "Publication Research Backend",
-    "description": "AIS Research Publication Site API. Imported from the live OpenAPI spec at /swagger/v1/swagger.json.\n\nQuick start:\n1. Run Auth > Login with your Admin (or any) credentials \u2014 the access/refresh tokens are saved automatically into collection variables.\n2. Every other request inherits Bearer auth from the collection using {{access_token}}.\n3. When the access token expires, run Auth > Refresh to get a new pair.",
+    "description": "AIS Research Publication Site API. Imported from the live OpenAPI spec at /swagger/v1/swagger.json.\n\nQuick start:\n1. Run Auth > Login with your Admin (or any) credentials — the access/refresh tokens are saved automatically into collection variables.\n2. Every other request inherits Bearer auth from the collection using {{access_token}}.\n3. When the access token expires, run Auth > Refresh to get a new pair.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -74,7 +74,27 @@
                 "reset-database"
               ]
             },
-            "description": "Admin-only. Wipes and recreates the whole schema, then reseeds the 8 roles, the configured Admin, and one ready-to-use account per role (password: DevTest123!). Returns 403 if DevTools:EnableDatabaseReset is not enabled on this deployment. Log in again afterwards \u2014 tokens issued before the reset stop working."
+            "description": "Admin-only. Wipes and recreates the whole schema, then reseeds the 8 roles, the configured Admin and — where this deployment asks for it — the demonstration dataset (every account uses DevTest123!). Returns as soon as signing in is possible again; the demonstration publications are rebuilt in the background, so poll GET /api/dev/demo-data to see when it has finished.\n\nReturns 403 unless BOTH DevTools:EnableDatabaseReset and Seed:DemoData are enabled — the second is what marks a deployment's data as disposable. Log in again afterwards; tokens issued before the reset stop working."
+          },
+          "response": []
+        },
+        {
+          "name": "Demonstration data status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/dev/demo-data",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "dev",
+                "demo-data"
+              ]
+            },
+            "description": "Admin-only. Whether this deployment carries the demonstration dataset, and how much of it is there. Answers the question the reset leaves open, since the rebuild finishes after that response."
           },
           "response": []
         }
@@ -166,7 +186,7 @@
                   "    pm.collectionVariables.set('refresh_token', body.data.refreshToken);",
                   "    console.log('Saved access_token and refresh_token to collection variables.');",
                   "} else {",
-                  "    console.warn('Login did not return an accessToken \u2014 check the response body.');",
+                  "    console.warn('Login did not return an accessToken — check the response body.');",
                   "}"
                 ]
               }
@@ -2384,6 +2404,26 @@
                 }
               }
             }
+          },
+          "response": []
+        },
+        {
+          "name": "Papers awaiting an evaluation committee",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/publications/awaiting-committee",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "publications",
+                "awaiting-committee"
+              ]
+            },
+            "description": "Admin-only. Papers whose newest version the Supervisor has approved and that have no committee yet — the administrator's queue. Status alone cannot answer this: UnderReview covers both before the Supervisor has read a paper and after they have approved it."
           },
           "response": []
         }
