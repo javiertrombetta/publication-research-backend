@@ -120,4 +120,20 @@ public static class TestDataBuilder
         db.SaveChanges();
         return container;
     }
+
+    public static ResearchProposal Proposal(
+        ApplicationDbContext db, PublicationContainer container,
+        string? title = null, ProposalStatus status = ProposalStatus.Draft)
+    {
+        var proposal = new ResearchProposal
+        {
+            PublicationContainerId = container.Id,
+            Title = title ?? $"Proposal {Guid.NewGuid():N}",
+            Abstract = "Abstract.",
+            Status = status
+        };
+        db.ResearchProposals.Add(proposal);
+        db.SaveChanges();
+        return proposal;
+    }
 }

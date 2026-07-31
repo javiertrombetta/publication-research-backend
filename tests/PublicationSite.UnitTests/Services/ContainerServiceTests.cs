@@ -45,17 +45,71 @@ public class ContainerServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task CreateAsync_throws_when_student_already_has_a_container()
+    public async Task CreateAsync_allows_a_student_to_run_several_containers_at_once()
     {
         var department = TestDataBuilder.Department(_fixture.Context);
         var student = TestDataBuilder.User(_fixture.Context);
         TestDataBuilder.StudentProfile(_fixture.Context, student, department);
         var coordinator = TestDataBuilder.User(_fixture.Context);
-        TestDataBuilder.Container(_fixture.Context, student, coordinator);
+        var existing = TestDataBuilder.Container(_fixture.Context, student, coordinator);
 
-        var act = () => _sut.CreateAsync(student.Id);
+        _departmentService.Setup(d => d.SelectCoordinatorForDepartmentAsync(department.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(coordinator.Id);
 
-        await act.Should().ThrowAsync<ConflictException>();
+        var result = await _sut.CreateAsync(student.Id);
+
+        result.Id.Should().NotBe(existing.Id);
+
+        var mine = await _sut.GetMineAsync(student.Id);
+        mine.Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task GetMineAsync_returns_empty_when_the_student_has_not_started_any()
+    {
+        var student = TestDataBuilder.User(_fixture.Context);
+
+        var mine = await _sut.GetMineAsync(student.Id);
+
+        mine.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task DeleteOwnAsync_discards_a_container_that_has_no_proposals()
+    {
+        var student = TestDataBuilder.User(_fixture.Context);
+        var coordinator = TestDataBuilder.User(_fixture.Context);
+        var container = TestDataBuilder.Container(_fixture.Context, student, coordinator);
+
+        await _sut.DeleteOwnAsync(container.Id, student.Id);
+
+        (await _sut.GetMineAsync(student.Id)).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task DeleteOwnAsync_throws_once_the_container_holds_a_proposal()
+    {
+        var student = TestDataBuilder.User(_fixture.Context);
+        var coordinator = TestDataBuilder.User(_fixture.Context);
+        var container = TestDataBuilder.Container(_fixture.Context, student, coordinator);
+        TestDataBuilder.Proposal(_fixture.Context, container);
+
+        var act = () => _sut.DeleteOwnAsync(container.Id, student.Id);
+
+        await act.Should().ThrowAsync<BusinessRuleException>();
+    }
+
+    [Fact]
+    public async Task DeleteOwnAsync_throws_when_the_container_belongs_to_another_student()
+    {
+        var owner = TestDataBuilder.User(_fixture.Context);
+        var otherStudent = TestDataBuilder.User(_fixture.Context);
+        var coordinator = TestDataBuilder.User(_fixture.Context);
+        var container = TestDataBuilder.Container(_fixture.Context, owner, coordinator);
+
+        var act = () => _sut.DeleteOwnAsync(container.Id, otherStudent.Id);
+
+        await act.Should().ThrowAsync<ForbiddenException>();
     }
 
     [Fact]

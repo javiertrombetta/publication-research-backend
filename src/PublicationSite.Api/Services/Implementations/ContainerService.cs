@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using PublicationSite.Api.Common;
 using PublicationSite.Api.Common.Exceptions;
 using PublicationSite.Api.Data;
 using PublicationSite.Api.DTOs.Containers;
@@ -16,12 +17,8 @@ public class ContainerService(
 {
     public async Task<PublicationContainerDto> CreateAsync(Guid studentUserId, CancellationToken cancellationToken = default)
     {
-        var alreadyExists = await db.PublicationContainers.AnyAsync(c => c.StudentId == studentUserId, cancellationToken);
-        if (alreadyExists)
-        {
-            throw new ConflictException("You already have a Publication Container.");
-        }
-
+        // A student may run several publication processes at the same time, each with its own
+        // proposals, ethics workflow and paper, so there is deliberately no one-per-student cap.
         var studentProfile = await db.StudentProfiles.FirstOrDefaultAsync(s => s.UserId == studentUserId, cancellationToken)
             ?? throw new BusinessRuleException("Only students with a completed profile can start the publication process.");
 
@@ -51,6 +48,50 @@ public class ContainerService(
         return await GetByIdInternalAsync(id, cancellationToken);
     }
 
+    public async Task<IReadOnlyList<PublicationContainerDto>> GetMineAsync(Guid studentUserId, CancellationToken cancellationToken = default)
+    {
+        // Order before projecting: the DTO carries a correlated sub-query for Title, and EF Core
+        // cannot translate an OrderBy applied on top of that projection.
+        return await ProjectToDto(
+                db.PublicationContainers
+                    .Where(c => c.StudentId == studentUserId)
+                    .OrderByDescending(c => c.CreatedAt))
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task DeleteOwnAsync(Guid containerId, Guid studentUserId, CancellationToken cancellationToken = default)
+    {
+        var container = await db.PublicationContainers.FirstOrDefaultAsync(c => c.Id == containerId, cancellationToken)
+            ?? throw new NotFoundException(nameof(PublicationContainer), containerId);
+
+        if (container.StudentId != studentUserId)
+        {
+            throw new ForbiddenException("You can only delete your own Publication Container.");
+        }
+
+        var hasProposals = await db.ResearchProposals.AnyAsync(p => p.PublicationContainerId == containerId, cancellationToken);
+        if (hasProposals || container.CurrentPipeline != PipelineStage.ResearchProposals)
+        {
+            throw new BusinessRuleException(
+                "This publication can no longer be deleted because its process has already started. " +
+                "A Publication Container can only be discarded while it still has no research proposals.");
+        }
+
+        // Written before the delete so the trail survives it: AuditLogEntry deliberately has no
+        // foreign key to the Container, so it is never cascaded away. The Container's own
+        // ActivityHistory is cascade-deleted along with it.
+        await auditService.LogAuditAsync(
+            studentUserId,
+            "ContainerDeleted",
+            nameof(PublicationContainer),
+            containerId,
+            previousValue: container.Status.ToString(),
+            comments: "Student discarded a Publication Container that had no research proposals.");
+
+        db.PublicationContainers.Remove(container);
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<ActivityHistoryEntryDto>> GetActivityHistoryAsync(Guid id, Guid requestingUserId, CancellationToken cancellationToken = default)
     {
         await accessService.EnsureAccessAsync(id, requestingUserId);
@@ -61,6 +102,14 @@ public class ContainerService(
             .Select(a => new ActivityHistoryEntryDto(
                 a.Id,
                 a.ActorUser.FirstName + " " + a.ActorUser.LastName,
+                // Staff is the placeholder role every @ais.ac.nz account starts with, so it is
+                // ordered last: whatever operational role the actor also holds is the one they
+                // were acting in.
+                db.UserRoles
+                    .Where(ur => ur.UserId == a.ActorUserId)
+                    .Join(db.Roles, ur => ur.RoleId, r => r.Id, (ur, r) => r.Name)
+                    .OrderBy(name => name == RoleNames.Staff ? 1 : 0)
+                    .FirstOrDefault(),
                 a.OnBehalfOfUser == null ? null : a.OnBehalfOfUser.FirstName + " " + a.OnBehalfOfUser.LastName,
                 a.Action,
                 a.Comments,
@@ -81,12 +130,24 @@ public class ContainerService(
             query = query.Where(c => c.Status == statusFilter);
         }
 
-        return await ProjectToDto(query).OrderByDescending(c => c.CreatedAt).ToListAsync(cancellationToken);
+        return await ProjectToDto(query.OrderByDescending(c => c.CreatedAt)).ToListAsync(cancellationToken);
     }
 
     public async Task<PublicationContainerDto> AssignCoordinatorManuallyAsync(AssignCoordinatorRequest request, Guid actingUserId, CancellationToken cancellationToken = default)
     {
-        var container = await db.PublicationContainers.FirstOrDefaultAsync(c => c.StudentId == request.StudentUserId, cancellationToken);
+        // A student can have several containers, so "which one" has to be explicit: with an id
+        // we reassign that container, without one we create an additional container for them.
+        PublicationContainer? container = null;
+        if (request.PublicationContainerId is { } containerId)
+        {
+            container = await db.PublicationContainers.FirstOrDefaultAsync(c => c.Id == containerId, cancellationToken)
+                ?? throw new NotFoundException(nameof(PublicationContainer), containerId);
+
+            if (container.StudentId != request.StudentUserId)
+            {
+                throw new BusinessRuleException("That Publication Container does not belong to the specified student.");
+            }
+        }
 
         if (container is null)
         {
@@ -134,5 +195,10 @@ public class ContainerService(
             c.AssignedSupervisor == null ? null : c.AssignedSupervisor.FirstName + " " + c.AssignedSupervisor.LastName,
             (int)c.CurrentPipeline,
             c.Status.ToString(),
-            c.CreatedAt));
+            c.CreatedAt,
+            c.Publication != null && c.Publication.Title != ""
+                ? c.Publication.Title
+                : c.Proposals.Where(p => p.Status == ProposalStatus.Assigned).Select(p => p.Title).FirstOrDefault(),
+            c.Proposals.Count,
+            c.Publication == null ? null : c.Publication.Status.ToString()));
 }
