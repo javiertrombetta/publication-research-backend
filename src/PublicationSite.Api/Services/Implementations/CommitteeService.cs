@@ -3,6 +3,7 @@ using PublicationSite.Api.Common;
 using PublicationSite.Api.Common.Exceptions;
 using PublicationSite.Api.Data;
 using PublicationSite.Api.DTOs.Committees;
+using PublicationSite.Api.DTOs.Common;
 using PublicationSite.Api.Entities;
 using PublicationSite.Api.Enums;
 using PublicationSite.Api.Services.Interfaces;
@@ -140,15 +141,26 @@ public class CommitteeService(
         return ToDto(committee);
     }
 
-    public async Task<IReadOnlyList<CommitteeDto>> GetAssignmentsForMemberAsync(Guid memberUserId, CancellationToken cancellationToken = default)
+    public async Task<PagedResult<CommitteeDto>> GetAssignmentsForMemberAsync(
+        Guid memberUserId, PageRequest page, CancellationToken cancellationToken = default)
     {
-        var committees = await db.Committees
+        var query = db.Committees
+            .Where(c => c.Members.Any(m => m.UserId == memberUserId))
+            // The ones still needing this person's vote first: that is what they came for.
+            .OrderBy(c => c.Members.Any(m => m.UserId == memberUserId && m.Decision == CommitteeMemberDecision.Pending) ? 0 : 1)
+            .ThenByDescending(c => c.CreatedAt);
+
+        var total = await query.CountAsync(cancellationToken);
+
+        var committees = await query
+            .Skip((page.SafePage - 1) * page.SafePageSize)
+            .Take(page.SafePageSize)
             .Include(c => c.Publication).ThenInclude(p => p.Keywords)
             .Include(c => c.Members).ThenInclude(m => m.User)
-            .Where(c => c.Members.Any(m => m.UserId == memberUserId))
             .ToListAsync(cancellationToken);
 
-        return committees.Select(ToDto).ToList();
+        return new PagedResult<CommitteeDto>(
+            committees.Select(ToDto).ToList(), page.SafePage, page.SafePageSize, total);
     }
 
     public async Task MemberReviewAsync(Guid committeeId, Guid memberUserId, CommitteeMemberReviewRequest request, CancellationToken cancellationToken = default)

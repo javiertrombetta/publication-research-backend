@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
+using PublicationSite.Api.Common;
 using PublicationSite.Api.Common.Exceptions;
 using PublicationSite.Api.Data;
+using PublicationSite.Api.DTOs.Common;
 using PublicationSite.Api.DTOs.Proposals;
 using PublicationSite.Api.Entities;
 using PublicationSite.Api.Enums;
@@ -119,24 +121,38 @@ public class ProposalService(
             nameof(PublicationContainer), container.Id, cancellationToken);
     }
 
-    public async Task<IReadOnlyList<ProposalDto>> GetPendingForCoordinatorAsync(Guid coordinatorId, CancellationToken cancellationToken = default)
+    public async Task<PagedResult<ProposalDto>> GetPendingForCoordinatorAsync(
+        Guid coordinatorId, PageRequest page, CancellationToken cancellationToken = default)
     {
-        return await db.ResearchProposals
+        var query = db.ResearchProposals
             .Where(p => p.PublicationContainer.CoordinatorId == coordinatorId
                         && p.Status == ProposalStatus.Submitted
                         && !p.SupervisorSelections.Any())
-            .Select(p => ToDto(p))
-            .ToListAsync(cancellationToken);
+            .OrderBy(p => p.PublicationContainerId).ThenBy(p => p.CreatedAt);
+
+        return await query.ToPageAsync(p => ToDto(p), page, cancellationToken);
     }
 
-    public async Task<IReadOnlyList<ProposalWithInvitationsDto>> GetForCoordinatorAsync(
-        Guid coordinatorId, CancellationToken cancellationToken = default) =>
-        await ProjectWithInvitations(
-            db.ResearchProposals.Where(p => p.PublicationContainer.CoordinatorId == coordinatorId))
-            .ToListAsync(cancellationToken);
+    public async Task<PagedResult<ProposalWithInvitationsDto>> GetForCoordinatorAsync(
+        Guid coordinatorId, PageRequest page, bool awaitingAllocation = false,
+        CancellationToken cancellationToken = default)
+    {
+        var query = db.ResearchProposals.Where(p => p.PublicationContainer.CoordinatorId == coordinatorId);
 
-    public async Task<IReadOnlyList<ProposalWithInvitationsDto>> GetInDepartmentAsync(
-        Guid headOfDepartmentUserId, CancellationToken cancellationToken = default)
+        if (awaitingAllocation)
+        {
+            // A Supervisor has offered to take it on and nobody has been allocated yet: exactly
+            // the rows the Coordinator's selection screen can do something about.
+            query = query.Where(p => p.PublicationContainer.CurrentPipeline == PipelineStage.ResearchProposals
+                                     && p.PublicationContainer.Status != ContainerStatus.Completed
+                                     && p.SupervisorSelections.Any(s => s.IsSelected));
+        }
+
+        return await ProjectWithInvitations(query).ToPageAsync(page, cancellationToken);
+    }
+
+    public async Task<PagedResult<ProposalWithInvitationsDto>> GetInDepartmentAsync(
+        Guid headOfDepartmentUserId, PageRequest page, CancellationToken cancellationToken = default)
     {
         // Exactly one Head of Department per department, so a single id is all there is to match.
         var departmentId = await db.HeadOfDepartmentProfiles
@@ -146,13 +162,13 @@ public class ProposalService(
 
         if (departmentId is null)
         {
-            return [];
+            return new PagedResult<ProposalWithInvitationsDto>([], page.SafePage, page.SafePageSize, 0);
         }
 
         return await ProjectWithInvitations(db.ResearchProposals
                 .Where(p => p.PublicationContainer.Student.StudentProfile != null
                             && p.PublicationContainer.Student.StudentProfile.DepartmentId == departmentId))
-            .ToListAsync(cancellationToken);
+            .ToPageAsync(page, cancellationToken);
     }
 
     /// <summary>
@@ -166,6 +182,7 @@ public class ProposalService(
             .Select(p => new ProposalWithInvitationsDto(
                 p.Id,
                 p.PublicationContainerId,
+                p.PublicationContainer.Student.FirstName + " " + p.PublicationContainer.Student.LastName,
                 p.Title,
                 p.Abstract,
                 p.Status.ToString(),

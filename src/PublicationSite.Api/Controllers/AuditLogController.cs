@@ -4,6 +4,7 @@ using PublicationSite.Api.Common;
 using PublicationSite.Api.DTOs.AuditLog;
 using PublicationSite.Api.DTOs.Catalogue;
 using PublicationSite.Api.Services.Interfaces;
+using PublicationSite.Api.DTOs.Common;
 
 namespace PublicationSite.Api.Controllers;
 

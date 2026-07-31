@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using PublicationSite.Api.Common;
 using PublicationSite.Api.Common.Exceptions;
 using PublicationSite.Api.Data;
+using PublicationSite.Api.DTOs.Common;
 using PublicationSite.Api.DTOs.Containers;
 using PublicationSite.Api.Entities;
 using PublicationSite.Api.Enums;
@@ -58,29 +59,29 @@ public class ContainerService(
         return await GetByIdInternalAsync(id, cancellationToken);
     }
 
-    public async Task<IReadOnlyList<PublicationContainerDto>> GetMineAsync(Guid studentUserId, CancellationToken cancellationToken = default)
-    {
+    public async Task<PagedResult<PublicationContainerDto>> GetMineAsync(
+        Guid studentUserId, PageRequest page, CancellationToken cancellationToken = default) =>
         // Order before projecting: the DTO carries a correlated sub-query for Title, and EF Core
         // cannot translate an OrderBy applied on top of that projection.
-        return await ProjectToDto(
+        await ProjectToDto(
                 db.PublicationContainers
                     .Where(c => c.StudentId == studentUserId)
                     .OrderByDescending(c => c.CreatedAt))
-            .ToListAsync(cancellationToken);
-    }
+            .ToPageAsync(page, cancellationToken);
 
-    public async Task<IReadOnlyList<PublicationContainerDto>> GetSupervisingAsync(Guid supervisorUserId, CancellationToken cancellationToken = default)
-    {
+    public async Task<PagedResult<PublicationContainerDto>> GetSupervisingAsync(
+        Guid supervisorUserId, ContainerQuery query, CancellationToken cancellationToken = default) =>
         // Ordered before projecting, as in GetMineAsync: the DTO carries correlated sub-queries
         // that EF Core cannot order on top of.
-        return await ProjectToDto(
-                db.PublicationContainers
-                    .Where(c => c.AssignedSupervisorId == supervisorUserId)
-                    .OrderByDescending(c => c.CreatedAt))
-            .ToListAsync(cancellationToken);
-    }
+        await ProjectToDto(
+                WhereEthicsStep(
+                    db.PublicationContainers.Where(c => c.AssignedSupervisorId == supervisorUserId),
+                    query.EthicsStep)
+                .OrderByDescending(c => c.CreatedAt))
+            .ToPageAsync(query, cancellationToken);
 
-    public async Task<IReadOnlyList<PublicationContainerDto>> GetInMyDepartmentAsync(Guid headOfDepartmentUserId, CancellationToken cancellationToken = default)
+    public async Task<PagedResult<PublicationContainerDto>> GetInMyDepartmentAsync(
+        Guid headOfDepartmentUserId, ContainerQuery query, CancellationToken cancellationToken = default)
     {
         // Exactly one Head of Department per Department, so a single id is all there is to match.
         var departmentId = await db.HeadOfDepartmentProfiles
@@ -90,15 +91,16 @@ public class ContainerService(
 
         if (departmentId is null)
         {
-            return [];
+            return new PagedResult<PublicationContainerDto>([], query.SafePage, query.SafePageSize, 0);
         }
 
         return await ProjectToDto(
-                db.PublicationContainers
-                    .Where(c => c.Student.StudentProfile != null
-                                && c.Student.StudentProfile.DepartmentId == departmentId)
-                    .OrderByDescending(c => c.CreatedAt))
-            .ToListAsync(cancellationToken);
+                WhereEthicsStep(
+                    db.PublicationContainers.Where(c => c.Student.StudentProfile != null
+                                && c.Student.StudentProfile.DepartmentId == departmentId),
+                    query.EthicsStep)
+                .OrderByDescending(c => c.CreatedAt))
+            .ToPageAsync(query, cancellationToken);
     }
 
     public async Task DeleteOwnAsync(Guid containerId, Guid studentUserId, CancellationToken cancellationToken = default)
@@ -161,18 +163,69 @@ public class ContainerService(
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<IReadOnlyList<PublicationContainerDto>> GetAllAsync(Guid? studentId, Guid? coordinatorId, string? status, CancellationToken cancellationToken = default)
+    public async Task<PagedResult<PublicationContainerDto>> GetAllAsync(
+        ContainerQuery query, CancellationToken cancellationToken = default)
     {
-        var query = db.PublicationContainers.AsQueryable();
+        var containers = db.PublicationContainers.AsQueryable();
 
-        if (studentId is not null) query = query.Where(c => c.StudentId == studentId);
-        if (coordinatorId is not null) query = query.Where(c => c.CoordinatorId == coordinatorId);
-        if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<ContainerStatus>(status, true, out var statusFilter))
+        if (query.StudentId is not null) containers = containers.Where(c => c.StudentId == query.StudentId);
+        if (query.CoordinatorId is not null) containers = containers.Where(c => c.CoordinatorId == query.CoordinatorId);
+        if (!string.IsNullOrWhiteSpace(query.Status) && Enum.TryParse<ContainerStatus>(query.Status, true, out var statusFilter))
         {
-            query = query.Where(c => c.Status == statusFilter);
+            containers = containers.Where(c => c.Status == statusFilter);
         }
 
-        return await ProjectToDto(query.OrderByDescending(c => c.CreatedAt)).ToListAsync(cancellationToken);
+        return await ProjectToDto(
+                WhereEthicsStep(containers, query.EthicsStep).OrderByDescending(c => c.CreatedAt))
+            .ToPageAsync(query, cancellationToken);
+    }
+
+    /// <summary>
+    /// Narrows to the containers waiting at particular ethics steps.
+    ///
+    /// Expressed against the entity rather than against the projected step name. The name is a
+    /// CASE built during projection, and filtering on it afterwards is not something EF Core can
+    /// turn into SQL — it tried to compare the whole row. Written this way it also filters before
+    /// projecting, so the rows that are not wanted are never shaped at all.
+    ///
+    /// Which flags are wanted is decided in C# first, so what reaches the query are plain
+    /// parameters rather than a list the database is asked to search.
+    /// </summary>
+    private static IQueryable<PublicationContainer> WhereEthicsStep(
+        IQueryable<PublicationContainer> query, IReadOnlyList<string>? steps)
+    {
+        if (steps is null or { Count: 0 }) return query;
+
+        var supervisorDecision = steps.Contains(EthicsSteps.SupervisorDecision);
+        var coordinatorConfirmation = steps.Contains(EthicsSteps.CoordinatorConfirmation);
+        var studentUpload = steps.Contains(EthicsSteps.StudentUpload);
+        var supervisorDocuments = steps.Contains(EthicsSteps.SupervisorDocumentReview);
+        var coordinatorDocuments = steps.Contains(EthicsSteps.CoordinatorDocumentReview);
+        var headOfDepartment = steps.Contains(EthicsSteps.HeadOfDepartmentReview);
+        var coordinatorFinal = steps.Contains(EthicsSteps.CoordinatorFinalDecision);
+
+        return query.Where(c => c.EthicsApproval != null && (
+            (supervisorDecision && c.EthicsApproval.Status == EthicsStatus.PendingSupervisorDecision)
+            || (coordinatorConfirmation
+                && c.EthicsApproval.Status == EthicsStatus.NotRequired
+                && c.EthicsApproval.FinalDecisionAt == null)
+            || (studentUpload && c.EthicsApproval.Status == EthicsStatus.PendingUpload)
+            || (supervisorDocuments
+                && c.EthicsApproval.Status == EthicsStatus.PendingVerification
+                && c.EthicsApproval.Documents.Any(d => d.Status == EthicsDocumentStatus.PendingReview))
+            || (coordinatorDocuments
+                && c.EthicsApproval.Status == EthicsStatus.PendingVerification
+                && !c.EthicsApproval.Documents.Any(d => d.Status == EthicsDocumentStatus.PendingReview)
+                && c.EthicsApproval.CoordinatorDecisionAt == null)
+            || (headOfDepartment
+                && c.EthicsApproval.Status == EthicsStatus.PendingVerification
+                && !c.EthicsApproval.Documents.Any(d => d.Status == EthicsDocumentStatus.PendingReview)
+                && c.EthicsApproval.CoordinatorDecisionAt != null
+                && c.EthicsApproval.HeadOfDepartmentReviewedAt == null)
+            || (coordinatorFinal
+                && c.EthicsApproval.Status == EthicsStatus.PendingVerification
+                && !c.EthicsApproval.Documents.Any(d => d.Status == EthicsDocumentStatus.PendingReview)
+                && c.EthicsApproval.HeadOfDepartmentReviewedAt != null)));
     }
 
     public async Task<PublicationContainerDto> AssignCoordinatorManuallyAsync(AssignCoordinatorRequest request, Guid actingUserId, CancellationToken cancellationToken = default)
@@ -300,6 +353,25 @@ public class ContainerService(
                             : c.Publication.Committee.Status != CommitteeStatus.Completed
                                 ? RoleNames.EvaluationCommittee
                                 : RoleNames.Coordinator)
+                    : null,
+            // The same waits as EthicsAwaitingRole, named individually. Two of them belong to the
+            // Coordinator and are different screens, so a role alone cannot select either.
+            c.EthicsApproval == null
+                ? null
+                : c.EthicsApproval.Status == EthicsStatus.PendingSupervisorDecision
+                    ? EthicsSteps.SupervisorDecision
+                : c.EthicsApproval.Status == EthicsStatus.NotRequired && c.EthicsApproval.FinalDecisionAt == null
+                    ? EthicsSteps.CoordinatorConfirmation
+                : c.EthicsApproval.Status == EthicsStatus.PendingUpload
+                    ? EthicsSteps.StudentUpload
+                : c.EthicsApproval.Status == EthicsStatus.PendingVerification
+                    ? (c.EthicsApproval.Documents.Any(d => d.Status == EthicsDocumentStatus.PendingReview)
+                        ? EthicsSteps.SupervisorDocumentReview
+                        : c.EthicsApproval.CoordinatorDecisionAt == null
+                            ? EthicsSteps.CoordinatorDocumentReview
+                            : c.EthicsApproval.HeadOfDepartmentReviewedAt == null
+                                ? EthicsSteps.HeadOfDepartmentReview
+                                : EthicsSteps.CoordinatorFinalDecision)
                     : null,
             c.RequiredInternalCommitteeMembers,
             c.RequiredExternalCommitteeMembers));

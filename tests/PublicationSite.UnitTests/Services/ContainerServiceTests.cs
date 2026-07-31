@@ -8,6 +8,7 @@ using PublicationSite.Api.DTOs.Settings;
 using PublicationSite.Api.Services.Interfaces;
 using PublicationSite.UnitTests.TestSupport;
 using Xunit;
+using PublicationSite.Api.DTOs.Common;
 
 namespace PublicationSite.UnitTests.Services;
 
@@ -68,7 +69,7 @@ public class ContainerServiceTests : IDisposable
 
         result.Id.Should().NotBe(existing.Id);
 
-        var mine = await _sut.GetMineAsync(student.Id);
+        var mine = (await _sut.GetMineAsync(student.Id, new PageRequest())).Items;
         mine.Should().HaveCount(2);
     }
 
@@ -77,7 +78,7 @@ public class ContainerServiceTests : IDisposable
     {
         var student = TestDataBuilder.User(_fixture.Context);
 
-        var mine = await _sut.GetMineAsync(student.Id);
+        var mine = (await _sut.GetMineAsync(student.Id, new PageRequest())).Items;
 
         mine.Should().BeEmpty();
     }
@@ -91,7 +92,7 @@ public class ContainerServiceTests : IDisposable
 
         await _sut.DeleteOwnAsync(container.Id, student.Id);
 
-        (await _sut.GetMineAsync(student.Id)).Should().BeEmpty();
+        (await _sut.GetMineAsync(student.Id, new PageRequest())).Items.Should().BeEmpty();
     }
 
     [Fact]

@@ -1,3 +1,4 @@
+using PublicationSite.Api.DTOs.Common;
 using PublicationSite.Api.DTOs.Proposals;
 
 namespace PublicationSite.Api.Services.Interfaces;
@@ -10,13 +11,13 @@ public interface IProposalService
     Task FinishSubmissionAsync(Guid publicationContainerId, Guid studentId, CancellationToken cancellationToken = default);
     Task RequestNewSubmissionAsync(Guid publicationContainerId, string comments, Guid actingUserId, CancellationToken cancellationToken = default);
 
-    Task<IReadOnlyList<ProposalDto>> GetPendingForCoordinatorAsync(Guid coordinatorId, CancellationToken cancellationToken = default);
+    Task<PagedResult<ProposalDto>> GetPendingForCoordinatorAsync(Guid coordinatorId, PageRequest page, CancellationToken cancellationToken = default);
 
     /// <summary>Every proposal in this Coordinator's publications, with what each Supervisor said.</summary>
-    Task<IReadOnlyList<ProposalWithInvitationsDto>> GetForCoordinatorAsync(Guid coordinatorId, CancellationToken cancellationToken = default);
+    Task<PagedResult<ProposalWithInvitationsDto>> GetForCoordinatorAsync(Guid coordinatorId, PageRequest page, bool awaitingAllocation = false, CancellationToken cancellationToken = default);
 
     /// <summary>Every proposal from the students of the department this person heads.</summary>
-    Task<IReadOnlyList<ProposalWithInvitationsDto>> GetInDepartmentAsync(Guid headOfDepartmentUserId, CancellationToken cancellationToken = default);
+    Task<PagedResult<ProposalWithInvitationsDto>> GetInDepartmentAsync(Guid headOfDepartmentUserId, PageRequest page, CancellationToken cancellationToken = default);
     Task SendToSupervisorsAsync(SendToSupervisorsRequest request, Guid coordinatorId, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<ProposalDto>> GetInvitedProposalsForSupervisorAsync(Guid supervisorId, CancellationToken cancellationToken = default);

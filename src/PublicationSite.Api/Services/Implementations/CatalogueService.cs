@@ -5,6 +5,7 @@ using PublicationSite.Api.DTOs.Catalogue;
 using PublicationSite.Api.Entities;
 using PublicationSite.Api.Enums;
 using PublicationSite.Api.Services.Interfaces;
+using PublicationSite.Api.DTOs.Common;
 
 namespace PublicationSite.Api.Services.Implementations;
 

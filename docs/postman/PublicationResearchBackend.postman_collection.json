@@ -1136,15 +1136,28 @@
             "method": "POST",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/api/containers",
+              "raw": "{{base_url}}/api/containers?page=1&pageSize=10",
               "host": [
                 "{{base_url}}"
               ],
               "path": [
                 "api",
                 "containers"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "1-based."
+                },
+                {
+                  "key": "pageSize",
+                  "value": "10",
+                  "description": "Up to 100."
+                }
               ]
-            }
+            },
+            "description": "\n\nPaged: page and pageSize (10 by default, 100 at most). The response is { items, page, pageSize, totalCount } rather than a bare list."
           },
           "response": []
         },
@@ -1154,7 +1167,7 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/api/containers?studentId=&coordinatorId=&status=",
+              "raw": "{{base_url}}/api/containers?studentId=&coordinatorId=&status=&page=1&pageSize=10",
               "host": [
                 "{{base_url}}"
               ],
@@ -1180,9 +1193,20 @@
                   "value": "",
                   "description": "",
                   "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "1-based."
+                },
+                {
+                  "key": "pageSize",
+                  "value": "10",
+                  "description": "Up to 100."
                 }
               ]
-            }
+            },
+            "description": "\n\nPaged: page and pageSize (10 by default, 100 at most). The response is { items, page, pageSize, totalCount } rather than a bare list."
           },
           "response": []
         },
@@ -1278,7 +1302,7 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/api/containers/me",
+              "raw": "{{base_url}}/api/containers/me?page=1&pageSize=10",
               "host": [
                 "{{base_url}}"
               ],
@@ -1286,9 +1310,21 @@
                 "api",
                 "containers",
                 "me"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "1-based."
+                },
+                {
+                  "key": "pageSize",
+                  "value": "10",
+                  "description": "Up to 100."
+                }
               ]
             },
-            "description": "Student only. Every Publication Container this student has open. A student may run several at once, so this is a list rather than a single container, and each carries the title, stage and whose turn it is."
+            "description": "Student only. Every Publication Container this student has open. A student may run several at once, so this is a list rather than a single container, and each carries the title, stage and whose turn it is.\n\nPaged: page and pageSize (10 by default, 100 at most). The response is { items, page, pageSize, totalCount } rather than a bare list."
           },
           "response": []
         },
@@ -1298,7 +1334,7 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/api/containers/supervising",
+              "raw": "{{base_url}}/api/containers/supervising?page=1&pageSize=10",
               "host": [
                 "{{base_url}}"
               ],
@@ -1306,9 +1342,21 @@
                 "api",
                 "containers",
                 "supervising"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "1-based."
+                },
+                {
+                  "key": "pageSize",
+                  "value": "10",
+                  "description": "Up to 100."
+                }
               ]
             },
-            "description": "Supervisor only. The containers this Supervisor was allocated."
+            "description": "Supervisor only. The containers this Supervisor was allocated.\n\nPaged: page and pageSize (10 by default, 100 at most). The response is { items, page, pageSize, totalCount } rather than a bare list."
           },
           "response": []
         },
@@ -1318,7 +1366,7 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/api/containers/in-my-department",
+              "raw": "{{base_url}}/api/containers/in-my-department?page=1&pageSize=10",
               "host": [
                 "{{base_url}}"
               ],
@@ -1326,9 +1374,21 @@
                 "api",
                 "containers",
                 "in-my-department"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "1-based."
+                },
+                {
+                  "key": "pageSize",
+                  "value": "10",
+                  "description": "Up to 100."
+                }
               ]
             },
-            "description": "Head of Department only. Limited to students of the department this person heads — not the institution's."
+            "description": "Head of Department only. Limited to students of the department this person heads — not the institution's.\n\nPaged: page and pageSize (10 by default, 100 at most). The response is { items, page, pageSize, totalCount } rather than a bare list."
           },
           "response": []
         },
@@ -1541,7 +1601,7 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/api/proposals/pending",
+              "raw": "{{base_url}}/api/proposals/pending?page=1&pageSize=10",
               "host": [
                 "{{base_url}}"
               ],
@@ -1549,8 +1609,21 @@
                 "api",
                 "proposals",
                 "pending"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "1-based."
+                },
+                {
+                  "key": "pageSize",
+                  "value": "10",
+                  "description": "Up to 100."
+                }
               ]
-            }
+            },
+            "description": "\n\nPaged: page and pageSize (10 by default, 100 at most). The response is { items, page, pageSize, totalCount } rather than a bare list."
           },
           "response": []
         },
@@ -2404,7 +2477,7 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/api/publications/pending",
+              "raw": "{{base_url}}/api/publications/pending?page=1&pageSize=10",
               "host": [
                 "{{base_url}}"
               ],
@@ -2412,8 +2485,21 @@
                 "api",
                 "publications",
                 "pending"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "1-based."
+                },
+                {
+                  "key": "pageSize",
+                  "value": "10",
+                  "description": "Up to 100."
+                }
               ]
-            }
+            },
+            "description": "\n\nPaged: page and pageSize (10 by default, 100 at most). The response is { items, page, pageSize, totalCount } rather than a bare list."
           },
           "response": []
         },
@@ -2727,7 +2813,7 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/api/committees/my-assignments",
+              "raw": "{{base_url}}/api/committees/my-assignments?page=1&pageSize=10",
               "host": [
                 "{{base_url}}"
               ],
@@ -2735,8 +2821,21 @@
                 "api",
                 "committees",
                 "my-assignments"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "1-based."
+                },
+                {
+                  "key": "pageSize",
+                  "value": "10",
+                  "description": "Up to 100."
+                }
               ]
-            }
+            },
+            "description": "\n\nPaged: page and pageSize (10 by default, 100 at most). The response is { items, page, pageSize, totalCount } rather than a bare list."
           },
           "response": []
         },

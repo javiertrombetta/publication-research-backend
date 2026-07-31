@@ -88,11 +88,11 @@ public class PublicationsController(IPublicationService publicationService, ICur
 
     [HttpGet("api/publications/pending")]
     [Authorize(Roles = RoleNames.Supervisor)]
-    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<PublicationDto>>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetPendingForSupervisor()
+    [ProducesResponseType(typeof(ApiResponse<PagedResult<PublicationDto>>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetPendingForSupervisor([FromQuery] PageRequest paging)
     {
-        var result = await publicationService.GetPendingForSupervisorAsync(currentUser.UserId);
-        return Ok(ApiResponse<IReadOnlyList<PublicationDto>>.Ok(result));
+        var result = await publicationService.GetPendingForSupervisorAsync(currentUser.UserId, paging);
+        return Ok(ApiResponse<PagedResult<PublicationDto>>.Ok(result));
     }
 
     [HttpGet("api/publications/awaiting-committee")]

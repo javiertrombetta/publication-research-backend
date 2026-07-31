@@ -1,4 +1,5 @@
 using PublicationSite.Api.DTOs.Catalogue;
+using PublicationSite.Api.DTOs.Common;
 
 namespace PublicationSite.Api.Services.Interfaces;
 
