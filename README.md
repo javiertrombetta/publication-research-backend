@@ -89,49 +89,81 @@ dotnet run
 - Swagger UI: `http://localhost:5020/swagger` (Development only)
 - Health check: `GET /health`
 
-### 6. Seeding accounts
+### 6. Seeding
 
-`DbSeeder`/`DevelopmentDataSeeder` (in `Data/`) run automatically on every startup, both idempotent:
+Three deployments exist and each wants a different amount of data in it. `Data/DbSeeder.cs` covers what
+every one of them needs; `Data/DemoDataSeeder.cs` covers the sample dataset, and only runs where it is
+asked for.
 
-**Production Admin** (safe in every environment — it's a no-op unless configured): set these two before the
-first deploy, then remove them:
+| Deployment | `ASPNETCORE_ENVIRONMENT` | `Seed:DemoData` | What ends up in the database |
+| --- | --- | --- | --- |
+| A developer's machine | `Development` | unset (defaults on) | Roles, and the full demonstration dataset |
+| The shared instance the team tests against | `Production` | `true` | Roles, the configured Admin, and the full demonstration dataset |
+| Production | `Production` | unset | Roles and the configured Admin. Nothing else |
+
+The default is closed outside development, so forgetting the setting costs a deployment its sample data
+rather than publishing a known password on a live site.
+
+**The production Admin** (a no-op unless configured, so it is safe everywhere): set these two before the
+first deploy, then remove them.
 
 ```bash
 export Seed__AdminEmail="you@ais.ac.nz"
 export Seed__AdminPassword="SomeStrongPassword123!"
 ```
 
-It only ever creates the account once (never touches an existing one), and logs a warning confirming it did.
-This is the account that then configures everything else and invites everyone else.
+It creates the account once and never touches an existing one, logging a warning to confirm. That account
+then configures everything else and invites everyone else.
 
-**Local test users** (one enabled account per role, **Development environment only** — this is hard-guarded in
-code, not just by config, since every account below shares the same password): created automatically the first
-time you `dotnet run` in Development, no setup needed.
+#### The demonstration dataset
 
-| Role | Email | Password |
-| --- | --- | --- |
-| Admin | `admin.test@ais.ac.nz` | `DevTest123!` |
-| HeadOfDepartment | `hod.test@ais.ac.nz` | `DevTest123!` |
-| Coordinator | `coordinator.test@ais.ac.nz` | `DevTest123!` |
-| Supervisor | `supervisor.test@ais.ac.nz` | `DevTest123!` |
-| InternalCommitteeMember | `internal.test@ais.ac.nz` | `DevTest123!` |
-| ExternalCommitteeMember | `external.test@ais.ac.nz` | `DevTest123!` |
-| Student | `student.test@aisstudent.ac.nz` | `DevTest123!` |
-| Staff (no operational role yet) | `staff.test@ais.ac.nz` | `DevTest123!` |
+Nineteen accounts across two departments, and twenty-one publications parked at every point in the three
+pipelines where somebody has to act — so each role signs in to find work of its own waiting, at every
+decision the system asks anyone to make, without having to walk a publication through ten prior steps to
+reach the eleventh.
 
-Coordinator/Supervisor/HeadOfDepartment/Student all share one `Test Department` (code `TEST`), so the
-Coordinator auto-assignment logic works out of the box when the test Student creates a Publication Container.
+Every account uses the password `DevTest123!`.
 
-From there, use the Admin endpoints (`/api/users`, `/api/departments`, `/api/invitations`) to create any
-additional real accounts.
+| Role | Accounts |
+| --- | --- |
+| Admin | `admin.test@ais.ac.nz` |
+| Head of Department | `hod.test@ais.ac.nz` (Computing), `hod.business@ais.ac.nz` (Business) |
+| Coordinator | `coordinator.test@ais.ac.nz` (Computing), `coordinator.business@ais.ac.nz` (Business) |
+| Supervisor | `supervisor.test@ais.ac.nz`, `supervisor.second@ais.ac.nz`, `supervisor.business@ais.ac.nz`, `supervisor.business.second@ais.ac.nz` |
+| Internal committee member | `internal.test@ais.ac.nz`, `internal.second@ais.ac.nz` |
+| External committee member | `external.test@ais.ac.nz`, `external.second@ais.ac.nz` |
+| Student | `student.test@aisstudent.ac.nz`, `student.second@…`, `student.third@…`, `student.fourth@…`, `student.business@…` |
+| Staff (no operational role yet) | `staff.test@ais.ac.nz` |
+
+Two of each kind of committee member, because the default composition asks for two internal and one
+external — with one of each, the standard committee could not be built at all. Two departments, so a Head
+of Department can be seen to have sight of their own students and not everyone's. Two Supervisors per
+department, so a Coordinator allocating a proposal has a real choice rather than a single option to
+rubber-stamp.
+
+`student.test@aisstudent.ac.nz` carries the stages a student acts on, from an empty publication through to
+one in the public catalogue, so one account demonstrates the whole route. The other students carry the
+stages where somebody else acts, which is what puts a queue in front of every other role.
+
+The dataset is built by calling the same service methods the API calls, rather than by writing rows. What
+state a publication is in is spread across its container, proposals, ethics approval, paper, versions,
+committee, activity history and notifications, and all of those have to agree; going through the services
+means the sample data can only ever be in a state the application itself can produce. It is written in one
+transaction, so an interrupted run leaves nothing behind and the next start rebuilds it.
+
+It runs in the background once the server is listening, not before. Against a hosted database it takes long
+enough that doing it inline would hold the health check open past the point where a platform gives up on
+the deploy. `GET /api/dev/demo-data` (Admin) reports whether it has finished.
 
 ### Resetting a shared deployment (frontend team use)
 
-`POST /api/dev/reset-database` (Admin-only) wipes and recreates the whole schema, then reseeds roles, the
-configured Admin, and the one-account-per-role test users above — useful while a frontend team is building
-against a shared deployment and wants a clean slate. It's a no-op (403) unless `DevTools:EnableDatabaseReset`
-is set, which is **only** appropriate on a deployment holding no real user data — see the warning in
-[render.yaml](render.yaml). Logging in again is required afterwards; tokens issued before a reset stop working.
+`POST /api/dev/reset-database` (Admin-only) wipes and recreates the whole schema, then reseeds the roles,
+the configured Admin and — where the deployment asks for it — the demonstration dataset. It returns as soon
+as signing in is possible again and finishes the dataset in the background.
+
+It is a no-op (403) unless `DevTools:EnableDatabaseReset` is set, which is **only** appropriate on a
+deployment holding no real user data — see the warning in [render.yaml](render.yaml). Logging in again is
+required afterwards; tokens issued before a reset stop working.
 
 ## Runtime settings
 

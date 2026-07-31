@@ -148,7 +148,12 @@ public class ProposalService(
                 throw new BusinessRuleException($"Proposal '{proposal.Title}' is not awaiting evaluation.");
             }
 
-            foreach (var supervisorId in request.SupervisorIds)
+            // Deduplicated: the same Supervisor named twice in one request would otherwise be
+            // invited twice, because the "already invited" check below reads the database and
+            // cannot see a row this loop has added but not yet saved. The unique index then
+            // rejects the save and the caller gets a server error for what is only a redundant
+            // selection.
+            foreach (var supervisorId in request.SupervisorIds.Distinct())
             {
                 var alreadyInvited = await db.ProposalSupervisorSelections
                     .AnyAsync(s => s.ProposalId == proposal.Id && s.SupervisorId == supervisorId, cancellationToken);

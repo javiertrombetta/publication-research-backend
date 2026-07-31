@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using PublicationSite.Api.Common;
 using PublicationSite.Api.Common.Exceptions;
 using PublicationSite.Api.Data;
 using PublicationSite.Api.DTOs.Publications;
@@ -227,9 +228,29 @@ public class PublicationService(
             .Include(p => p.Keywords).Include(p => p.ResearchAreas)
             .Where(p => p.PublicationContainer.AssignedSupervisorId == supervisorId
                         && (p.Status == PublicationStatus.UnderReview || p.Status == PublicationStatus.Resubmitted))
+            // Approving a paper leaves it UnderReview, so without this a Supervisor kept seeing
+            // every paper they had already dealt with alongside the ones still waiting.
+            .WhereLatestVersionApprovedBySupervisor(false)
             .ToListAsync(cancellationToken);
 
         return publications.Select(ToDto).ToList();
+    }
+
+    public async Task<IReadOnlyList<AwaitingCommitteeDto>> GetAwaitingCommitteeAsync(CancellationToken cancellationToken = default)
+    {
+        return await db.Publications
+            .Where(p => p.Status == PublicationStatus.UnderReview && p.Committee == null)
+            .WhereLatestVersionApprovedBySupervisor()
+            .OrderBy(p => p.UpdatedAt)
+            .Select(p => new AwaitingCommitteeDto(
+                p.Id,
+                p.PublicationContainerId,
+                p.Title,
+                p.Abstract,
+                p.PublicationContainer.Student.FirstName + " " + p.PublicationContainer.Student.LastName,
+                p.PublicationContainer.RequiredInternalCommitteeMembers,
+                p.PublicationContainer.RequiredExternalCommitteeMembers))
+            .ToListAsync(cancellationToken);
     }
 
     public async Task SupervisorReviewAsync(Guid publicationId, Guid supervisorId, PaperReviewDecisionRequest request, CancellationToken cancellationToken = default)

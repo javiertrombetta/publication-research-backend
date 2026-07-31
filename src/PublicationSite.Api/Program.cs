@@ -152,6 +152,13 @@ builder.Services.AddScoped<IEthicsDocumentRequirementService, EthicsDocumentRequ
 builder.Services.AddScoped<IUserProfileFactory, UserProfileFactory>();
 builder.Services.AddScoped<IInvitationService, InvitationService>();
 
+// ---------- Demonstration dataset (development and the shared testing deployment only) ----------
+if (DemoDataSeeder.IsEnabled(builder.Configuration, builder.Environment))
+{
+    builder.Services.AddSingleton<DemoDataSeedRunner>();
+    builder.Services.AddHostedService(services => services.GetRequiredService<DemoDataSeedRunner>());
+}
+
 // ---------- Reverse proxy (Render terminates TLS in front of the container) ----------
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
@@ -229,10 +236,9 @@ using (var scope = app.Services.CreateScope())
     await DbSeeder.SeedRolesAsync(scope.ServiceProvider);
     await DbSeeder.SeedAdminAsync(scope.ServiceProvider, app.Configuration);
 
-    if (app.Environment.IsDevelopment())
-    {
-        await DevelopmentDataSeeder.SeedTestUsersAsync(scope.ServiceProvider, app.Environment);
-    }
+    // The demonstration dataset is not seeded here. It is slow enough against a hosted database
+    // to hold up the health check, so DemoDataSeedRunner starts it once the server is listening —
+    // and it is registered only where it is wanted (see DemoDataSeeder.IsEnabled).
 }
 
 // ---------- Middleware pipeline ----------
