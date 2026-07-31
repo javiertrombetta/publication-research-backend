@@ -133,7 +133,7 @@ by itself.)
    | `Jwt__SigningKey` | `openssl rand -base64 64` — generate a real one, don't reuse the dev key from `appsettings.Development.json` |
    | `Frontend__BaseUrl` | your frontend's URL (or `http://localhost:3000` until you have one) |
    | `Cors__AllowedOrigins__0` | same as above — must match exactly for the frontend to be able to call this API |
-   | `Mail__Host`, `Mail__Username`, `Mail__Password`, `Mail__FromAddress` | real SMTP credentials — until set, emails fail silently and are logged (see README), the workflow itself still works since every notification is also stored in-app |
+   | `Mail__*` | **leave these out.** The mail server is an administrator setting edited under System settings, the stored value wins over configuration, and the seeded Admin needs no email to sign in. Setting them to placeholders is worse than omitting them: the "no mail server is configured" warning only appears while the host is empty, so a made-up host produces a connection timeout instead. Until an administrator configures one, emails are skipped and logged, and the workflow still works because every notification is stored in-app as well |
    | `Seed__AdminEmail`, `Seed__AdminPassword` | your real Admin login — created once on first boot, never overwritten afterwards |
    | `Seed__DemoData` | `"true"` on the shared instance the team tests against, so it comes up with an account for every role and a publication at every pipeline stage. **Remove it for production** — every demonstration account shares one published password, and the default outside development is off |
 
@@ -165,6 +165,10 @@ background. It's controlled by `DevTools__EnableDatabaseReset` in `render.yaml`,
 
 **Turn it off (`"false"`, or delete the key) the moment this deployment holds real user data** —
 there is no confirmation step, any Admin token can trigger it, and it deletes everything.
+
+It also requires `Seed__DemoData`. That is belt and braces rather than duplication: whether a
+database is disposable is exactly what seeding demonstration data into it declares, so a deployment
+that seeds none cannot be wiped even if this switch was left on by mistake.
 
 ## Known limitations of this setup
 

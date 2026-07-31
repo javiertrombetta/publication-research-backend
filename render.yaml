@@ -43,18 +43,14 @@ services:
       - key: Cors__AllowedOrigins__0
         sync: false
 
-      - key: Mail__Host
-        sync: false
-      - key: Mail__Port
-        value: "587"
-      - key: Mail__Username
-        sync: false
-      - key: Mail__Password
-        sync: false
-      - key: Mail__FromAddress
-        sync: false
-      - key: Mail__UseSsl
-        value: "true"
+      # No Mail__* here on purpose. The mail server is an administrator setting, edited under
+      # System settings, and the stored value wins over configuration anyway. The seeded Admin
+      # arrives with its address already confirmed, so nothing has to be emailed before someone
+      # can sign in and set it up — there is nothing left for these to bootstrap.
+      #
+      # Setting them to placeholders is actively worse than leaving them out: SmtpEmailSender
+      # only reports "no mail server is configured" while the host is empty, so a made-up host
+      # turns a clear message into a connection timeout and a stack trace.
 
       # Bootstraps the single production Admin on first boot; safe to leave set afterwards
       # (DbSeeder never touches an existing account) but fine to clear once the account exists.
@@ -74,7 +70,11 @@ services:
         value: "true"
 
       # Lets an Admin call POST /api/dev/reset-database to wipe and reseed this instance —
-      # meant for the team building the frontend against a shared, disposable dataset.
-      # MUST be set to "false" (or removed) once this deployment holds real user data.
+      # meant for the team testing against a shared, disposable dataset. MUST be set to "false"
+      # (or removed) once this deployment holds real user data.
+      #
+      # It also needs Seed__DemoData above: the reset refuses to run where no demonstration data
+      # is seeded, since that is what marks a database as disposable. Belt and braces, because
+      # this deletes everything and asks nothing first.
       - key: DevTools__EnableDatabaseReset
         value: "true"
