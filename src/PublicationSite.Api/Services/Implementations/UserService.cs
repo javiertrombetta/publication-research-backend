@@ -40,22 +40,29 @@ public class UserService(
                 u.Email!.Contains(search) || u.FirstName.Contains(search) || u.LastName.Contains(search));
         }
 
-        var users = await query.OrderBy(u => u.LastName).ToListAsync(cancellationToken);
-
-        var results = new List<UserListItemDto>();
-        foreach (var user in users)
+        // Filtered in the database rather than after loading everybody. The role a person holds
+        // lives in another table, and asking UserManager for it means a query per user — so this
+        // used to read every account in the institution, ask sixty-odd questions to find out what
+        // they were, and throw away all but the two it had been asked for. The work was identical
+        // whether the caller wanted one role or all of them.
+        if (!string.IsNullOrWhiteSpace(role))
         {
-            var roles = await userManager.GetRolesAsync(user);
-            if (!string.IsNullOrWhiteSpace(role) && !roles.Contains(role, StringComparer.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            results.Add(new UserListItemDto(user.Id, user.Email!, user.FirstName, user.LastName,
-                user.Status.ToString(), roles.ToList(), user.CreatedAt));
+            query = query.Where(u => db.UserRoles
+                .Where(ur => ur.UserId == u.Id)
+                .Join(db.Roles, ur => ur.RoleId, r => r.Id, (ur, r) => r.Name)
+                .Any(name => name == role));
         }
 
-        return results;
+        return await query
+            .OrderBy(u => u.LastName)
+            .Select(u => new UserListItemDto(
+                u.Id, u.Email!, u.FirstName, u.LastName, u.Status.ToString(),
+                db.UserRoles
+                    .Where(ur => ur.UserId == u.Id)
+                    .Join(db.Roles, ur => ur.RoleId, r => r.Id, (ur, r) => r.Name!)
+                    .ToList(),
+                u.CreatedAt))
+            .ToListAsync(cancellationToken);
     }
 
     public async Task<UserDetailDto> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
