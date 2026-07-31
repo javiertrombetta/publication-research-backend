@@ -20,6 +20,7 @@ public class UserServiceTests : IDisposable
     private readonly Mock<UserManager<ApplicationUser>> _userManager = IdentityMockFactory.MockUserManager();
     private readonly Mock<IEmailSender> _emailSender = new();
     private readonly Mock<IAuditService> _auditService = new();
+    private readonly Mock<IFileStorageService> _fileStorageService = new();
     private readonly UserService _sut;
 
     public UserServiceTests()
@@ -29,7 +30,8 @@ public class UserServiceTests : IDisposable
         _userManager.Setup(m => m.GeneratePasswordResetTokenAsync(It.IsAny<ApplicationUser>())).ReturnsAsync("reset-token");
         _userManager.Setup(m => m.GetRolesAsync(It.IsAny<ApplicationUser>())).ReturnsAsync(new List<string>());
 
-        _sut = new UserService(_userManager.Object, _fixture.Context, _emailSender.Object, _auditService.Object, Options.Create(new FrontendSettings()));
+        _sut = new UserService(_userManager.Object, _fixture.Context, _emailSender.Object, _auditService.Object,
+            _fileStorageService.Object, Options.Create(new FrontendSettings()), Options.Create(new FileStorageSettings()));
     }
 
     public void Dispose() => _fixture.Dispose();

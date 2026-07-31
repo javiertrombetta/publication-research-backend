@@ -114,11 +114,11 @@ public class PublicationService(
             throw new BusinessRuleException("A new version cannot be uploaded at this stage.");
         }
 
-        var stored = await fileStorageService.SaveAsync(content, fileName, $"papers/{publication.Id}", cancellationToken);
+        var stored = await fileStorageService.SaveAsync(content, fileName, $"papers/{publication.Id}", cancellationToken: cancellationToken);
         string? supplementaryPath = null;
         if (supplementary is not null && supplementaryFileName is not null)
         {
-            var storedSupplementary = await fileStorageService.SaveAsync(supplementary, supplementaryFileName, $"papers/{publication.Id}/supplementary", cancellationToken);
+            var storedSupplementary = await fileStorageService.SaveAsync(supplementary, supplementaryFileName, $"papers/{publication.Id}/supplementary", cancellationToken: cancellationToken);
             supplementaryPath = storedSupplementary.RelativePath;
         }
 

@@ -11,6 +11,9 @@ public class ApplicationUser : IdentityUser<Guid>
     public UserStatus Status { get; set; } = UserStatus.Pending;
     public AuthProvider AuthProvider { get; set; } = AuthProvider.Local;
     public string? AzureObjectId { get; set; }
+
+    /// <summary>Storage-relative path of the user's profile photo; null when they have none.</summary>
+    public string? ProfilePhotoPath { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 

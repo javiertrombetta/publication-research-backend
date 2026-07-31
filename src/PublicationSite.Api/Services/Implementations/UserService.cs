@@ -17,9 +17,12 @@ public class UserService(
     ApplicationDbContext db,
     IEmailSender emailSender,
     IAuditService auditService,
-    IOptions<FrontendSettings> frontendOptions) : IUserService
+    IFileStorageService fileStorageService,
+    IOptions<FrontendSettings> frontendOptions,
+    IOptions<FileStorageSettings> fileStorageOptions) : IUserService
 {
     private readonly FrontendSettings _frontend = frontendOptions.Value;
+    private readonly FileStorageSettings _fileStorage = fileStorageOptions.Value;
 
     public async Task<IReadOnlyList<UserListItemDto>> GetAllAsync(string? role, string? status, string? search, CancellationToken cancellationToken = default)
     {
@@ -168,6 +171,84 @@ public class UserService(
         return await ToDetailDtoAsync(user, cancellationToken);
     }
 
+    public async Task<UserDetailDto> SetOwnProfilePhotoAsync(
+        Guid userId, Stream content, string fileName, long lengthBytes, CancellationToken cancellationToken = default)
+    {
+        if (lengthBytes <= 0)
+        {
+            throw new BusinessRuleException("The selected file is empty.");
+        }
+
+        if (lengthBytes > _fileStorage.MaxProfilePhotoBytes)
+        {
+            var limitMb = _fileStorage.MaxProfilePhotoBytes / (1024 * 1024);
+            throw new BusinessRuleException($"Profile photos must be {limitMb} MB or smaller.");
+        }
+
+        var user = await FindUserOrThrowAsync(userId, cancellationToken);
+
+        // Images only — deliberately not the document extension list, so a photo can't be a PDF
+        // and an ethics document can't be a PNG.
+        var stored = await fileStorageService.SaveAsync(
+            content, fileName, $"profile-photos/{userId}", _fileStorage.AllowedImageExtensions, cancellationToken);
+
+        var previousPath = user.ProfilePhotoPath;
+        user.ProfilePhotoPath = stored.RelativePath;
+        user.UpdatedAt = DateTime.UtcNow;
+        await userManager.UpdateAsync(user);
+
+        // Only after the record points at the new file, so a failure never leaves the user
+        // referencing a file that no longer exists.
+        if (previousPath is not null)
+        {
+            fileStorageService.Delete(previousPath);
+        }
+
+        await auditService.LogAuditAsync(userId, "ProfilePhotoUpdated", nameof(ApplicationUser), userId,
+            previousValue: previousPath, newValue: stored.RelativePath);
+
+        return await ToDetailDtoAsync(user, cancellationToken);
+    }
+
+    public async Task<UserDetailDto> RemoveOwnProfilePhotoAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        var user = await FindUserOrThrowAsync(userId, cancellationToken);
+
+        if (user.ProfilePhotoPath is { } path)
+        {
+            user.ProfilePhotoPath = null;
+            user.UpdatedAt = DateTime.UtcNow;
+            await userManager.UpdateAsync(user);
+
+            fileStorageService.Delete(path);
+
+            await auditService.LogAuditAsync(userId, "ProfilePhotoRemoved", nameof(ApplicationUser), userId,
+                previousValue: path);
+        }
+
+        return await ToDetailDtoAsync(user, cancellationToken);
+    }
+
+    public async Task<(Stream Content, string ContentType)> OpenProfilePhotoAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        var user = await FindUserOrThrowAsync(userId, cancellationToken);
+
+        if (user.ProfilePhotoPath is not { } path)
+        {
+            throw new NotFoundException("Profile photo", userId);
+        }
+
+        var stream = await fileStorageService.OpenReadAsync(path, cancellationToken);
+        return (stream, ContentTypeFor(path));
+    }
+
+    private static string ContentTypeFor(string path) => Path.GetExtension(path).ToLowerInvariant() switch
+    {
+        ".png" => "image/png",
+        ".webp" => "image/webp",
+        _ => "image/jpeg"
+    };
+
     public async Task<UserDetailDto> UpdateOwnProfileAsync(Guid userId, UpdateMyProfileRequest request, CancellationToken cancellationToken = default)
     {
         var user = await FindUserOrThrowAsync(userId, cancellationToken);
@@ -260,7 +341,8 @@ public class UserService(
         }
 
         return new UserDetailDto(user.Id, user.Email!, user.FirstName, user.LastName, user.InstitutionalId,
-            user.Status.ToString(), user.AuthProvider.ToString(), roles.ToList(), user.CreatedAt, profile);
+            user.Status.ToString(), user.AuthProvider.ToString(), roles.ToList(), user.CreatedAt, profile,
+            user.ProfilePhotoPath is not null);
     }
 
     private async Task CreateProfileForRoleAsync(ApplicationUser user, CreateUserRequest request, CancellationToken cancellationToken)

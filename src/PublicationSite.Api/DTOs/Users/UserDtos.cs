@@ -19,7 +19,8 @@ public record UserDetailDto(
     string AuthProvider,
     IReadOnlyList<string> Roles,
     DateTime CreatedAt,
-    object? Profile);
+    object? Profile,
+    bool HasProfilePhoto);
 
 public class CreateUserRequest
 {
@@ -49,6 +50,11 @@ public class CreateUserRequest
 public record UpdateUserRequest(string FirstName, string LastName, string? InstitutionalId, string Comments);
 
 public record ChangeUserRoleRequest(string Role, string Comments);
+
+public class ProfilePhotoUploadForm
+{
+    public IFormFile File { get; set; } = null!;
+}
 
 public record UpdateMyProfileRequest(
     string FirstName,

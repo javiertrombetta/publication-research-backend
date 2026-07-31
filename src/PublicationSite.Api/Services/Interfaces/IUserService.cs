@@ -16,4 +16,13 @@ public interface IUserService
 
     Task<UserDetailDto> GetOwnProfileAsync(Guid userId, CancellationToken cancellationToken = default);
     Task<UserDetailDto> UpdateOwnProfileAsync(Guid userId, UpdateMyProfileRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>Replaces the user's own profile photo, discarding any previous one.</summary>
+    Task<UserDetailDto> SetOwnProfilePhotoAsync(Guid userId, Stream content, string fileName, long lengthBytes, CancellationToken cancellationToken = default);
+
+    /// <summary>Removes the user's own profile photo. No-op when they don't have one.</summary>
+    Task<UserDetailDto> RemoveOwnProfilePhotoAsync(Guid userId, CancellationToken cancellationToken = default);
+
+    /// <summary>Opens any user's profile photo for streaming. Throws NotFoundException when there is none.</summary>
+    Task<(Stream Content, string ContentType)> OpenProfilePhotoAsync(Guid userId, CancellationToken cancellationToken = default);
 }
