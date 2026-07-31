@@ -154,6 +154,14 @@ reach the eleventh.
 
 Every account uses the password `DevTest123!`.
 
+Password hashing is deliberately cheaper on a deployment that seeds this data. Identity's default
+of 100,000 PBKDF2 iterations is what makes a stolen hash impractical to crack; it also costs about
+two seconds of sign-in on the fraction of a CPU a free hosting tier gives you. There is no secret
+here for it to protect — the password is on this page — so it drops to 10,000 wherever
+`Seed:DemoData` is on, and stays at the full strength everywhere else. The count lives inside each
+hash, so it applies to accounts created afterwards; existing ones need recreating for it to take
+effect.
+
 | Role | Accounts |
 | --- | --- |
 | Admin | `admin.test@ais.ac.nz` |

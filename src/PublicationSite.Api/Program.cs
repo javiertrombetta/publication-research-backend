@@ -73,6 +73,27 @@ builder.Services
     .AddEntityFrameworkStores<ApplicationDbContext>()
     .AddDefaultTokenProviders();
 
+// ---------- Password hashing cost ----------
+// Identity hashes with PBKDF2 at 100,000 iterations, which is deliberately expensive: it is what
+// makes a stolen hash impractical to crack. On a full-sized machine it costs about 60ms. On the
+// fraction of a CPU a free hosting tier provides it costs closer to two seconds, and that is the
+// whole of what people experience as a slow sign-in.
+//
+// Lowered only where the demonstration dataset lives. That flag is a deployment stating that its
+// data is disposable and that every one of its accounts shares a password published in the README
+// — there is no secret there for 100,000 iterations to protect, and the cost buys nothing but a
+// wait for a team trying to test. Production sets no flag and keeps the full strength, which is
+// the direction the mistake has to fall.
+//
+// This only governs hashes made from here on. Identity stores the iteration count inside each
+// hash and verifies with the count it finds there, and it does not re-hash on a successful
+// sign-in — so accounts created before this change stay as slow as they were. The demonstration
+// accounts have to be recreated for it to take effect: POST /api/dev/reset-database.
+if (DemoDataSeeder.IsEnabled(builder.Configuration, builder.Environment))
+{
+    builder.Services.Configure<PasswordHasherOptions>(options => options.IterationCount = 10_000);
+}
+
 // Replaces Identity's built-in validator rather than joining it — see the class for why.
 builder.Services.RemoveAll<IPasswordValidator<ApplicationUser>>();
 builder.Services.AddScoped<IPasswordValidator<ApplicationUser>, ConfigurablePasswordValidator>();
