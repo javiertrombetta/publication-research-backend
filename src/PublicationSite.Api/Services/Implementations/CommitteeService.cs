@@ -48,7 +48,7 @@ public class CommitteeService(
         }
 
         // Anyone who works here may be asked to evaluate a paper. Holding a committee-member role
-        // is no longer the entry ticket — supervisors, coordinators, heads of department and staff
+        // is no longer the entry ticket: supervisors, coordinators, heads of department and staff
         // are all people an institution draws its evaluators from, and requiring an extra role
         // first meant an administrator had to grant one before they could ask anybody.
         var members = await db.Users
@@ -96,9 +96,9 @@ public class CommitteeService(
             PublicationId = publicationId,
             MinApprovalsRequired = minApprovals,
             CreatedByUserId = adminId,
-            // External means from outside the institution, which is a fact about the person
-            // rather than a choice made per committee — and the only people outside it are the
-            // ones invited as external members. Everybody else is internal by definition.
+            // External means from outside the institution, which is a fact about the person rather
+            // than a choice made per committee, and the only people outside it are the ones invited
+            // as external members. Everybody else is internal by definition.
             Members = members.Select(m => new CommitteeMember
             {
                 UserId = m.User.Id,
@@ -294,10 +294,9 @@ public class CommitteeService(
     /// <summary>
     /// Checks the proposed committee against the composition this publication was opened under.
     ///
-    /// Read from the container rather than from the settings so that an administrator changing
-    /// the rules does not invalidate work already in flight — see PublicationContainer. A
-    /// container from before the snapshot existed has nothing recorded, and falls back to what
-    /// is configured now.
+    /// Read from the container rather than from the settings so that an administrator changing the
+    /// rules does not invalidate work already in flight. See PublicationContainer. A container from
+    /// before the snapshot existed has nothing recorded, and falls back to what is configured now.
     /// </summary>
     private async Task<int> ResolveMinimumApprovalsAsync(
         PublicationContainer container,

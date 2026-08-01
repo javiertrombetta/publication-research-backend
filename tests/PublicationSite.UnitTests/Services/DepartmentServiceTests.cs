@@ -113,9 +113,9 @@ public class DepartmentServiceTests : IDisposable
     }
 
     /// <summary>
-    /// A profile outlives the role that created it — they are never deleted, because Publication
-    /// Containers point at them — so someone moved off Coordinator keeps a Coordinator Profile.
-    /// They must stop being handed new students the moment the role goes.
+    /// A profile outlives the role that created it. They are never deleted, because Publication
+    /// Containers point at them, so someone moved off Coordinator keeps a Coordinator Profile. They
+    /// must stop being handed new students the moment the role goes.
     /// </summary>
     [Fact]
     public async Task SelectCoordinatorForDepartmentAsync_ignores_a_profile_whose_owner_no_longer_holds_the_role()

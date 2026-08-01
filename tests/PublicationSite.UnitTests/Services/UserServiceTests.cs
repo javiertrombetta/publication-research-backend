@@ -134,9 +134,9 @@ public class UserServiceTests : IDisposable
     }
 
     /// <summary>
-    /// Refused rather than half-applied. Granting the role on its own is what left accounts
-    /// holding a role they could not use — a Coordinator invisible to assignment, a committee
-    /// member nobody could put on a committee.
+    /// Refused rather than half-applied. Granting the role on its own is what left accounts holding
+    /// a role they could not use: a Coordinator invisible to assignment, a committee member nobody
+    /// could put on a committee.
     /// </summary>
     [Fact]
     public async Task ChangeRoleAsync_refuses_a_department_role_without_a_department()

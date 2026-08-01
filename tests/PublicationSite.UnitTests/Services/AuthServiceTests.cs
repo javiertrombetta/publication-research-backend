@@ -164,7 +164,7 @@ public class AuthServiceTests : IDisposable
     /// <summary>
     /// Lockout is checked before the password, so a locked account is never told whether the
     /// password it was given happens to be right. Asserted by leaving CheckPasswordAsync
-    /// unconfigured — it would return false — and still expecting the lockout's own message.
+    /// unconfigured. It would return false, and still expecting the lockout's own message.
     /// </summary>
     [Fact]
     public async Task LoginAsync_rejects_locked_out_account_before_checking_the_password()

@@ -1,20 +1,20 @@
 # Entity–Relationship Diagram
 
-39 tables in MySQL 8 — 38 shown below as entities, `UserRoles` drawn as a direct many-to-many, and
+39 tables in MySQL 8. 38 are shown below as entities, `UserRoles` drawn as a direct many-to-many, and
 `__EFMigrationsHistory` left out as EF Core's own migration bookkeeping, not part of the data model.
 Verified column-for-column against `SHOW TABLES` / `DESCRIBE` on the live database.
 
-This file does not update itself. Bring it back in step after a schema change — it has fallen behind
+This file does not update itself. Bring it back in step after a schema change, since it has fallen behind
 before, which is worse than having no diagram at all, because a wrong one is still believed.
 
 ## Legend
 
-- 🟦 Identity & academic structure — users, roles, departments, profiles
-- 🟩 Container core — the hub every pipeline hangs off
+- 🟦 Identity & academic structure: users, roles, departments, profiles
+- 🟩 Container core: the hub every pipeline hangs off
 - 🟧 Pipeline 1 · Research proposals
 - 🟪 Pipeline 2 · Ethics approval
 - 🟨 Pipeline 3 · Research paper & committee
-- 🟫 Cross-cutting — notifications, audit, config
+- 🟫 Cross-cutting: notifications, audit, config
 
 ## Diagram
 
@@ -328,10 +328,10 @@ line = the foreign key also carries a unique index (one-to-one).
   rather than its own box (it has no columns beyond the two foreign keys). `__EFMigrationsHistory` is EF
   Core's own migration ledger, not part of the application's data.
 - **`PublicationContainers.StudentId` isn't DB-unique.** The one-container-per-student rule is enforced in
-  `ContainerService`, not by a database constraint — shown here as one-to-many to reflect what the schema
+  `ContainerService`, not by a database constraint, and shown here as one-to-many to reflect what the schema
   actually allows.
 - **Users is a hub.** Nearly every table carries an actor, reviewer, uploader, or assignee reference back to
-  `Users` — that fan-out is real, not a diagram artefact: almost every workflow action is attributable to a
+  `Users`. That fan-out is real, not a diagram artefact: almost every workflow action is attributable to a
   specific person.
 - **PublicationContainers is the other hub.** It's the spine every pipeline hangs off: proposals, ethics, and
   the paper itself each resolve back to exactly one container per student.
@@ -342,11 +342,11 @@ line = the foreign key also carries a unique index (one-to-one).
 
 | Table | Description | Keys |
 | --- | --- | --- |
-| `Users` | Every account — student, staff, committee member. Extends ASP.NET Identity. | PK `Id` |
+| `Users` | Every account: student, staff or committee member. Extends ASP.NET Identity. | PK `Id` |
 | `Roles` | The 8 fixed roles (Admin, Coordinator, Supervisor, …). | PK `Id` |
-| `UserClaims` | Identity plumbing — arbitrary claims per user. Unused today, framework-managed. | PK `Id` · FK `UserId` |
+| `UserClaims` | Identity plumbing, arbitrary claims per user. Unused today, framework-managed. | PK `Id` · FK `UserId` |
 | `UserLogins` | External login provider links (e.g. future Azure AD). Empty until Entra SSO is wired up. | PK `LoginProvider+ProviderKey` · FK `UserId` |
-| `UserTokens` | Identity's per-purpose token store — password reset / email confirmation tokens land here. | PK `UserId+LoginProvider+Name` |
+| `UserTokens` | Identity's per-purpose token store, where password reset and email confirmation tokens land. | PK `UserId+LoginProvider+Name` |
 | `RoleClaims` | Claims attached to a role rather than a user. Unused today, framework-managed. | PK `Id` · FK `RoleId` |
 | `Departments` | Academic departments; scopes coordinators, supervisors and the HoD. | PK `Id` · UK `Code` |
 | `StudentProfiles` | Student-specific fields: programme, cohort, ORCID, preferred supervisor. | PK `Id` · FK `UserId`, `DepartmentId` |
@@ -366,15 +366,15 @@ line = the foreign key also carries a unique index (one-to-one).
 | `PublicationContainers` | The hub for one student's publication process: student, coordinator, assigned supervisor, current pipeline. | PK `Id` · FK `StudentId`, `CoordinatorId` |
 | `ActivityHistoryEntries` | Mandatory-comment narrative log of every change to a container, visible to everyone with access. | PK `Id` · FK `PublicationContainerId`, `ActorUserId` |
 
-### 🟧 Pipeline 1 — Research proposals (3 tables)
+### 🟧 Pipeline 1: Research proposals (3 tables)
 
 | Table | Description | Keys |
 | --- | --- | --- |
 | `ResearchProposals` | Title + abstract; editable while Draft, locked on submission. | PK `Id` · FK `PublicationContainerId` |
-| `ProposalSupervisorSelections` | One row per (proposal, invited supervisor) — invited, then optionally marked feasible. | PK `Id` · FK `ProposalId`, `SupervisorId` |
+| `ProposalSupervisorSelections` | One row per (proposal, invited supervisor), invited then optionally marked feasible. | PK `Id` · FK `ProposalId`, `SupervisorId` |
 | `ProposalAssignments` | The coordinator's final allocation of a proposal to a supervisor. | PK `Id` · FK `ProposalId` (UK), `SupervisorId`, `CoordinatorId` |
 
-### 🟪 Pipeline 2 — Ethics approval (5 tables)
+### 🟪 Pipeline 2: Ethics approval (5 tables)
 
 | Table | Description | Keys |
 | --- | --- | --- |
@@ -384,15 +384,15 @@ line = the foreign key also carries a unique index (one-to-one).
 | `EthicsDocumentRequirements` | The documents an administrator asks for. Retired rather than deleted, since uploads reference them. | PK `Id` · UK `Name` |
 | `EthicsApprovalRequirements` | The list one approval was asked for, copied when documentation was requested so a later change applies to new work only. | PK `Id` · FK `EthicsApprovalId`, `EthicsDocumentRequirementId` |
 
-### 🟨 Pipeline 3 — Research paper & committee (8 tables)
+### 🟨 Pipeline 3: Research paper & committee (8 tables)
 
 | Table | Description | Keys |
 | --- | --- | --- |
 | `Publications` | The paper itself: status, publish flag, category, keywords, research areas. | PK `Id` · FK `PublicationContainerId` (UK) |
-| `PublicationVersions` | Every uploaded file, numbered and kept — nothing is overwritten. | PK `Id` · FK `PublicationId`, `UploadedByUserId` |
+| `PublicationVersions` | Every uploaded file, numbered and kept, and nothing is overwritten. | PK `Id` · FK `PublicationId`, `UploadedByUserId` |
 | `Reviews` | A supervisor or committee member's decision + comments on one version. | PK `Id` · FK `PublicationVersionId`, `ReviewerUserId` |
 | `Committees` | The evaluation committee assigned to one publication. | PK `Id` · FK `PublicationId` (UK) |
-| `CommitteeRoleConfigs` | Required member counts per role — global default or per-committee override. | PK `Id` · FK `CommitteeId` (nullable) |
+| `CommitteeRoleConfigs` | Required member counts per role, either the global default or a per-committee override. | PK `Id` · FK `CommitteeId` (nullable) |
 | `CommitteeMembers` | Membership + individual approve/reject decision. | PK `Id` · FK `CommitteeId`, `UserId` |
 | `PublicationKeywords` | Join table: which keywords are attached to a published paper. | PK `KeywordsId+PublicationsId` |
 | `PublicationResearchAreas` | Join table: which research areas a publication is tagged with. | PK `PublicationsId+ResearchAreasId` |
@@ -402,5 +402,5 @@ line = the foreign key also carries a unique index (one-to-one).
 | Table | Description | Keys |
 | --- | --- | --- |
 | `Notifications` | In-app inbox; every row also triggers an email via `SmtpEmailSender`. | PK `Id` · FK `UserId` |
-| `AuditLogEntries` | Append-only, system-wide trail. FKs to `Users` are `RESTRICT` — never orphaned by a deletion. | PK `Id` · FK `ActorUserId` |
+| `AuditLogEntries` | Append-only, system-wide trail. FKs to `Users` are `RESTRICT`, so they are never orphaned by a deletion. | PK `Id` · FK `ActorUserId` |
 | `SystemSettings` | Admin-editable key/value store for workflow parameters. | PK `Id` · UK `Key` |

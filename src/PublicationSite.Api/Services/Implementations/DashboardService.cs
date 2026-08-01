@@ -10,11 +10,11 @@ public class DashboardService(ApplicationDbContext db) : IDashboardService
 {
     public async Task<DashboardSummaryDto> GetSummaryAsync(CancellationToken cancellationToken = default)
     {
-        // Every figure here is a round trip, and on a hosted database round trips are what the
-        // page costs — so each table is read once and the figures are separated afterwards. This
-        // was ten queries asking six questions: three separate COUNTs over the containers' status
-        // column, two more asking opposite halves of the same question about committee decisions,
-        // and a count of published papers beside a grouping that had already visited every row.
+        // Every figure here is a round trip, and on a hosted database round trips are what the page
+        // costs, so each table is read once and the figures are separated afterwards. This was ten
+        // queries asking six questions: three separate COUNTs over the containers' status column,
+        // two more asking opposite halves of the same question about committee decisions, and a
+        // count of published papers beside a grouping that had already visited every row.
         var containers = await db.PublicationContainers
             .GroupBy(c => new { c.Status, c.CurrentPipeline })
             .Select(g => new { g.Key.Status, g.Key.CurrentPipeline, Count = g.Count() })

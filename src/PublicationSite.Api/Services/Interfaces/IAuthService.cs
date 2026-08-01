@@ -9,9 +9,9 @@ public interface IAuthService
     /// Registers the account and sends its verification email.
     /// </summary>
     /// <returns>
-    /// Whether the verification email went out. False does not undo the registration — the
-    /// account exists and simply cannot be verified yet, which the caller has to say out loud
-    /// rather than leaving the person waiting for a message that will never arrive.
+    /// Whether the verification email went out. False does not undo the registration. The account
+    /// exists and simply cannot be verified yet, which the caller has to say out loud rather than
+    /// leaving the person waiting for a message that will never arrive.
     /// </returns>
     Task<bool> RegisterAsync(RegisterRequest request, CancellationToken cancellationToken = default);
     Task<AuthResponse> LoginAsync(LoginRequest request, CancellationToken cancellationToken = default);

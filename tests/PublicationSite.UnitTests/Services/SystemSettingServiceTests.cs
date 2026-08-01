@@ -102,8 +102,8 @@ public class SystemSettingServiceTests : IDisposable
     }
 
     /// <summary>
-    /// The same address cannot mean both a student and a member of staff — whichever check ran
-    /// first would decide, which is a coin toss dressed up as a rule.
+    /// The same address cannot mean both a student and a member of staff. Whichever check ran first
+    /// would decide, which is a coin toss dressed up as a rule.
     /// </summary>
     [Fact]
     public async Task Students_and_staff_cannot_share_an_email_domain()

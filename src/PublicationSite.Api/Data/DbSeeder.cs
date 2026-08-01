@@ -8,10 +8,9 @@ using PublicationSite.Api.Enums;
 namespace PublicationSite.Api.Data;
 
 /// <summary>
-/// Production-safe startup seeding: the fixed role set, and (only when explicitly
-/// configured) the single initial Admin account. Safe to call unconditionally on every
-/// startup in every environment — everything here is idempotent and no-ops when its
-/// configuration is absent.
+/// Production-safe startup seeding: the fixed role set, and (only when explicitly configured) the
+/// single initial Admin account. Safe to call unconditionally on every startup in every
+/// environment. Everything here is idempotent and no-ops when its configuration is absent.
 /// </summary>
 public static class DbSeeder
 {
@@ -30,11 +29,11 @@ public static class DbSeeder
 
     /// <summary>
     /// Creates the one initial Admin account from <c>Seed:AdminEmail</c> /
-    /// <c>Seed:AdminPassword</c>, if both are configured and no account with that email
-    /// already exists. Intended for production/staging bootstrap: set those two values via
-    /// environment variables or a secret store for the first deploy, then remove them —
-    /// this never touches an existing account, so leaving them set afterwards is harmless
-    /// but unnecessary. Never logs the password.
+    /// <c>Seed:AdminPassword</c>, if both are configured and no account with that email already
+    /// exists. Intended for production/staging bootstrap: set those two values via environment
+    /// variables or a secret store for the first deploy, then remove them. This never touches an
+    /// existing account, so leaving them set afterwards is harmless but unnecessary. Never logs the
+    /// password.
     /// </summary>
     public static async Task SeedAdminAsync(IServiceProvider services, IConfiguration configuration)
     {
@@ -71,7 +70,7 @@ public static class DbSeeder
         if (!result.Succeeded)
         {
             logger.LogError(
-                "Failed to seed the initial Admin account from Seed:AdminEmail/Seed:AdminPassword: {Errors}. Fix the configured values and redeploy — the app will retry on next startup.",
+                "Failed to seed the initial Admin account from Seed:AdminEmail/Seed:AdminPassword: {Errors}. Fix the configured values and redeploy; the app will retry on next startup.",
                 string.Join(", ", result.Errors.Select(e => e.Description)));
             return;
         }
@@ -110,7 +109,7 @@ public static class DbSeeder
 
         services.GetRequiredService<ILoggerFactory>().CreateLogger(nameof(DbSeeder)).LogError(
             "This deployment has no enabled Admin account, so nobody can sign in to administer it. " +
-            "Set Seed:AdminEmail and Seed:AdminPassword and deploy again — the account is created on the " +
+            "Set Seed:AdminEmail and Seed:AdminPassword and deploy again. The account is created on the " +
             "next startup, and neither value ever overwrites an existing account, so this is safe to do " +
             "at any point. Clear them once you have signed in.");
     }

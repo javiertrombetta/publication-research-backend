@@ -41,7 +41,7 @@ public class UserService(
         }
 
         // Filtered in the database rather than after loading everybody. The role a person holds
-        // lives in another table, and asking UserManager for it means a query per user — so this
+        // lives in another table, and asking UserManager for it means a query per user, so this
         // used to read every account in the institution, ask sixty-odd questions to find out what
         // they were, and throw away all but the two it had been asked for. The work was identical
         // whether the caller wanted one role or all of them.
@@ -138,8 +138,8 @@ public class UserService(
         var currentRoles = await userManager.GetRolesAsync(user);
 
         // The profile comes first. If the role needs a department and none was given, this throws
-        // before the role is swapped — better than leaving the account holding a role it cannot
-        // use, which is what happened when the role was changed on its own.
+        // before the role is swapped. Better than leaving the account holding a role it cannot use,
+        // which is what happened when the role was changed on its own.
         await profileFactory.EnsureForRoleAsync(user, new CreateUserRequest
         {
             Email = user.Email ?? string.Empty,
@@ -178,7 +178,7 @@ public class UserService(
         if (!sent)
         {
             throw new BusinessRuleException(
-                $"Could not email the reset link to {user.Email} — no working mail server is configured. " +
+                $"Could not email the reset link to {user.Email}, because no working mail server is configured. " +
                 "Set one up under System settings, then try again.");
         }
     }
@@ -253,8 +253,8 @@ public class UserService(
 
         var user = await FindUserOrThrowAsync(userId, cancellationToken);
 
-        // Images only — deliberately not the document extension list, so a photo can't be a PDF
-        // and an ethics document can't be a PNG.
+        // Images only, deliberately not the document extension list, so a photo can't be a PDF and
+        // an ethics document can't be a PNG.
         var stored = await fileStorageService.SaveAsync(
             content, fileName, $"profile-photos/{userId}", _fileStorage.AllowedImageExtensions, cancellationToken);
 

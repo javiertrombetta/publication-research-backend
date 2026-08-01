@@ -18,8 +18,8 @@ public class EthicsDocumentRequirementService(ApplicationDbContext db, IAuditSer
             .ThenBy(r => r.Name)
             .Select(r => new EthicsDocumentRequirementDto(
                 r.Id, r.Name, r.Description, r.SortOrder, r.IsActive,
-                // Whether anyone has been asked for it. Drives whether the administrator is
-                // offered "retire" or "delete" — a requirement nobody has used is safe to remove.
+                // Whether anyone has been asked for it. Drives whether the administrator is offered
+                // "retire" or "delete". A requirement nobody has used is safe to remove.
                 r.Documents.Any() || db.EthicsApprovalRequirements.Any(a => a.EthicsDocumentRequirementId == r.Id)))
             .ToListAsync(cancellationToken);
 
@@ -56,9 +56,9 @@ public class EthicsDocumentRequirementService(ApplicationDbContext db, IAuditSer
 
         var previousName = requirement.Name;
 
-        // Renaming is deliberately allowed even once documents exist. Uploads point at the row,
-        // not the text, so correcting a form's title does not detach anything already submitted —
-        // and a typo in a document name is exactly the kind of thing worth being able to fix.
+        // Renaming is deliberately allowed even once documents exist. Uploads point at the row, not
+        // the text, so correcting a form's title does not detach anything already submitted, and a
+        // typo in a document name is exactly the kind of thing worth being able to fix.
         requirement.Name = name;
         requirement.Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim();
         requirement.SortOrder = request.SortOrder;

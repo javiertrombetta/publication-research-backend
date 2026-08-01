@@ -73,9 +73,9 @@ public class CommitteeServiceTests : IDisposable
     }
 
     /// <summary>
-    /// Says what composition the publication under test requires. The class default is the
-    /// smallest committee that exists — one internal member — so a test only says otherwise when
-    /// the mix is the point.
+    /// Says what composition the publication under test requires. The class default is the smallest
+    /// committee that exists, one internal member, so a test only says otherwise when the mix is
+    /// the point.
     /// </summary>
     private void RequireCommitteeOf(int internalMembers, int externalMembers, int approvals) =>
         _settingService.Setup(s => s.GetCommitteeSettingsAsync(It.IsAny<CancellationToken>()))

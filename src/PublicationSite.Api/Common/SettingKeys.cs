@@ -1,14 +1,13 @@
 namespace PublicationSite.Api.Common;
 
 /// <summary>
-/// The canonical names of every administrator-configurable setting, and the value each one
-/// falls back to before an administrator has ever touched it.
+/// The canonical names of every administrator-configurable setting, and the value each one falls
+/// back to before an administrator has ever touched it.
 ///
-/// Settings live in a single key/value table, which keeps the schema stable as the list grows
-/// but gives no type safety on its own — hence this file. Nothing outside
-/// <c>ISystemSettingsProvider</c> should spell a key as a literal string: a typo in a reader
-/// silently yields the default rather than failing, which is the worst way for a setting to
-/// break.
+/// Settings live in a single key/value table, which keeps the schema stable as the list grows but
+/// gives no type safety on its own, hence this file. Nothing outside <c>ISystemSettingsProvider</c>
+/// should spell a key as a literal string: a typo in a reader silently yields the default rather
+/// than failing, which is the worst way for a setting to break.
 /// </summary>
 public static class SettingKeys
 {
@@ -39,8 +38,8 @@ public static class SettingKeys
     public const string PasswordRequireSymbol = "password.require-symbol";
 
     /// <summary>
-    /// How many days a password stays valid. Zero means it never expires — the sensible default
-    /// for an institution that has no help desk to absorb the reset traffic.
+    /// How many days a password stays valid. Zero means it never expires, which is the sensible
+    /// default for an institution that has no help desk to absorb the reset traffic.
     /// </summary>
     public const string PasswordExpiryDays = "password.expiry-days";
 
@@ -90,10 +89,10 @@ public static class SettingKeys
     // ---------- Who may get an account ----------
 
     /// <summary>
-    /// How someone comes to have an account: <c>Open</c> lets anyone with an institutional
-    /// address sign themselves up, <c>InviteOnly</c> means an administrator invites them.
+    /// How someone comes to have an account: <c>Open</c> lets anyone with an institutional address
+    /// sign themselves up, <c>InviteOnly</c> means an administrator invites them.
     ///
-    /// The default is not a constant — it comes from the hosting environment. Development wants
+    /// The default is not a constant. It comes from the hosting environment. Development wants
     /// self-registration so the team can create accounts freely; a production deployment must not
     /// hand out accounts to anyone who guesses the domain. An administrator can override either
     /// way, but an unconfigured system is never accidentally open in production.
@@ -105,12 +104,12 @@ public static class SettingKeys
 
     /// <summary>
     /// Whether staff and students are expected to arrive through Microsoft Entra ID rather than
-    /// with a password here. The token plumbing already exists and switches on whether an
-    /// AzureAd tenant is configured; this says whether the institution intends to use it, which
-    /// is what the sign-in page and the invitation rules need to know.
+    /// with a password here. The token plumbing already exists and switches on whether an AzureAd
+    /// tenant is configured; this says whether the institution intends to use it, which is what the
+    /// sign-in page and the invitation rules need to know.
     ///
-    /// External committee members are outside the tenant by definition, so they are always
-    /// invited and always sign in with a password — no setting changes that.
+    /// External committee members are outside the tenant by definition, so they are always invited
+    /// and always sign in with a password. No setting changes that.
     /// </summary>
     public const string AzureSsoEnabled = "access.azure-sso-enabled";
 
@@ -148,8 +147,8 @@ public static class SettingKeys
     public const string MaxUploadMegabytes = "uploads.max-megabytes";
 
     /// <summary>
-    /// Comma-separated, leading dots optional — an administrator should be able to type
-    /// "pdf, docx" without knowing the internal format.
+    /// Comma-separated, leading dots optional. An administrator should be able to type "pdf, docx"
+    /// without knowing the internal format.
     /// </summary>
     public const string AllowedUploadExtensions = "uploads.allowed-extensions";
 
@@ -182,8 +181,8 @@ public static class SettingKeys
     public const string PrivacyPolicyUrl = "institution.privacy-policy-url";
 
     /// <summary>
-    /// The intake now running, as people say it — "2026 Semester 2". A proposal deferred to the
-    /// next cycle is deferred to something, and nothing in the system said what.
+    /// The intake now running, as people say it: "2026 Semester 2". A proposal deferred to the next
+    /// cycle is deferred to something, and nothing in the system said what.
     /// </summary>
     public const string CurrentAcademicCycle = "institution.academic-cycle";
 

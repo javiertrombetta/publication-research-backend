@@ -92,15 +92,15 @@ public record DemoPublicationPlan(
     int? Year = null);
 
 /// <summary>
-/// Walks a publication from nothing to wherever its plan says it stops, by calling the same
-/// service methods the interface calls.
+/// Walks a publication from nothing to wherever its plan says it stops, by calling the same service
+/// methods the interface calls.
 ///
 /// Writing the rows directly would have been shorter and would have been wrong: the state a
-/// publication is in is spread across the container, its proposals, the ethics approval, the
-/// paper, its versions, the committee, the activity history and the notifications, and every one
-/// of those has to agree. Going through the services means the demonstration data can only ever
-/// be in a state the application itself can produce — and if a rule changes, the seed changes
-/// with it instead of quietly becoming a set of records nothing can explain.
+/// publication is in is spread across the container, its proposals, the ethics approval, the paper,
+/// its versions, the committee, the activity history and the notifications, and every one of those
+/// has to agree. Going through the services means the demonstration data can only ever be in a
+/// state the application itself can produce, and if a rule changes, the seed changes with it
+/// instead of quietly becoming a set of records nothing can explain.
 /// </summary>
 public class DemoPipelineBuilder(
     ApplicationDbContext db,
@@ -338,7 +338,7 @@ public class DemoPipelineBuilder(
         ($"{plan.Title}: a preliminary scoping study",
             $"An initial scoping of the same question, narrower in scope than the main proposal. {plan.Abstract}"),
         (plan.Title, plan.Abstract),
-        ($"{plan.Title} — a comparative approach",
+        ($"{plan.Title}: a comparative approach",
             $"The same question approached comparatively across two cohorts rather than one. {plan.Abstract}")
     ];
 

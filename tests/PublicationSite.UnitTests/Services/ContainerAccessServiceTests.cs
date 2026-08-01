@@ -23,8 +23,8 @@ public class ContainerAccessServiceTests : IDisposable
 
     /// <summary>
     /// Grants a role by writing the rows Identity would, rather than by telling a mock what to
-    /// answer. The service reads roles from the database now — one query instead of a call per
-    /// question — so a mocked UserManager would no longer be testing anything it uses.
+    /// answer. The service reads roles from the database now. One query instead of a call per
+    /// question, so a mocked UserManager would no longer be testing anything it uses.
     /// </summary>
     private void SetupUser(ApplicationUser user, bool isAdmin = false, bool isHeadOfDepartment = false)
     {

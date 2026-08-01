@@ -172,9 +172,9 @@ public class ProposalService(
     }
 
     /// <summary>
-    /// One query for the proposals and their invitations together. The invitations are a
-    /// correlated collection rather than a request each — which is what the screens built from
-    /// the per-proposal endpoint were doing, once per row.
+    /// One query for the proposals and their invitations together. The invitations are a correlated
+    /// collection rather than a request each, which is what the screens built from the per-proposal
+    /// endpoint were doing, once per row.
     /// </summary>
     private static IQueryable<ProposalWithInvitationsDto> ProjectWithInvitations(IQueryable<ResearchProposal> query) =>
         query

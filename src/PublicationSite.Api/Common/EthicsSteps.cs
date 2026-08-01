@@ -4,11 +4,11 @@ namespace PublicationSite.Api.Common;
 /// Exactly which decision an ethics approval is waiting for.
 ///
 /// EthicsAwaitingRole says whose turn it is, which is enough to show a badge and not enough to
-/// build a screen: the Coordinator has two separate steps here — reviewing the documents, and
-/// closing the stage once the Head of Department has commented — and both answer "Coordinator".
-/// The screens told them apart by fetching every approval and reading its timestamps, which meant
-/// no page of containers could be a stable page of either screen. Naming the step lets the
-/// filtering happen in the database, where the paging is.
+/// build a screen: the Coordinator has two separate steps here: reviewing the documents, and
+/// closing the stage once the Head of Department has commented. Both answer "Coordinator". The
+/// screens told them apart by fetching every approval and reading its timestamps, which meant no
+/// page of containers could be a stable page of either screen. Naming the step lets the filtering
+/// happen in the database, where the paging is.
 /// </summary>
 public static class EthicsSteps
 {

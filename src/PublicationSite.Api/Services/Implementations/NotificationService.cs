@@ -32,7 +32,7 @@ public class NotificationService(
         };
 
         // Written first and unconditionally: the in-app notification is the delivery that always
-        // happens, and email is a copy of it. With email off, this is the whole mechanism — the
+        // happens, and email is a copy of it. With email off, this is the whole mechanism. The
         // person sees it when they next sign in.
         db.Notifications.Add(notification);
         await db.SaveChangesAsync(cancellationToken);

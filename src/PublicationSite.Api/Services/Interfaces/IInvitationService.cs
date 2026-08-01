@@ -6,9 +6,9 @@ namespace PublicationSite.Api.Services.Interfaces;
 /// Invitations: how someone gets an account when self-registration is closed, which is every
 /// deployment that is not a development one.
 ///
-/// It is also the only route that ever existed for external committee members. They are outside
-/// the institution, so they have no institutional address, so no email domain could tell the
-/// system what they are — an administrator has to say.
+/// It is also the only route that ever existed for external committee members. They are outside the
+/// institution, so they have no institutional address, so no email domain could tell the system
+/// what they are. An administrator has to say.
 /// </summary>
 public interface IInvitationService
 {
@@ -26,7 +26,8 @@ public interface IInvitationService
     Task<UserInvitationDto> RevokeAsync(Guid id, Guid actingAdminId, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// What the invited person is shown before they accept. Anonymous — they have no account yet.
+    /// What the invited person is shown before they accept. Anonymous, because they have no account
+    /// yet.
     /// </summary>
     Task<InvitationPreviewDto> PreviewAsync(string token, CancellationToken cancellationToken = default);
 

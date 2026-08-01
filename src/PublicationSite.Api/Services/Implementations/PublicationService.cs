@@ -94,12 +94,12 @@ public class PublicationService(
                 var keyword = await db.Keywords.FirstOrDefaultAsync(k => k.Name == name, cancellationToken);
                 if (keyword is null)
                 {
-                    // Explicit Add is required: Keyword.Id already has a non-default value
-                    // from its property initializer, so if this entity were only reached
-                    // via the Keywords navigation fixup, EF Core's change tracker would
-                    // infer EntityState.Modified (an UPDATE by Id) instead of Added — and
-                    // since no row with that Id exists yet, that UPDATE affects 0 rows and
-                    // SaveChangesAsync throws DbUpdateConcurrencyException.
+                    // Explicit Add is required: Keyword.Id already has a non-default value from its
+                    // property initializer, so if this entity were only reached via the Keywords
+                    // navigation fixup, EF Core's change tracker would infer EntityState.Modified
+                    // (an UPDATE by Id) instead of Added, and since no row with that Id exists yet,
+                    // that UPDATE affects 0 rows and SaveChangesAsync throws
+                    // DbUpdateConcurrencyException.
                     keyword = new Keyword { Name = name };
                     db.Keywords.Add(keyword);
                 }
@@ -316,9 +316,9 @@ public class PublicationService(
             .FirstOrDefaultAsync(v => v.Id == versionId && v.PublicationId == publicationId, cancellationToken)
             ?? throw new NotFoundException(nameof(PublicationVersion), versionId);
 
-        // Access belongs to the container, so it is asked there — which is what lets a supervisor,
-        // a coordinator, the head of that department and the appointed committee all read it,
-        // and nobody else.
+        // Access belongs to the container, so it is asked there, which is what lets a supervisor, a
+        // coordinator, the head of that department and the appointed committee all read it, and
+        // nobody else.
         await accessService.EnsureAccessAsync(version.Publication.PublicationContainerId, requestingUserId);
 
         var content = await fileStorageService.OpenReadAsync(version.FilePath, cancellationToken);

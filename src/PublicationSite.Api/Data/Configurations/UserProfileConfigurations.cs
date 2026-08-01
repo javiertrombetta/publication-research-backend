@@ -172,7 +172,7 @@ public class UserInvitationConfiguration : IEntityTypeConfiguration<UserInvitati
         builder.Property(i => i.TokenHash).HasMaxLength(200).IsRequired();
 
         // Accepting an invitation is a lookup by token, and it happens while the caller is
-        // anonymous — so it has to be fast and must not degrade into a table scan.
+        // anonymous, so it has to be fast and must not degrade into a table scan.
         builder.HasIndex(i => i.TokenHash).IsUnique();
         builder.HasIndex(i => i.Email);
 

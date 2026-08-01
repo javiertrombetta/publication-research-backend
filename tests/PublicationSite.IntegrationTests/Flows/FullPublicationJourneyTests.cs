@@ -14,9 +14,9 @@ using PublicationSite.Api.DTOs.Common;
 namespace PublicationSite.IntegrationTests.Flows;
 
 /// <summary>
-/// Walks one student's research paper through all three pipelines exactly as the client
-/// document describes them, entirely over real HTTP against a real MySQL database — the
-/// strongest available check that the whole system is wired together correctly.
+/// Walks one student's research paper through all three pipelines exactly as the client document
+/// describes them, entirely over real HTTP against a real MySQL database, the strongest available
+/// check that the whole system is wired together correctly.
 /// </summary>
 [Collection(ApiCollection.Name)]
 public class FullPublicationJourneyTests(ApiTestFactory factory)

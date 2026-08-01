@@ -7,9 +7,9 @@ namespace PublicationSite.Api.Data.Migrations
     /// <summary>
     /// Data repair, no schema change. EthicsApproval.Status used to be created as NotRequired
     /// simply because that is the enum's zero, so every approval claimed a decision that no
-    /// Supervisor had made — a student who declared that their research DOES need ethics
-    /// approval was shown "Not Required". EthicsStatus.PendingSupervisorDecision now exists for
-    /// that state; this moves the already-stored rows onto it.
+    /// Supervisor had made. A student who declared that their research DOES need ethics approval
+    /// was shown "Not Required". EthicsStatus.PendingSupervisorDecision now exists for that state;
+    /// this moves the already-stored rows onto it.
     /// </summary>
     public partial class RepairUndecidedEthicsApprovalStatus : Migration
     {

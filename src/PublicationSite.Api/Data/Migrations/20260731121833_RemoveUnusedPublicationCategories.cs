@@ -10,13 +10,13 @@ namespace PublicationSite.Api.Data.Migrations
     /// Drops the PublicationCategories table and the nullable foreign key on Publications.
     ///
     /// EF warns that this may lose data. It cannot: nothing in the application has ever written to
-    /// either — no endpoint exposed categories, no service read them, and the column was never set,
+    /// either. No endpoint exposed categories, no service read them, and the column was never set,
     /// so every row's value is null and the table is empty on every deployment. What it removes is
     /// a question, not information: the first thing anyone asked on finding it was what it was for.
     ///
-    /// The job it looks like it was meant to do is already done by ResearchArea, which is wired
-    /// end to end — on student profiles, on a paper's metadata, and as a filter in the public
-    /// catalogue. Two ways to group a publication, one of them real, is worse than one.
+    /// The job it looks like it was meant to do is already done by ResearchArea, which is wired end
+    /// to end: on student profiles, on a paper's metadata, and as a filter in the public catalogue.
+    /// Two ways to group a publication, one of them real, is worse than one.
     /// </summary>
     public partial class RemoveUnusedPublicationCategories : Migration
     {

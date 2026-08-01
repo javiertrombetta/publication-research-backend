@@ -82,7 +82,7 @@ public class UserProfileFactory(ApplicationDbContext db) : IUserProfileFactory
                 if (existing is not null)
                 {
                     // One profile, two roles. Moving between internal and external is a change of
-                    // what they are, not a second profile — and the type is what committee
+                    // what they are, not a second profile, and the type is what committee
                     // composition is counted by, so it has to follow the role.
                     existing.Type = committeeType;
                     break;

@@ -26,9 +26,9 @@ public class SystemSettingService(
         : SettingKeys.RegistrationModeInviteOnly;
 
     /// <summary>
-    /// Whether a Microsoft Entra tenant is actually configured. Not a setting — it is a fact
-    /// about the server, and the difference matters: an administrator switching single sign-on
-    /// on should be told when nothing would happen.
+    /// Whether a Microsoft Entra tenant is actually configured. Not a setting. It is a fact about
+    /// the server, and the difference matters: an administrator switching single sign-on on should
+    /// be told when nothing would happen.
     /// </summary>
     private bool AzureSsoConfigured => !string.IsNullOrWhiteSpace(configuration["AzureAd:TenantId"]);
 
@@ -175,9 +175,8 @@ public class SystemSettingService(
     public async Task<NotificationSettingsDto> UpdateNotificationSettingsAsync(
         UpdateNotificationSettingsRequest request, Guid actingAdminId, CancellationToken cancellationToken = default)
     {
-        // Turning email on without somewhere to send it would fail quietly for every message,
-        // which is worse than leaving it off — so the switch and its prerequisites are checked
-        // together.
+        // Turning email on without somewhere to send it would fail quietly for every message, which
+        // is worse than leaving it off, so the switch and its prerequisites are checked together.
         if (request.EmailEnabled)
         {
             if (string.IsNullOrWhiteSpace(request.SmtpHost))
@@ -204,8 +203,8 @@ public class SystemSettingService(
         await SetPendingAsync(SettingKeys.SmtpFromAddress, request.FromAddress ?? string.Empty, actingAdminId, cancellationToken);
         await SetPendingAsync(SettingKeys.SmtpFromName, request.FromName ?? string.Empty, actingAdminId, cancellationToken);
 
-        // Null means "leave the stored password alone" — the administrator cannot read it back,
-        // so making them retype it to change the port would be a trap.
+        // Null means "leave the stored password alone". The administrator cannot read it back, so
+        // making them retype it to change the port would be a trap.
         if (request.SmtpPassword is not null)
         {
             await SetPendingAsync(SettingKeys.SmtpPassword, request.SmtpPassword, actingAdminId, cancellationToken);
@@ -252,7 +251,7 @@ public class SystemSettingService(
         {
             throw new BusinessRuleException(
                 "Open registration is only available in a development environment. " +
-                "Invite people instead — you choose their role as you send the invitation.");
+                "Invite people instead, and you choose their role as you send the invitation.");
         }
 
         if (request.InvitationValidDays is < 1 or > 90)
@@ -260,9 +259,9 @@ public class SystemSettingService(
             throw new BusinessRuleException("An invitation must stay valid for between 1 and 90 days.");
         }
 
-        // Long-lived access tokens cannot be withdrawn before they expire — a disabled account
-        // keeps working until then — so this stays short and the refresh token carries the
-        // length of the session.
+        // Long-lived access tokens cannot be withdrawn before they expire. A disabled account keeps
+        // working until then, so this stays short and the refresh token carries the length of the
+        // session.
         if (request.AccessTokenMinutes is < 5 or > 240)
         {
             throw new BusinessRuleException("An access token must last between 5 minutes and 4 hours.");
@@ -328,8 +327,8 @@ public class SystemSettingService(
     }
 
     /// <summary>
-    /// Turns what an administrator types — "pdf, docx" — into the ".pdf,.docx" the file store
-    /// matches on. Nobody should have to know the internal spelling to configure this.
+    /// Turns what an administrator types, "pdf, docx", into the ".pdf,.docx" the file store matches
+    /// on. Nobody should have to know the internal spelling to configure this.
     /// </summary>
     private static string NormaliseExtensions(string? raw) =>
         string.Join(',', (raw ?? string.Empty)
@@ -370,7 +369,7 @@ public class SystemSettingService(
         if (string.Equals(studentDomain, staffDomain, StringComparison.OrdinalIgnoreCase))
         {
             throw new BusinessRuleException(
-                "Students and staff need different email domains — otherwise an address cannot say which someone is.");
+                "Students and staff need different email domains. Otherwise an address cannot say which someone is.");
         }
 
         await SetPendingAsync(SettingKeys.InstitutionName, request.Name.Trim(), actingAdminId, cancellationToken);

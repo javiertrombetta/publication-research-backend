@@ -7,10 +7,10 @@ using PublicationSite.Api.Services.Interfaces;
 namespace PublicationSite.Api.Services.Implementations;
 
 /// <summary>
-/// Loads the whole settings table in one query and keeps it in memory. There are a few dozen
-/// rows at most and they change once in a blue moon, so caching the lot is cheaper and simpler
-/// than a query per key — and the paths that read settings (sign-in, password validation,
-/// sending a notification) cannot afford a round trip each.
+/// Loads the whole settings table in one query and keeps it in memory. There are a few dozen rows
+/// at most and they change once in a blue moon, so caching the lot is cheaper and simpler than a
+/// query per key, and the paths that read settings (sign-in, password validation, sending a
+/// notification) cannot afford a round trip each.
 /// </summary>
 public class SystemSettingsProvider(ApplicationDbContext db, IMemoryCache cache) : ISystemSettingsProvider
 {

@@ -11,9 +11,9 @@ public interface IUserService
     /// </summary>
     /// <returns>
     /// The account, and whether that email went out. A false flag leaves a usable account that
-    /// nobody can sign in to yet, so the administrator has to be told — but it is not a failure
-    /// of the creation itself, and reporting it as one would leave the address taken by an
-    /// account the caller believed had not been made.
+    /// nobody can sign in to yet, so the administrator has to be told, but it is not a failure of
+    /// the creation itself, and reporting it as one would leave the address taken by an account the
+    /// caller believed had not been made.
     /// </returns>
     Task<(UserDetailDto User, bool PasswordEmailSent)> CreateAsync(
         CreateUserRequest request, Guid actingAdminId, CancellationToken cancellationToken = default);
@@ -23,12 +23,11 @@ public interface IUserService
     Task DisableAsync(Guid id, string comments, Guid actingAdminId, CancellationToken cancellationToken = default);
     Task ResetPasswordAsync(Guid id, string comments, Guid actingAdminId, CancellationToken cancellationToken = default);
     /// <summary>
-    /// Admin-only account deletion. The row itself is kept and stripped rather than removed:
-    /// every reference to a user — audit entries, activity history, the student on a Publication
-    /// Container, supervisor assignments — is a Restrict foreign key, so removing the row is
-    /// refused by the database, and forcing it through would mean detaching published research
-    /// from its author. The account is instead emptied of personal data and locked out, and the
-    /// deletion is recorded in the audit trail with the administrator's reason.
+    /// Admin-only account deletion. The row itself is kept and stripped rather than removed: every
+    /// reference to a user is a Restrict foreign key, so removing the row is refused by the
+    /// database, and forcing it through would mean detaching published research from its author.
+    /// The account is instead emptied of personal data and locked out, and the deletion is recorded
+    /// in the audit trail with the administrator's reason.
     /// </summary>
     Task DeleteAsync(Guid id, string comments, Guid actingAdminId, CancellationToken cancellationToken = default);
 
