@@ -85,9 +85,9 @@ public class DepartmentService(ApplicationDbContext db) : IDepartmentService
 
     public async Task<Guid> SelectCoordinatorForDepartmentAsync(Guid departmentId, CancellationToken cancellationToken = default)
     {
-        // The role is checked as well as the profile. A profile outlives the role that created it
-        // — they are never deleted, because Publication Containers point at them — so someone
-        // moved off Coordinator would otherwise keep being handed new students.
+        // The role is checked as well as the profile. A profile outlives the role that created it.
+        // They are never deleted, because Publication Containers point at them, so someone moved
+        // off Coordinator would otherwise keep being handed new students.
         var coordinatorRoleId = await db.Roles
             .Where(r => r.Name == RoleNames.Coordinator)
             .Select(r => r.Id)

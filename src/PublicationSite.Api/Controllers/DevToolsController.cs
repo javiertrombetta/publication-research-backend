@@ -48,10 +48,10 @@ public class DevToolsController(
         }
 
         // Both flags, not either. This deletes everything, and the question it really turns on is
-        // whether the data here is disposable — which is the question Seed:DemoData already
-        // answers. A deployment that seeds no sample data is one holding either real work or
-        // nothing worth wiping, so an administrator's token should not be able to erase it even
-        // if somebody left the reset switch on by mistake.
+        // whether the data here is disposable, which is the question Seed:DemoData already answers.
+        // A deployment that seeds no sample data is one holding either real work or nothing worth
+        // wiping, so an administrator's token should not be able to erase it even if somebody left
+        // the reset switch on by mistake.
         if (!DemoDataSeeder.IsEnabled(configuration, environment))
         {
             return StatusCode(StatusCodes.Status403Forbidden,

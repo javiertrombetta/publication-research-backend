@@ -183,9 +183,9 @@ public class ContainerService(
     /// <summary>
     /// Narrows to the containers waiting at particular ethics steps.
     ///
-    /// Expressed against the entity rather than against the projected step name. The name is a
-    /// CASE built during projection, and filtering on it afterwards is not something EF Core can
-    /// turn into SQL — it tried to compare the whole row. Written this way it also filters before
+    /// Expressed against the entity rather than against the projected step name. The name is a CASE
+    /// built during projection, and filtering on it afterwards is not something EF Core can turn
+    /// into SQL. It tried to compare the whole row. Written this way it also filters before
     /// projecting, so the rows that are not wanted are never shaped at all.
     ///
     /// Which flags are wanted is decided in C# first, so what reaches the query are plain
@@ -320,9 +320,9 @@ public class ContainerService(
                                 : RoleNames.Coordinator)
                     : null,
             // Whose turn it is on the research paper. Like the ethics answer above, this cannot be
-            // read off the status: UnderReview covers four separate waits — the Supervisor reading
+            // read off the status: UnderReview covers four separate waits: the Supervisor reading
             // it, an Admin appointing a committee, the committee voting, and the Coordinator's
-            // decision — told apart only by what has been recorded against the paper. Every screen
+            // decision, told apart only by what has been recorded against the paper. Every screen
             // that tried to work it out from the status alone got it wrong in the same way, by
             // offering people work that was not theirs yet.
             c.Publication == null

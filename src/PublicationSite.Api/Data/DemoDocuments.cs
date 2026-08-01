@@ -3,12 +3,12 @@ using System.Text;
 namespace PublicationSite.Api.Data;
 
 /// <summary>
-/// Builds the stand-in files the demo dataset uploads — ethics forms and research papers.
+/// Builds the stand-in files the demo dataset uploads: ethics forms and research papers.
 ///
 /// They are real PDFs rather than renamed text, because the point of the demo data is that every
 /// screen behaves as it would with genuine content: a reviewer clicks through to a document and a
-/// document opens. A file that downloaded and then failed to open would send whoever is testing
-/// off hunting for a bug that is not there.
+/// document opens. A file that downloaded and then failed to open would send whoever is testing off
+/// hunting for a bug that is not there.
 /// </summary>
 public static class DemoDocuments
 {

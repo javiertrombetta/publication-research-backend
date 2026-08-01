@@ -27,10 +27,10 @@ public class PublicationContainer
     /// settings on the day it was opened.
     ///
     /// Snapshotted rather than read live because a publication runs for months: an administrator
-    /// who decides in March that committees now need three external members must not thereby
-    /// change the rules for research that has been under way since January. Null on containers
-    /// created before this existed — those fall back to whatever is configured now, which is the
-    /// only figure anyone ever agreed for them.
+    /// who decides in March that committees now need three external members must not thereby change
+    /// the rules for research that has been under way since January. Null on containers created
+    /// before this existed. Those fall back to whatever is configured now, which is the only figure
+    /// anyone ever agreed for them.
     /// </summary>
     public int? RequiredInternalCommitteeMembers { get; set; }
     public int? RequiredExternalCommitteeMembers { get; set; }

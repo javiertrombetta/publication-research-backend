@@ -3,10 +3,10 @@ using PublicationSite.Api.DTOs.Settings;
 namespace PublicationSite.Api.Services.Interfaces;
 
 /// <summary>
-/// The administrator's write side of the settings table. Grouped rather than key-by-key: a
-/// setting only makes sense alongside the ones it interacts with, and validating a group as a
-/// whole is the only way to reject a combination that is individually plausible but jointly
-/// nonsense — a committee needing more approvals than it has members, for instance.
+/// The administrator's write side of the settings table. Grouped rather than key-by-key: a setting
+/// only makes sense alongside the ones it interacts with, and validating a group as a whole is the
+/// only way to reject a combination that is individually plausible but jointly nonsense, such as a
+/// committee needing more approvals than it has members, for instance.
 /// </summary>
 public interface ISystemSettingService
 {

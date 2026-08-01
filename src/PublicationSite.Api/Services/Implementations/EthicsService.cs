@@ -188,9 +188,9 @@ public class EthicsService(
         await accessService.EnsureAccessAsync(publicationContainerId, requestingUserId);
 
         // Projected in the query rather than through ToDocumentDto. That helper reads
-        // EthicsDocumentRequirement.Name off a navigation property, and nothing here loaded it —
-        // so every call threw a NullReferenceException and the reviewers' document list came back
-        // as a 500. Written this way the name is joined in SQL and there is no navigation to miss.
+        // EthicsDocumentRequirement.Name off a navigation property, and nothing here loaded it, so
+        // every call threw a NullReferenceException and the reviewers' document list came back as a
+        // 500. Written this way the name is joined in SQL and there is no navigation to miss.
         return await db.EthicsDocuments
             .Where(d => d.EthicsApproval.PublicationContainerId == publicationContainerId)
             .OrderByDescending(d => d.UploadedAt)
@@ -461,14 +461,14 @@ public class EthicsService(
     }
 
     /// <summary>
-    /// Copies today's active requirements onto this approval, once. Everything the student is
-    /// then asked for, and everything anyone later checks them against, reads from this copy —
-    /// so an administrator editing the master list changes what is asked of the next student,
-    /// not of this one.
+    /// Copies today's active requirements onto this approval, once. Everything the student is then
+    /// asked for, and everything anyone later checks them against, reads from this copy, so an
+    /// administrator editing the master list changes what is asked of the next student, not of this
+    /// one.
     ///
-    /// Does nothing if a snapshot already exists: documentation can be requested more than once
-    /// on the same approval (a Coordinator may ask after a Supervisor said it was unnecessary),
-    /// and the first list asked for is the one that counts.
+    /// Does nothing if a snapshot already exists: documentation can be requested more than once on
+    /// the same approval (a Coordinator may ask after a Supervisor said it was unnecessary), and
+    /// the first list asked for is the one that counts.
     /// </summary>
     private async Task SnapshotRequiredDocumentsAsync(EthicsApproval approval, CancellationToken cancellationToken)
     {

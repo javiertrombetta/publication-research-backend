@@ -1,12 +1,12 @@
 namespace PublicationSite.Api.Entities;
 
 /// <summary>
-/// One document a student must supply at the ethics stage — the name an administrator gives it,
-/// and where it sits in the list.
+/// One document a student must supply at the ethics stage: the name an administrator gives it, and
+/// where it sits in the list.
 ///
 /// These were three fixed values in an enum. They are data now because the set is a matter of
-/// institutional policy rather than of software: an ethics committee that adds a fourth form
-/// should not need a deployment.
+/// institutional policy rather than of software: an ethics committee that adds a fourth form should
+/// not need a deployment.
 /// </summary>
 public class EthicsDocumentRequirement
 {
@@ -14,7 +14,7 @@ public class EthicsDocumentRequirement
 
     public string Name { get; set; } = string.Empty;
 
-    /// <summary>Shown to the student under the name — what the document is, or where to get it.</summary>
+    /// <summary>Shown to the student under the name: what the document is, or where to get it.</summary>
     public string? Description { get; set; }
 
     public int SortOrder { get; set; }

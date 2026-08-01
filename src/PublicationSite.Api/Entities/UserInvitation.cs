@@ -3,13 +3,13 @@ namespace PublicationSite.Api.Entities;
 /// <summary>
 /// An administrator's offer of an account to a particular address, in a particular role.
 ///
-/// This is how people get in when self-registration is closed, which is every deployment that
-/// is not a development one. It also covers the case self-registration never could: external
-/// committee members are outside the institution, have no institutional address, and so could
-/// never have been given a role by their email domain.
+/// This is how people get in when self-registration is closed, which is every deployment that is
+/// not a development one. It also covers the case self-registration never could: external committee
+/// members are outside the institution, have no institutional address, and so could never have been
+/// given a role by their email domain.
 ///
-/// The role is fixed when the invitation is sent rather than chosen by whoever accepts it —
-/// otherwise the invitation would be a way to grant yourself whatever you liked.
+/// The role is fixed when the invitation is sent rather than chosen by whoever accepts it.
+/// Otherwise the invitation would be a way to grant yourself whatever you liked.
 /// </summary>
 public class UserInvitation
 {

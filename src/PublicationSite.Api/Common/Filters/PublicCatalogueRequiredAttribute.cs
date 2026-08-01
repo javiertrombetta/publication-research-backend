@@ -17,9 +17,9 @@ public class PublicCatalogueRequiredAttribute() : TypeFilterAttribute(typeof(Fil
     {
         public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
         {
-            // Signed-in people keep the catalogue. The setting governs the *public* catalogue —
-            // whether the institution shows its research to the world — and switching that off is
-            // not a reason to stop its own students and staff reading what it has published.
+            // Signed-in people keep the catalogue. The setting governs the *public* catalogue,
+            // meaning whether the institution shows its research to the world, and switching that
+            // off is not a reason to stop its own students and staff reading what it has published.
             if (context.HttpContext.User.Identity?.IsAuthenticated == true)
             {
                 await next();

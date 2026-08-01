@@ -75,28 +75,27 @@ builder.Services
     .AddEntityFrameworkStores<ApplicationDbContext>()
     .AddDefaultTokenProviders();
 
-// ---------- Password hashing cost ----------
-// Identity hashes with PBKDF2 at 100,000 iterations, which is deliberately expensive: it is what
-// makes a stolen hash impractical to crack. On a full-sized machine it costs about 60ms. On the
-// fraction of a CPU a free hosting tier provides it costs closer to two seconds, and that is the
-// whole of what people experience as a slow sign-in.
+// ---------- Password hashing cost ---------- Identity hashes with PBKDF2 at 100,000 iterations,
+// which is deliberately expensive: it is what makes a stolen hash impractical to crack. On a full-
+// sized machine it costs about 60ms. On the fraction of a CPU a free hosting tier provides it costs
+// closer to two seconds, and that is the whole of what people experience as a slow sign-in.
 //
 // Lowered only where the demonstration dataset lives. That flag is a deployment stating that its
-// data is disposable and that every one of its accounts shares a password published in the README
-// — there is no secret there for 100,000 iterations to protect, and the cost buys nothing but a
-// wait for a team trying to test. Production sets no flag and keeps the full strength, which is
-// the direction the mistake has to fall.
+// data is disposable and that every one of its accounts shares a password published in the README.
+// There is no secret there for 100,000 iterations to protect, and the cost buys nothing but a wait
+// for a team trying to test. Production sets no flag and keeps the full strength, which is the
+// direction the mistake has to fall.
 //
-// This only governs hashes made from here on. Identity stores the iteration count inside each
-// hash and verifies with the count it finds there, and it does not re-hash on a successful
-// sign-in — so accounts created before this change stay as slow as they were. The demonstration
-// accounts have to be recreated for it to take effect: POST /api/dev/reset-database.
+// This only governs hashes made from here on. Identity stores the iteration count inside each hash
+// and verifies with the count it finds there, and it does not re-hash on a successful sign-in, so
+// accounts created before this change stay as slow as they were. The demonstration accounts have to
+// be recreated for it to take effect: POST /api/dev/reset-database.
 if (DemoDataSeeder.IsEnabled(builder.Configuration, builder.Environment))
 {
     builder.Services.Configure<PasswordHasherOptions>(options => options.IterationCount = 10_000);
 }
 
-// Replaces Identity's built-in validator rather than joining it — see the class for why.
+// Replaces Identity's built-in validator rather than joining it. See the class for why.
 builder.Services.RemoveAll<IPasswordValidator<ApplicationUser>>();
 builder.Services.AddScoped<IPasswordValidator<ApplicationUser>, ConfigurablePasswordValidator>();
 builder.Services.AddScoped<IAccountLockoutService, AccountLockoutService>();
@@ -186,9 +185,9 @@ if (DemoDataSeeder.IsEnabled(builder.Configuration, builder.Environment))
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
     options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-    // The platform's edge is the only path into the container, and its proxy IP isn't
-    // fixed/known in advance, so trust the forwarded headers regardless of source —
-    // the standard pattern for PaaS deployments (Render, Heroku, Azure App Service, ...).
+    // The platform's edge is the only path into the container, and its proxy IP isn't fixed/known
+    // in advance, so trust the forwarded headers , the standard pattern for PaaS deployments
+    // (Render, Heroku, Azure App Service, ...).
     options.KnownIPNetworks.Clear();
     options.KnownProxies.Clear();
 });
@@ -246,7 +245,7 @@ builder.Services.AddSwaggerGen(options =>
     });
 
     // The summaries written against each action and DTO, which is where the reasoning behind an
-    // endpoint already lives — why a decision needs a comment, which figures a committee is judged
+    // endpoint already lives: why a decision needs a comment, which figures a committee is judged
     // by, what a status actually covers. Swagger showed none of it until the documentation file was
     // switched on in the csproj alongside this.
     var documentation = Path.Combine(AppContext.BaseDirectory, $"{Assembly.GetExecutingAssembly().GetName().Name}.xml");
@@ -265,21 +264,21 @@ var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
 {
-    // Applies any pending EF Core migrations on every startup (idempotent — only unapplied
-    // ones run). Keeps deploys self-contained: no separate "run migrations" step needed
-    // against a remote host with no shell access, e.g. on Render.
+    // Applies any pending EF Core migrations on every startup (idempotent: only unapplied ones
+    // run). Keeps deploys self-contained: no separate "run migrations" step needed against a remote
+    // host with no shell access, e.g. on Render.
     var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
     await db.Database.MigrateAsync();
 
     await DbSeeder.SeedRolesAsync(scope.ServiceProvider);
     await DbSeeder.SeedAdminAsync(scope.ServiceProvider, app.Configuration);
 
-    // The demonstration dataset is not seeded here. It is slow enough against a hosted database
-    // to hold up the health check, so DemoDataSeedRunner starts it once the server is listening —
-    // and it is registered only where it is wanted (see DemoDataSeeder.IsEnabled).
+    // The demonstration dataset is not seeded here. It is slow enough against a hosted database to
+    // hold up the health check, so DemoDataSeedRunner starts it once the server is listening, and
+    // it is registered only where it is wanted (see DemoDataSeeder.IsEnabled).
     //
-    // Which is also why this check is skipped where that dataset is coming: it brings an Admin
-    // with it, and complaining before it has finished would be an alarm about nothing.
+    // Which is also why this check is skipped where that dataset is coming: it brings an Admin with
+    // it, and complaining before it has finished would be an alarm about nothing.
     if (!DemoDataSeeder.IsEnabled(app.Configuration, app.Environment))
     {
         await DbSeeder.WarnIfNoAdministratorAsync(scope.ServiceProvider);
@@ -314,7 +313,7 @@ app.UseAuthorization();
 app.MapControllers();
 // A minimal endpoint rather than a controller action, so it carries its description as metadata
 // instead of an XML comment. It answers as soon as the server is listening and touches nothing
-// else — a health check that queried the database would report the API down whenever the database
+// else. A health check that queried the database would report the API down whenever the database
 // was merely slow, and the host would restart a process that was working.
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestampUtc = DateTime.UtcNow }))
     .AllowAnonymous()

@@ -15,8 +15,8 @@ public interface IContainerService
 
     /// <summary>
     /// Student-initiated: discards one of their own Containers created by mistake. Only allowed
-    /// while it still holds no proposals — once any proposal exists the process has started and
-    /// the Container has to be resolved through the workflow instead.
+    /// while it still holds no proposals. Once any proposal exists the process has started and the
+    /// Container has to be resolved through the workflow instead.
     /// </summary>
     Task DeleteOwnAsync(Guid containerId, Guid studentUserId, CancellationToken cancellationToken = default);
 

@@ -18,8 +18,8 @@ namespace PublicationSite.Api.Data.Migrations
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             // Ordered so no data is lost. The three document types were a C# enum; they become
-            // rows, every upload already made is re-pointed at the matching row, and only then
-            // is the old column dropped. Doing it in the order EF scaffolds — drop first — would
+            // rows, every upload already made is re-pointed at the matching row, and only then is
+            // the old column dropped. Doing it in the order EF scaffolds, dropping first, would
             // discard which document each submitted file actually was.
 
             migrationBuilder.CreateTable(
@@ -120,7 +120,7 @@ namespace PublicationSite.Api.Data.Migrations
                 .Annotation("MySql:CharSet", "utf8mb4");
 
             // Approvals that were already asking for documentation get the list they were asking
-            // for — all three, since that is what the old code required unconditionally. Without
+            // for: all three, since that is what the old code required unconditionally. Without
             // this they would have an empty list and could never be completed.
             //
             // Approvals not yet at that point are left alone: their list is taken when

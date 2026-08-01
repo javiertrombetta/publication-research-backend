@@ -21,10 +21,10 @@ public class TokenService(
     private readonly JwtSettings _settings = jwtOptions.Value;
 
     /// <summary>
-    /// How long tokens last, as an administrator has set it. Only the lifetimes are
-    /// configurable — the issuer, audience and signing key stay in configuration, because those
-    /// are deployment facts and changing one from a web form would invalidate every token in
-    /// circulation and lock the administrator out of the screen they changed it on.
+    /// How long tokens last, as an administrator has set it. Only the lifetimes are configurable.
+    /// The issuer, audience and signing key stay in configuration, because those are deployment
+    /// facts and changing one from a web form would invalidate every token in circulation and lock
+    /// the administrator out of the screen they changed it on.
     /// </summary>
     private Task<int> AccessTokenMinutesAsync() =>
         settings.GetIntAsync(SettingKeys.AccessTokenMinutes, _settings.AccessTokenMinutes);

@@ -142,7 +142,7 @@ public static class TestDataBuilder
     ///
     /// Roles matter to more than authorisation now: the queries that look for a coordinator to
     /// assign, or check who may sit on a committee, ask whether the person still holds the role
-    /// rather than whether a profile exists — because a profile outlives the role that created it.
+    /// rather than whether a profile exists, because a profile outlives the role that created it.
     /// </summary>
     public static void GrantRole(ApplicationDbContext db, ApplicationUser user, string roleName)
     {

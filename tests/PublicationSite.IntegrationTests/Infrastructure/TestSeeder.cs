@@ -9,9 +9,9 @@ using PublicationSite.Api.Enums;
 namespace PublicationSite.IntegrationTests.Infrastructure;
 
 /// <summary>
-/// Bootstraps accounts directly via UserManager/DbContext (bypassing HTTP + real email
-/// delivery) so tests can set up realistic fixtures — an Admin, a Department, a Coordinator,
-/// a Supervisor — without re-testing registration/verification on every single test.
+/// Bootstraps accounts directly via UserManager/DbContext (bypassing HTTP + real email delivery) so
+/// tests can set up realistic fixtures (an Admin, a Department, a Coordinator, a Supervisor)
+/// without re-testing registration/verification on every single test.
 /// </summary>
 public static class TestSeeder
 {

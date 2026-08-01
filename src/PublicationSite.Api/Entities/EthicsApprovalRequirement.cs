@@ -5,9 +5,9 @@ namespace PublicationSite.Api.Entities;
 /// documentation was requested.
 ///
 /// Without this snapshot, an administrator adding a fourth required form would silently reopen
-/// every ethics stage already completed under the old list of three — students would find
-/// themselves incomplete against a rule that did not exist when they finished. The snapshot is
-/// what makes a change apply to new work only.
+/// every ethics stage already completed under the old list of three. Students would find themselves
+/// incomplete against a rule that did not exist when they finished. The snapshot is what makes a
+/// change apply to new work only.
 /// </summary>
 public class EthicsApprovalRequirement
 {

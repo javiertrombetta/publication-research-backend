@@ -5,8 +5,8 @@ public record StoredFile(string RelativePath, string FileName);
 public interface IFileStorageService
 {
     /// <param name="allowedExtensions">
-    /// Overrides the configured document extensions for this call — used by profile photos,
-    /// which accept images that must stay disallowed for document uploads.
+    /// Overrides the configured document extensions for this call, used by profile photos, which
+    /// accept images that must stay disallowed for document uploads.
     /// </param>
     Task<StoredFile> SaveAsync(
         Stream content,

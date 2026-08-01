@@ -8,18 +8,17 @@ using Xunit;
 namespace PublicationSite.IntegrationTests.Infrastructure;
 
 /// <summary>
-/// Boots the real API host (Program.cs, full DI, real middleware pipeline) against a
-/// disposable MySQL instance started via Testcontainers, so integration tests exercise the
-/// exact same wiring as production instead of an in-memory substitute.
+/// Boots the real API host (Program.cs, full DI, real middleware pipeline) against a disposable
+/// MySQL instance started via Testcontainers, so integration tests exercise the exact same wiring
+/// as production instead of an in-memory substitute.
 ///
 /// Overrides are applied via process environment variables rather than
 /// WebApplicationFactory.ConfigureWebHost/ConfigureAppConfiguration: for a minimal-hosting
-/// Program.cs (top-level `WebApplication.CreateBuilder`), that hook does not reliably win
-/// over appsettings.*.json before Program.cs's own `builder.Configuration` reads run —
-/// confirmed by this project connecting to the local dev database instead of the
-/// Testcontainers instance until this env-var approach was used. Environment variables are
-/// read by `WebApplication.CreateBuilder` itself, at the point Program.cs actually executes,
-/// so they always win.
+/// Program.cs (top-level `WebApplication.CreateBuilder`), that hook does not reliably win over
+/// appsettings.*.json before Program.cs's own `builder.Configuration` reads run. Confirmed by this
+/// project connecting to the local dev database instead of the Testcontainers instance until this
+/// env-var approach was used. Environment variables are read by `WebApplication.CreateBuilder`
+/// itself, at the point Program.cs actually executes, so they always win.
 /// </summary>
 public class ApiTestFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
@@ -44,10 +43,9 @@ public class ApiTestFactory : WebApplicationFactory<Program>, IAsyncLifetime
         Environment.SetEnvironmentVariable("Mail__Host", "smtp.invalid"); // deliberately unreachable; SmtpEmailSender fails closed and logs, never throws
         Environment.SetEnvironmentVariable("Cors__AllowedOrigins__0", "http://localhost:3000");
 
-        // Migrate via a standalone DbContext BEFORE the host is built. Program.cs seeds
-        // roles as part of its own startup (before app.Run()), and accessing `Services`
-        // below is what triggers that startup — so the schema must already exist by then,
-        // not after.
+        // Migrate via a standalone DbContext BEFORE the host is built. Program.cs seeds roles as
+        // part of its own startup (before app.Run()), and accessing `Services` below is what
+        // triggers that startup, so the schema must already exist by then, not after.
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseMySql(connectionString, new MySqlServerVersion(new Version(8, 0, 35)))
             .Options;

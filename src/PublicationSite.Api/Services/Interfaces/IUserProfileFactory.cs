@@ -4,14 +4,14 @@ using PublicationSite.Api.Entities;
 namespace PublicationSite.Api.Services.Interfaces;
 
 /// <summary>
-/// Creates the profile row a role needs — a Supervisor has a department, a committee member has
-/// an affiliation, a Student has a programme and a cohort.
+/// Creates the profile row a role needs: a Supervisor has a department, a committee member has an
+/// affiliation, a Student has a programme and a cohort.
 ///
 /// Shared because there are three ways an account comes to hold a role: an administrator creating
 /// one outright, someone accepting an invitation, and an administrator granting a role to an
-/// account that already exists. All three have to produce the same shape, and a second copy of
-/// the rules would drift — a role handled in one and forgotten in the others leaves an account
-/// holding a role but unable to take part in anything it is for.
+/// account that already exists. All three have to produce the same shape, and a second copy of the
+/// rules would drift. A role handled in one and forgotten in the others leaves an account holding a
+/// role but unable to take part in anything it is for.
 /// </summary>
 public interface IUserProfileFactory
 {

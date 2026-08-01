@@ -26,9 +26,9 @@ public class LocalFileStorageService(
         IReadOnlyCollection<string>? allowedExtensions = null,
         CancellationToken cancellationToken = default)
     {
-        // An explicit list wins — profile photos pass their own, and must not be widened by an
-        // administrator adding a document type. Otherwise the configured list applies, falling
-        // back to appsettings before anyone has configured one.
+        // An explicit list wins. Profile photos pass their own, and must not be widened by an
+        // administrator adding a document type. Otherwise the configured list applies, falling back
+        // to appsettings before anyone has configured one.
         var permitted = allowedExtensions ?? await ConfiguredExtensionsAsync(cancellationToken);
 
         var extension = Path.GetExtension(fileName).ToLowerInvariant();
@@ -86,8 +86,8 @@ public class LocalFileStorageService(
     }
 
     /// <summary>
-    /// Copies while counting, so a stream that could not say its length up front — a chunked
-    /// upload, say — still cannot write more than the limit to disk. Without this the size limit
+    /// Copies while counting, so a stream that could not say its length up front, a chunked upload
+    /// for instance, still cannot write more than the limit to disk. Without this the size limit
     /// would be advisory for exactly the uploads most likely to abuse it.
     /// </summary>
     private static async Task CopyWithinLimitAsync(

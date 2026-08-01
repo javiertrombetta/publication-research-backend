@@ -65,7 +65,7 @@ public class AuditLogQueryService(ApplicationDbContext db) : IAuditLogQueryServi
     /// <summary>
     /// An expression rather than a method, so EF Core translates it into the SQL SELECT and joins
     /// the actor. Called as a method it was evaluated in memory instead, against an entity whose
-    /// ActorUser navigation had never been loaded — every request threw a NullReferenceException.
+    /// ActorUser navigation had never been loaded. Every request threw a NullReferenceException.
     /// </summary>
     private static readonly Expression<Func<Entities.AuditLogEntry, AuditLogEntryDto>> ToDto = a =>
         new AuditLogEntryDto(

@@ -36,7 +36,7 @@ public class DemoDataSeedRunner(
 
     /// <summary>
     /// Starts a seeding run and returns without waiting for it. Safe to call while one is already
-    /// in progress — the second waits for the first, finds the marker account and does nothing.
+    /// in progress. The second waits for the first, finds the marker account and does nothing.
     /// </summary>
     public void Trigger()
     {

@@ -8,14 +8,14 @@ namespace PublicationSite.Api.Services.Implementations;
 /// <summary>
 /// Enforces the password rules an administrator has configured.
 ///
-/// Identity's built-in <c>PasswordValidator</c> reads <c>IdentityOptions</c>, which are bound
-/// once at start-up and cannot follow a database value — changing a rule would mean restarting
-/// the API. So the built-in options are set to the loosest configuration this validator will
-/// ever allow (see Program.cs) and the real rules are applied here, freshly read on every check.
+/// Identity's built-in <c>PasswordValidator</c> reads <c>IdentityOptions</c>, which are bound once
+/// at start-up and cannot follow a database value. Changing a rule would mean restarting the API.
+/// So the built-in options are set to the loosest configuration this validator will ever allow (see
+/// Program.cs) and the real rules are applied here, freshly read on every check.
 ///
 /// Registering this alongside the default validator would be belt and braces; it replaces it,
-/// because two validators disagreeing about the minimum length produces two error messages for
-/// one problem.
+/// because two validators disagreeing about the minimum length produces two error messages for one
+/// problem.
 /// </summary>
 public class ConfigurablePasswordValidator(ISystemSettingService settingService)
     : IPasswordValidator<ApplicationUser>

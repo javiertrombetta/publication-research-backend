@@ -104,7 +104,7 @@ public class InvitationService(
         await db.SaveChangesAsync(cancellationToken);
 
         // Recorded before the send, not after. The invitation row is already saved by this point,
-        // and SendAsync throws when there is no working mail server — which used to skip this line
+        // and SendAsync throws when there is no working mail server, which used to skip this line
         // and leave a live invitation with nothing in the trail to say who created it or when.
         await auditService.LogAuditAsync(actingAdminId, "UserInvited", nameof(UserInvitation), invitation.Id,
             newValue: request.Role, comments: $"Invited {email} as {request.Role}.");
@@ -220,8 +220,8 @@ public class InvitationService(
             throw new ValidationAppException(createResult.Errors.Select(e => e.Description).ToList());
         }
 
-        // From the invitation, never from the request — otherwise accepting one would be a way
-        // to award yourself any role you liked.
+        // From the invitation, never from the request. Otherwise accepting one would be a way to
+        // award yourself any role you liked.
         await userManager.AddToRoleAsync(user, invitation.Role);
 
         await profileFactory.EnsureForRoleAsync(user, new CreateUserRequest
@@ -242,8 +242,8 @@ public class InvitationService(
 
         invitation.AcceptedAt = DateTime.UtcNow;
 
-        // Spent, so the link cannot be used again — by the invitee or by anyone the email
-        // was forwarded to.
+        // Spent, so the link cannot be used again, by the invitee or by anyone the email was
+        // forwarded to.
         invitation.TokenHash = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
         await db.SaveChangesAsync(cancellationToken);
 
@@ -277,7 +277,7 @@ public class InvitationService(
         if (!sent)
         {
             throw new BusinessRuleException(
-                "The invitation was created but could not be emailed — no working mail server is configured. " +
+                "The invitation was created but could not be emailed, because no working mail server is configured. " +
                 "Set one up under System settings, then send it again.");
         }
     }
@@ -299,9 +299,9 @@ public class InvitationService(
 
     private async Task<UserInvitation> FindUsableByTokenAsync(string token, CancellationToken cancellationToken)
     {
-        // One message for a missing token, a mistyped one, and a spent one — they are the same
-        // thing to the person holding the link, and distinguishing them would tell anyone
-        // guessing tokens when they had found a real one.
+        // One message for a missing token, a mistyped one, and a spent one. They are the same thing
+        // to the person holding the link, and distinguishing them would tell anyone guessing tokens
+        // when they had found a real one.
         const string unusable =
             "This invitation link is not valid. It may already have been used, or been withdrawn. " +
             "Ask an administrator to send you a new one.";

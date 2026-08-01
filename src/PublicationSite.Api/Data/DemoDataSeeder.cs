@@ -16,7 +16,7 @@ namespace PublicationSite.Api.Data;
 /// <b>Never for a deployment holding real work.</b> Every account here shares one published
 /// password, which is the entire point on a machine the team is testing against and a serious
 /// vulnerability anywhere else. <see cref="IsEnabled"/> is what decides, and it is deliberately
-/// closed by default outside development — see the remarks there.
+/// closed by default outside development. See the remarks there.
 /// </summary>
 public static class DemoDataSeeder
 {
@@ -32,18 +32,18 @@ public static class DemoDataSeeder
     ///
     /// Three deployments exist and only two of them do. A developer's machine wants it without
     /// being asked, which is what the environment covers. The shared instance the team tests
-    /// against also wants it, but runs as Production — it has a real hostname, a hosted database
-    /// and TLS in front of it, and pretending otherwise to get the data would also switch on
-    /// developer exception pages and the local connection string. So it asks for the data
-    /// explicitly, with <c>Seed:DemoData</c>.
+    /// against also wants it, but runs as Production. It has a real hostname, a hosted database and
+    /// TLS in front of it, and pretending otherwise to get the data would also switch on developer
+    /// exception pages and the local connection string. So it asks for the data explicitly, with
+    /// <c>Seed:DemoData</c>.
     ///
     /// Production sets nothing and gets nothing: no flag, no accounts. That is the safe direction
-    /// for the mistake to fall — forgetting the setting costs a deployment its sample data, where
+    /// for the mistake to fall. Forgetting the setting costs a deployment its sample data, where
     /// the opposite would publish a known password on the live site.
     /// </summary>
     /// <remarks>
     /// Parsed leniently on purpose. Binding it as a bool throws on anything that is not "true" or
-    /// "false" — and this is read while the application is being built, so "yes" in an environment
+    /// "false", and this is read while the application is being built, so "yes" in an environment
     /// variable took the whole service down and kept it down, restart after restart. A typo should
     /// not be able to do that. Anything unrecognised falls back to the environment's own answer,
     /// which is off outside development, so the failure still lands on the safe side.
@@ -62,24 +62,24 @@ public static class DemoDataSeeder
         if (await userManager.FindByEmailAsync(MarkerEmail) is not null)
         {
             // The rows are there, but on a host with an ephemeral disk the uploads that go with
-            // them may not be — see RestoreMissingFilesAsync.
+            // them may not be. See RestoreMissingFilesAsync.
             await RestoreMissingFilesAsync(services, cancellationToken);
             return;
         }
 
         logger.LogInformation("Building the demonstration dataset. This runs once, on an empty database.");
 
-        // All of it or none of it. The marker account is created early on, so a run that died
-        // part-way — a failed startup, a container killed mid-deploy — would leave a half-built
-        // dataset that every later start mistook for a finished one and skipped. Committing once
-        // at the end means an interrupted run leaves nothing behind and the next start rebuilds
-        // from scratch. (Files already written to disk are the exception, and are harmless: they
-        // are orphaned bytes nothing points at.)
+        // All of it or none of it. The marker account is created early on, so a run that died part-
+        // way, whether a failed startup or a container killed mid-deploy, would leave a half-built
+        // dataset that every later start mistook for a finished one and skipped. Committing once at
+        // the end means an interrupted run leaves nothing behind and the next start rebuilds from
+        // scratch. (Files already written to disk are the exception, and are harmless: they are
+        // orphaned bytes nothing points at.)
         //
         // Routed through the execution strategy because the context retries on transient failures,
         // and a transaction opened outside one would silently lose that protection. A retry would
         // re-enter this delegate with the previous attempt's entities still tracked, so it is not
-        // expected to succeed — but the rollback leaves a clean database, and the next start
+        // expected to succeed, but the rollback leaves a clean database, and the next start
         // rebuilds properly, which is the outcome that matters.
         await db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
         {

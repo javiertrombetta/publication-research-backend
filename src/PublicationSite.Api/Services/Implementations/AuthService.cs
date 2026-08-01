@@ -141,7 +141,7 @@ public class AuthService(
     }
 
     /// <summary>
-    /// Returns whether the message went out. Forgot-password ignores that on purpose — saying an
+    /// Returns whether the message went out. Forgot-password ignores that on purpose. Saying an
     /// email failed would reveal that the address is registered, which is the one thing that
     /// endpoint is careful not to disclose. The expiry path does report it, because the person
     /// asking is already known to exist and is otherwise left stranded.
@@ -307,8 +307,8 @@ public class AuthService(
         var link = $"{_frontend.BaseUrl}/verify-email?userId={user.Id}&token={Uri.EscapeDataString(token)}";
 
         // Reported, not thrown. The account is already created, so failing here would return an
-        // error for something that succeeded — and the retry would then collide with the address
-        // it had just taken.
+        // error for something that succeeded, and the retry would then collide with the address it
+        // had just taken.
         return await emailSender.SendAsync(user.Email!, "Verify your email address",
             $"<p>Welcome to the AIS Research Publication Site. Please verify your email address:</p><p><a href=\"{link}\">Verify email</a></p>");
     }
