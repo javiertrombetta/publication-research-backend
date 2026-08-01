@@ -9,9 +9,14 @@ public interface IProposalService
     Task<ProposalDto> UpdateAsync(Guid proposalId, Guid studentId, SaveProposalRequest request, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<ProposalDto>> GetByContainerAsync(Guid publicationContainerId, Guid requestingUserId, CancellationToken cancellationToken = default);
     Task FinishSubmissionAsync(Guid publicationContainerId, Guid studentId, CancellationToken cancellationToken = default);
-    Task RequestNewSubmissionAsync(Guid publicationContainerId, string comments, Guid actingUserId, CancellationToken cancellationToken = default);
+    /// <param name="actingAsAdmin">True when an administrator is doing this. Otherwise the caller has to be the coordinator this publication belongs to.</param>
+    Task RequestNewSubmissionAsync(Guid publicationContainerId, string comments, Guid actingUserId, bool actingAsAdmin = false, CancellationToken cancellationToken = default);
 
-    Task<PagedResult<ProposalWithInvitationsDto>> GetPendingForCoordinatorAsync(Guid coordinatorId, PageRequest page, string? search = null, CancellationToken cancellationToken = default);
+    /// <param name="returnedOnly">Narrows the queue to proposals that have already been out once and came back with nobody willing.</param>
+    Task<PagedResult<ProposalWithInvitationsDto>> GetPendingForCoordinatorAsync(Guid coordinatorId, PageRequest page, string? search = null, bool returnedOnly = false, CancellationToken cancellationToken = default);
+
+    /// <summary>How many students, and how many proposals of theirs, are in the dispatch queue for a second time.</summary>
+    Task<ReturnedToDispatchSummaryDto> GetReturnedToDispatchSummaryAsync(Guid coordinatorId, CancellationToken cancellationToken = default);
 
     /// <summary>Every proposal in this Coordinator's publications, with what each Supervisor said.</summary>
     Task<PagedResult<ProposalWithInvitationsDto>> GetForCoordinatorAsync(Guid coordinatorId, PageRequest page, bool awaitingAllocation = false, string? search = null, CancellationToken cancellationToken = default);
@@ -26,4 +31,12 @@ public interface IProposalService
     Task<IReadOnlyList<SupervisorInvitationDto>> GetSelectionsAsync(Guid proposalId, Guid requestingUserId, CancellationToken cancellationToken = default);
     Task AssignSupervisorAsync(Guid proposalId, AssignSupervisorRequest request, Guid coordinatorId, CancellationToken cancellationToken = default);
     Task DeferToNextCycleAsync(Guid publicationContainerId, string comments, Guid coordinatorId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Refuses the offers a supervisor made on one proposal and puts it back in the dispatch queue.
+    /// When that leaves the student with nothing anybody is willing to take on, the rest of their
+    /// proposals go back with it, because a student half in one queue and half in another is not a
+    /// state anybody can work from.
+    /// </summary>
+    Task<DiscardSelectionsResultDto> DiscardSelectionsAsync(Guid proposalId, string comments, Guid coordinatorId, CancellationToken cancellationToken = default);
 }

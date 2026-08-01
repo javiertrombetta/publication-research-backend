@@ -1112,6 +1112,9 @@ namespace PublicationSite.Api.Data.Migrations
                     b.Property<Guid>("PublicationContainerId")
                         .HasColumnType("char(36)");
 
+                    b.Property<DateTime?>("ReturnedToDispatchAt")
+                        .HasColumnType("datetime(6)");
+
                     b.Property<int>("Status")
                         .HasColumnType("int");
 

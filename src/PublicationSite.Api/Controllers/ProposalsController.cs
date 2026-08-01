@@ -118,7 +118,8 @@ public class ProposalsController(IProposalService proposalService, ICurrentUserS
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> RequestNewSubmission(Guid containerId, [FromBody] CommentsRequest request)
     {
-        await proposalService.RequestNewSubmissionAsync(containerId, request.Comments, currentUser.UserId);
+        await proposalService.RequestNewSubmissionAsync(
+            containerId, request.Comments, currentUser.UserId, User.IsInRole(RoleNames.Admin));
         return Ok(ApiResponse.Ok("Student asked to resubmit proposals."));
     }
     /// <summary>
@@ -171,10 +172,70 @@ public class ProposalsController(IProposalService proposalService, ICurrentUserS
     [ProducesResponseType(typeof(ApiResponse<PagedResult<ProposalWithInvitationsDto>>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    public async Task<IActionResult> GetPendingForCoordinator([FromQuery] PageRequest paging, [FromQuery] string? search = null)
+    public async Task<IActionResult> GetPendingForCoordinator(
+        [FromQuery] PageRequest paging, [FromQuery] string? search = null, [FromQuery] bool returnedOnly = false)
     {
-        var result = await proposalService.GetPendingForCoordinatorAsync(currentUser.UserId, paging, search);
+        var result = await proposalService.GetPendingForCoordinatorAsync(
+            currentUser.UserId, paging, search, returnedOnly);
         return Ok(ApiResponse<PagedResult<ProposalWithInvitationsDto>>.Ok(result));
+    }
+
+    /// <summary>
+    /// How much of the dispatch queue is there for a second time: students whose round found
+    /// nobody willing, and how many proposals of theirs came back.
+    ///
+    /// Its own request because it counts the whole queue rather than the page in hand, and a
+    /// coordinator deciding whether to send a second batch or ask for new proposals is reading a
+    /// figure about the queue, not about ten rows of it.
+    /// </summary>
+    /// <response code="200">The two counts. Zeroes where nothing has come back.</response>
+    /// <response code="401">No access token was sent, or the one sent has expired.</response>
+    /// <response code="403">Signed in, but this is not something your role may do.</response>
+    [HttpGet("api/proposals/pending/returned")]
+    [Authorize(Roles = RoleNames.Coordinator)]
+    [ProducesResponseType(typeof(ApiResponse<ReturnedToDispatchSummaryDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetReturnedToDispatch(CancellationToken cancellationToken)
+    {
+        var summary = await proposalService.GetReturnedToDispatchSummaryAsync(currentUser.UserId, cancellationToken);
+        return Ok(ApiResponse<ReturnedToDispatchSummaryDto>.Ok(summary));
+    }
+
+    /// <summary>
+    /// Refuses the offers made on a proposal and puts it back in the dispatch queue, so it can go
+    /// to different supervisors.
+    ///
+    /// When that leaves the student with nothing anybody is willing to take on, the rest of their
+    /// proposals go back with it and the round is void: half a student on the selection screen and
+    /// half on the dispatch screen is a state neither of them reads properly. The invitations go
+    /// with the proposals, so nobody is left holding a question that no longer stands.
+    /// </summary>
+    /// <response code="200">What went back, and whether it was the whole of that student's work.</response>
+    /// <response code="400">The request did not pass validation. Which field, and why, comes back as a problem document rather than the usual envelope.</response>
+    /// <response code="401">No access token was sent, or the one sent has expired.</response>
+    /// <response code="403">Signed in, but not entitled to this: either the role is wrong for the endpoint, or the record belongs to somebody else.</response>
+    /// <response code="404">No research proposal with that id.</response>
+    /// <response code="422">Understood, and refused: nobody has offered to take this proposal on, or the publication has already moved past its proposals.</response>
+    [HttpPost("api/proposals/{proposalId:guid}/discard-selections")]
+    [Authorize(Roles = RoleNames.Coordinator)]
+    [ProducesResponseType(typeof(ApiResponse<DiscardSelectionsResultDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status422UnprocessableEntity)]
+    public async Task<IActionResult> DiscardSelections(
+        Guid proposalId, [FromBody] CommentsRequest request, CancellationToken cancellationToken)
+    {
+        var result = await proposalService.DiscardSelectionsAsync(
+            proposalId, request.Comments, currentUser.UserId, cancellationToken);
+
+        return Ok(ApiResponse<DiscardSelectionsResultDto>.Ok(result,
+            result.StudentHasNothingLeft
+                ? $"Nobody was willing to take on {result.StudentName}'s work, so all "
+                  + $"{result.ProposalsReturned} of their proposals are back in Send proposals."
+                : "Back in Send proposals, ready to go to different supervisors."));
     }
     /// <summary>
     /// Asks a chosen set of supervisors whether they could supervise these proposals. Sending
