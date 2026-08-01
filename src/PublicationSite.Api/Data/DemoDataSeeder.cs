@@ -223,6 +223,19 @@ public static class DemoDataSeeder
             }
         }
 
+        // Two things a walk through the screens would otherwise find empty: the coordinator's saved
+        // sets of supervisors, and somebody who has marked themselves unavailable. Both are small
+        // and both are invisible until they exist.
+        await SeedSupervisorGroupsAsync(db,
+            computingCoordinator, [computingSupervisor, computingSupervisorTwo],
+            businessCoordinator, [businessSupervisor, businessSupervisorTwo], cancellationToken);
+
+        // One supervisor is not taking work on. The chooser on Send proposals leaves them out and
+        // the administrator's screens still show them, which is the difference between this and an
+        // account an administrator has disabled.
+        computingSupervisorTwo.IsAvailable = false;
+        await userManager.UpdateAsync(computingSupervisorTwo);
+
         logger.LogWarning(
             "Demonstration dataset created: {Accounts} accounts across {Publications} publications, every " +
             "account sharing one published password. This deployment must never hold real work.",
@@ -278,6 +291,10 @@ public static class DemoDataSeeder
             new("Data minimisation in student information systems",
                 "An audit of what personal data teaching systems collect against what they demonstrably use.",
                 DemoStage.ProposalSelected),
+
+            new("Consent fatigue in mobile application permissions",
+                "Whether repeated permission prompts change what people agree to, and what they remember agreeing to.",
+                DemoStage.ProposalsReturnedUnwanted),
 
             new("Retrieval practice in introductory programming courses",
                 "A controlled comparison of retrieval practice against re-reading in a first programming paper.",
@@ -338,6 +355,34 @@ public static class DemoDataSeeder
                 "How firms without a designated successor plan, or avoid planning, for the owner's exit.",
                 DemoStage.EthicsWithHeadOfDepartment)
         ]);
+    }
+
+    /// <summary>
+    /// A saved set per coordinator, so the chips on Send proposals are there to be used and the
+    /// administrator's tidying screen has something to tidy. Named for a research area rather than
+    /// for the people in it, which is how somebody would actually name one.
+    /// </summary>
+    private static async Task SeedSupervisorGroupsAsync(
+        ApplicationDbContext db,
+        ApplicationUser computingCoordinator, ApplicationUser[] computingSupervisors,
+        ApplicationUser businessCoordinator, ApplicationUser[] businessSupervisors,
+        CancellationToken cancellationToken)
+    {
+        if (await db.SupervisorGroups.AnyAsync(cancellationToken)) return;
+
+        db.SupervisorGroups.AddRange(
+            Group(computingCoordinator, "Software engineering", computingSupervisors),
+            Group(computingCoordinator, "Everyone in Computing", computingSupervisors),
+            Group(businessCoordinator, "Business research", businessSupervisors));
+
+        await db.SaveChangesAsync(cancellationToken);
+
+        static SupervisorGroup Group(ApplicationUser owner, string name, ApplicationUser[] members) => new()
+        {
+            OwnerId = owner.Id,
+            Name = name,
+            Members = [.. members.Select(m => new SupervisorGroupMember { SupervisorId = m.Id })]
+        };
     }
 
     private static StudentProfile StudentProfileFor(

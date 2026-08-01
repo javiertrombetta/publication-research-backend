@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using PublicationSite.Api.Common;
 using PublicationSite.Api.DTOs.Committees;
 using PublicationSite.Api.DTOs.Ethics;
 using PublicationSite.Api.DTOs.Proposals;
@@ -25,6 +26,12 @@ public enum DemoStage
 
     /// <summary>Supervisors have said what they would take on. The Coordinator allocates.</summary>
     ProposalSelected,
+
+    /// <summary>
+    /// A round that found nobody. Everything went back to the dispatch queue, where the Coordinator
+    /// can send it to different Supervisors or ask the student to write new proposals.
+    /// </summary>
+    ProposalsReturnedUnwanted,
 
     /// <summary>Supervisor allocated; the ethics declaration is the student's next move.</summary>
     SupervisorAssigned,
@@ -155,14 +162,39 @@ public class DemoPipelineBuilder(
 
         if (plan.Stage == DemoStage.ProposalsSubmitted) return;
 
+        // A fortnight to answer, which is what the institution's own setting says and what the
+        // screen fills in. Dated rather than left open so the demonstration shows the badge the
+        // coordinator reads and the date the supervisor is held to, and so a round that goes
+        // nowhere expires the way a real one would.
         await StepAsync(() => proposals.SendToSupervisorsAsync(
             new SendToSupervisorsRequest(
                 written.Select(p => p.Id).ToList(),
                 [cast.PrimarySupervisorId, cast.AlternateSupervisorId],
-                "Sent to both Supervisors in the department for consideration."),
+                "Sent to both Supervisors in the department for consideration.",
+                DateTime.UtcNow.AddDays(SettingKeys.DefaultSupervisorResponseDays)),
             cast.CoordinatorId, ct));
 
         if (plan.Stage == DemoStage.ProposalsWithSupervisors) return;
+
+        // Nobody was interested, so the whole set went back to the dispatch queue. The coordinator
+        // either sends it to different supervisors or asks the student for new proposals, and both
+        // of those are on the Send proposals screen waiting to be tried.
+        if (plan.Stage == DemoStage.ProposalsReturnedUnwanted)
+        {
+            await StepAsync(async () =>
+            {
+                await proposals.SelectAsFeasibleAsync(written[0].Id, cast.PrimarySupervisorId,
+                    new SupervisorSelectionRequest("Interesting, but not close enough to what I supervise."), ct);
+
+                // Turning that one offer down empties the round, which is the rule: a student comes
+                // back only when nothing of theirs has anybody willing.
+                await proposals.DiscardSelectionsAsync(written[0].Id,
+                    "Neither reply engaged with the question the student is actually asking.",
+                    cast.CoordinatorId, ct);
+            });
+
+            return;
+        }
 
         // Two Supervisors answer, each backing a different proposal, so the Coordinator has a
         // genuine choice to make rather than a single option to rubber-stamp.
