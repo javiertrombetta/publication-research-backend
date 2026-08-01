@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using PublicationSite.Api.Common;
 using PublicationSite.Api.Common.Exceptions;
@@ -59,6 +60,23 @@ public class ContainerService(
         return await GetByIdInternalAsync(id, cancellationToken);
     }
 
+
+    /// <summary>
+    /// The columns a publication listing can be ordered by. Applied to the entity, before the DTO
+    /// projection: the DTO carries correlated sub-queries for its title and its waiting-on fields,
+    /// and EF Core cannot order on top of those. Applied before the page is cut, too, so "oldest
+    /// first" means the oldest of the whole list rather than of the ten rows already in hand.
+    /// </summary>
+    private static readonly Dictionary<string, Expression<Func<PublicationContainer, object?>>> SortColumns = new()
+    {
+        ["student"] = c => c.Student.LastName,
+        ["coordinator"] = c => c.Coordinator!.LastName,
+        ["supervisor"] = c => c.AssignedSupervisor!.LastName,
+        ["stage"] = c => c.CurrentPipeline,
+        ["status"] = c => c.Status,
+        ["started"] = c => c.CreatedAt
+    };
+
     public async Task<PagedResult<PublicationContainerDto>> GetMineAsync(
         Guid studentUserId, PageRequest page, CancellationToken cancellationToken = default) =>
         // Order before projecting: the DTO carries a correlated sub-query for Title, and EF Core
@@ -66,7 +84,7 @@ public class ContainerService(
         await ProjectToDto(
                 db.PublicationContainers
                     .Where(c => c.StudentId == studentUserId)
-                    .OrderByDescending(c => c.CreatedAt))
+                    .SortBy(page, c => c.CreatedAt, SortColumns))
             .ToPageAsync(page, cancellationToken);
 
     public async Task<PagedResult<PublicationContainerDto>> GetSupervisingAsync(
@@ -77,7 +95,7 @@ public class ContainerService(
                 WhereEthicsStep(
                     db.PublicationContainers.Where(c => c.AssignedSupervisorId == supervisorUserId),
                     query.EthicsStep)
-                .OrderByDescending(c => c.CreatedAt))
+                .SortBy(query, c => c.CreatedAt, SortColumns))
             .ToPageAsync(query, cancellationToken);
 
     public async Task<PagedResult<PublicationContainerDto>> GetInMyDepartmentAsync(
@@ -99,7 +117,7 @@ public class ContainerService(
                     db.PublicationContainers.Where(c => c.Student.StudentProfile != null
                                 && c.Student.StudentProfile.DepartmentId == departmentId),
                     query.EthicsStep)
-                .OrderByDescending(c => c.CreatedAt))
+                .SortBy(query, c => c.CreatedAt, SortColumns))
             .ToPageAsync(query, cancellationToken);
     }
 
@@ -176,7 +194,7 @@ public class ContainerService(
         }
 
         return await ProjectToDto(
-                WhereEthicsStep(containers, query.EthicsStep).OrderByDescending(c => c.CreatedAt))
+                WhereEthicsStep(containers, query.EthicsStep).SortBy(query, c => c.CreatedAt, SortColumns))
             .ToPageAsync(query, cancellationToken);
     }
 
