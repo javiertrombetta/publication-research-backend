@@ -4,7 +4,10 @@ namespace PublicationSite.Api.Services.Interfaces;
 
 public interface IUserService
 {
-    Task<IReadOnlyList<UserListItemDto>> GetAllAsync(string? role, string? status, string? search, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<UserListItemDto>> GetAllAsync(string? role, string? status, string? search, bool availableOnly = false, CancellationToken cancellationToken = default);
+
+    /// <summary>Sets whether this person is currently taking work on. Theirs alone to change.</summary>
+    Task SetAvailabilityAsync(Guid userId, bool isAvailable, CancellationToken cancellationToken = default);
     Task<UserDetailDto> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
     /// <summary>
     /// Creates an account and emails its owner a link to set a password.

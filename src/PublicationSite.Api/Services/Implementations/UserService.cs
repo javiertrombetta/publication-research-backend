@@ -25,9 +25,16 @@ public class UserService(
     private readonly FrontendSettings _frontend = frontendOptions.Value;
     private readonly FileStorageSettings _fileStorage = fileStorageOptions.Value;
 
-    public async Task<IReadOnlyList<UserListItemDto>> GetAllAsync(string? role, string? status, string? search, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<UserListItemDto>> GetAllAsync(
+        string? role, string? status, string? search, bool availableOnly = false,
+        CancellationToken cancellationToken = default)
     {
         var query = db.Users.AsQueryable();
+
+        // Asked for wherever the list is a list of candidates for something rather than a
+        // directory. Somebody who has said they are not taking work on should not appear in a
+        // chooser: sending them a proposal is asking a question nobody is there to answer.
+        if (availableOnly) query = query.Where(u => u.IsAvailable);
 
         if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<UserStatus>(status, true, out var statusFilter))
         {
@@ -61,7 +68,8 @@ public class UserService(
                     .Where(ur => ur.UserId == u.Id)
                     .Join(db.Roles, ur => ur.RoleId, r => r.Id, (ur, r) => r.Name!)
                     .ToList(),
-                u.CreatedAt))
+                u.CreatedAt,
+                u.IsAvailable))
             .ToListAsync(cancellationToken);
     }
 
@@ -350,6 +358,27 @@ public class UserService(
         return await ToDetailDtoAsync(user, cancellationToken);
     }
 
+    public async Task SetAvailabilityAsync(Guid userId, bool isAvailable, CancellationToken cancellationToken = default)
+    {
+        var user = await FindUserOrThrowAsync(userId, cancellationToken);
+
+        if (user.IsAvailable == isAvailable) return;
+
+        user.IsAvailable = isAvailable;
+        user.UpdatedAt = DateTime.UtcNow;
+        await db.SaveChangesAsync(cancellationToken);
+
+        // On the trail, because it explains gaps in the record: a supervisor who received nothing
+        // for a month was not being passed over, they had said they were not available.
+        await auditService.LogAuditAsync(userId, isAvailable ? "MarkedAvailable" : "MarkedUnavailable",
+            nameof(ApplicationUser), userId,
+            previousValue: (!isAvailable).ToString(),
+            newValue: isAvailable.ToString(),
+            comments: isAvailable
+                ? "Available for new work again."
+                : "Not taking new work on. Existing work is unaffected.");
+    }
+
     private async Task SetStatusAsync(Guid id, UserStatus status, string actionType, string comments, Guid actingAdminId, CancellationToken cancellationToken)
     {
         var user = await FindUserOrThrowAsync(id, cancellationToken);
@@ -408,7 +437,7 @@ public class UserService(
 
         return new UserDetailDto(user.Id, user.Email!, user.FirstName, user.LastName, user.InstitutionalId,
             user.Status.ToString(), user.AuthProvider.ToString(), roles.ToList(), user.CreatedAt, profile,
-            user.ProfilePhotoPath is not null);
+            user.ProfilePhotoPath is not null, user.IsAvailable);
     }
 
 }

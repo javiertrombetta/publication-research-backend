@@ -94,7 +94,12 @@ public class DepartmentService(ApplicationDbContext db) : IDepartmentService
             .FirstOrDefaultAsync(cancellationToken);
 
         var candidate = await db.CoordinatorProfiles
+            // Two availability checks, because they mean different things. IsAvailableForAssignment
+            // is the department's: an administrator steering new students away from a coordinator.
+            // User.IsAvailable is the coordinator's own: they are on leave. Either one is enough to
+            // pass somebody over.
             .Where(c => c.DepartmentId == departmentId && c.IsAvailableForAssignment
+                        && c.User.IsAvailable
                         && c.User.Status == UserStatus.Enabled
                         && db.UserRoles.Any(ur => ur.UserId == c.UserId && ur.RoleId == coordinatorRoleId))
             .Select(c => new

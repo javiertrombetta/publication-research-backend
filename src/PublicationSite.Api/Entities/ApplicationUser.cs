@@ -9,6 +9,22 @@ public class ApplicationUser : IdentityUser<Guid>
     public string LastName { get; set; } = string.Empty;
     public string? InstitutionalId { get; set; }
     public UserStatus Status { get; set; } = UserStatus.Pending;
+
+    /// <summary>
+    /// Whether this person is currently taking work on. Theirs to set, and separate from
+    /// <see cref="Status"/>, which is the administrator's.
+    ///
+    /// They answer different questions. Disabled means the account may not be used at all, and is
+    /// imposed. Unavailable means the person is here and working but should not be offered
+    /// anything new: on leave, at capacity, between terms. Folding the two together would mean a
+    /// supervisor going away for a month either keeps receiving proposals or loses their account.
+    ///
+    /// It lives on the user, not on a profile, because it is a fact about the person rather than
+    /// about a role they happen to hold: somebody who supervises and sits on committees is away
+    /// from both at once. Students have one too and nothing reads it, since no decision in the
+    /// system chooses a student.
+    /// </summary>
+    public bool IsAvailable { get; set; } = true;
     public AuthProvider AuthProvider { get; set; } = AuthProvider.Local;
     public string? AzureObjectId { get; set; }
 

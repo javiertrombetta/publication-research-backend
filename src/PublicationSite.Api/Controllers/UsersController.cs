@@ -89,6 +89,34 @@ public class UsersController(IUserService userService, ICurrentUserService curre
         return Ok(ApiResponse<UserDetailDto>.Ok(result, "Profile photo removed."));
     }
 
+    /// <summary>
+    /// Says whether this person is currently taking work on.
+    /// </summary>
+    /// <remarks>
+    /// Theirs alone to set, and not the same thing as an administrator enabling or disabling the
+    /// account. Disabled means the account may not be used; unavailable means the person is here
+    /// and working but should not be offered anything new, because they are on leave or at
+    /// capacity. Work already assigned is untouched either way: this governs what they are offered
+    /// next, not what they are already holding.
+    ///
+    /// Every role has it. Nothing reads a student's, since no decision in the system chooses a
+    /// student, but the control is the same one for everybody rather than a different screen per
+    /// role.
+    /// </remarks>
+    /// <response code="200">Done. The envelope carries a message saying what changed; there is no data with it.</response>
+    /// <response code="401">No access token was sent, or the one sent has expired.</response>
+    [HttpPut("me/availability")]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> SetMyAvailability([FromBody] SetAvailabilityRequest request)
+    {
+        await userService.SetAvailabilityAsync(currentUser.UserId, request.IsAvailable);
+
+        return Ok(ApiResponse.Ok(request.IsAvailable
+            ? "You are available for new work again."
+            : "You will not be offered new work. Anything already assigned to you is unaffected."));
+    }
+
     /// <summary>Streams a user's photo. Any signed-in user may read it, so avatars can be shown
     /// wherever people appear in the workflow. 404 when that user has none.</summary>
     /// <response code="200">The file itself, as an attachment.</response>
@@ -137,7 +165,8 @@ public class UsersController(IUserService userService, ICurrentUserService curre
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> GetSupervisors([FromQuery] string? search)
     {
-        var result = await userService.GetAllAsync(RoleNames.Supervisor, nameof(UserStatus.Enabled), search);
+        var result = await userService.GetAllAsync(RoleNames.Supervisor, nameof(UserStatus.Enabled), search,
+            availableOnly: true);
         return Ok(ApiResponse<IReadOnlyList<UserListItemDto>>.Ok(result));
     }
 
