@@ -12,7 +12,7 @@ public record ProposalDto(
 
 public record SaveProposalRequest(string Title, string Abstract);
 
-/// <param name="RespondBy">When the supervisors have to answer by, or null for no date. Once it passes, students with no proposal anybody offered to take on go back to the dispatch queue on their own.</param>
+/// <param name="RespondBy">When the supervisors have to answer by. Required: a round with no date never ends, and the students in it wait on people who may never reply. Once it passes, students with no proposal anybody offered to take on go back to the dispatch queue on their own.</param>
 public record SendToSupervisorsRequest(
     IReadOnlyList<Guid> ProposalIds,
     IReadOnlyList<Guid> SupervisorIds,
@@ -65,9 +65,14 @@ public record DiscardSelectionsResultDto(
     bool StudentHasNothingLeft);
 
 /// <summary>
-/// How much of the dispatch queue is there for the second time. Counted over the whole queue
-/// rather than the page in hand, because it is a figure a coordinator reads to decide what to do
-/// next and a page is not the queue.
+/// What the dispatch screen needs beyond its page of proposals: how much of the queue is there for
+/// the second time, and the answer-by date to offer for the next send.
+///
+/// Counted over the whole queue rather than the page in hand, because these are figures a
+/// coordinator reads to decide what to do next and a page is not the queue.
 /// </summary>
-public record ReturnedToDispatchSummaryDto(int Students, int Proposals);
+/// <param name="Students">Students whose round found nobody interested, so everything of theirs came back.</param>
+/// <param name="Proposals">How many proposals that comes to.</param>
+/// <param name="SuggestedRespondBy">What to fill the answer-by field in with: now plus the institution's expected supervisor response time. A starting point the coordinator can move, not a rule.</param>
+public record ReturnedToDispatchSummaryDto(int Students, int Proposals, DateTime SuggestedRespondBy);
 
