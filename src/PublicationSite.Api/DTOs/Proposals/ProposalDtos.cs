@@ -30,7 +30,7 @@ public record SupervisorInvitationDto(
 ///
 /// Exists so an overview screen can be one request instead of one per proposal. Building the
 /// coordinator's supervisor-selection page from the per-container endpoints meant a call for each
-/// publication and then a call for each of its proposals — the page cost grew with the department
+/// publication and then a call for each of its proposals, so the page cost grew with the department
 /// while showing the same handful of rows anyone could act on.
 /// </summary>
 public record ProposalWithInvitationsDto(

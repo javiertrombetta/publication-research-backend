@@ -36,8 +36,8 @@ public class UsersController(IUserService userService, ICurrentUserService curre
     }
 
     /// <summary>
-    /// Updates what somebody may change about themselves. Their department, student number and
-    /// role are not on that list — those describe their standing at the institution, and an
+    /// Updates what somebody may change about themselves. Their department, student number and role
+    /// are not on that list, because those describe their standing at the institution and an
     /// administrator maintains them.
     /// </summary>
     /// <response code="200">The account.</response>
@@ -55,7 +55,7 @@ public class UsersController(IUserService userService, ICurrentUserService curre
         return Ok(ApiResponse<UserDetailDto>.Ok(result));
     }
 
-    /// <summary>Any signed-in user manages their own profile photo — this is not role-specific.</summary>
+    /// <summary>Any signed-in user manages their own profile photo, so this is not role-specific.</summary>
     /// <response code="200">The account.</response>
     /// <response code="400">The request did not pass validation. Which field, and why, comes back as a problem document rather than the usual envelope.</response>
     /// <response code="401">No access token was sent, or the one sent has expired.</response>
@@ -90,7 +90,7 @@ public class UsersController(IUserService userService, ICurrentUserService curre
     }
 
     /// <summary>Streams a user's photo. Any signed-in user may read it, so avatars can be shown
-    /// wherever people appear in the workflow — 404 when that user has none.</summary>
+    /// wherever people appear in the workflow. 404 when that user has none.</summary>
     /// <response code="200">The file itself, as an attachment.</response>
     /// <response code="401">No access token was sent, or the one sent has expired.</response>
     /// <response code="404">No application user with that id.</response>
@@ -161,14 +161,14 @@ public class UsersController(IUserService userService, ICurrentUserService curre
     }
 
     /// <summary>
-    /// Creates an account directly, for when inviting somebody is not what is wanted. The role
-    /// is given rather than derived, and the roles that belong to a department require one.
+    /// Creates an account directly, for when inviting somebody is not what is wanted. The role is
+    /// given rather than derived, and the roles that belong to a department require one.
     /// </summary>
     /// <response code="201">The account was created. Its id is in the body, and the Location header points at it.</response>
     /// <response code="400">The request did not pass validation. Which field, and why, comes back as a problem document rather than the usual envelope.</response>
     /// <response code="401">No access token was sent, or the one sent has expired.</response>
     /// <response code="403">Signed in, but this is not something your role may do.</response>
-    /// <response code="409">It is already recorded — this has been done, or created, before.</response>
+    /// <response code="409">It is already recorded. This has been done, or created, before.</response>
     /// <response code="422">Understood, and refused: the workflow does not allow this at the point it has reached.</response>
     [HttpPost]
     [Authorize(Roles = RoleNames.Admin)]
@@ -212,20 +212,20 @@ public class UsersController(IUserService userService, ICurrentUserService curre
     }
 
     /// <summary>
-    /// Moves an account to a different role, creating whatever profile the new role needs
-    /// before the role itself changes — a role granted without the profile it depends on leaves
-    /// an account that cannot do its job.
+    /// Moves an account to a different role, creating whatever profile the new role needs before
+    /// the role itself changes. A role granted without the profile it depends on leaves an account
+    /// that cannot do its job.
     /// </summary>
     /// <remarks>
-    /// Profiles are never deleted on the way out. Work already allocated points at them, so the
-    /// old one is kept and simply stops being used.
+    /// Profiles are never deleted on the way out. Work already allocated points at them, so the old
+    /// one is kept and simply stops being used.
     /// </remarks>
     /// <response code="200">Done. The envelope carries a message saying what changed; there is no data with it.</response>
     /// <response code="400">The request did not pass validation. Which field, and why, comes back as a problem document rather than the usual envelope.</response>
     /// <response code="401">No access token was sent, or the one sent has expired.</response>
     /// <response code="403">Signed in, but this is not something your role may do.</response>
     /// <response code="404">No application user with that id.</response>
-    /// <response code="409">It is already recorded — this has been done, or created, before.</response>
+    /// <response code="409">It is already recorded. This has been done, or created, before.</response>
     /// <response code="422">Understood, and refused: the workflow does not allow this at the point it has reached.</response>
     [HttpPut("{id:guid}/role")]
     [Authorize(Roles = RoleNames.Admin)]
@@ -286,7 +286,7 @@ public class UsersController(IUserService userService, ICurrentUserService curre
     }
 
     /// <summary>
-    /// Sets a password on somebody's behalf, for when they cannot use the emailed reset — a new
+    /// Sets a password on somebody's behalf, for when they cannot use the emailed reset: a new
     /// external member who never received it, or an address that no longer works.
     /// </summary>
     /// <response code="200">Done. The envelope carries a message saying what changed; there is no data with it.</response>
@@ -311,8 +311,8 @@ public class UsersController(IUserService userService, ICurrentUserService curre
 
     /// <summary>
     /// Retires an account for good: it is anonymised and locked rather than removed, because
-    /// everything it touched — proposals, reviews, decisions, the audit trail — refers to it
-    /// and must keep making sense. Requires a reason, which is recorded against the trail that
+    /// everything it touched refers to it and must keep making sense: proposals, reviews,
+    /// decisions, the audit trail. Requires a reason, which is recorded against the trail that
     /// outlives the account.
     /// </summary>
     /// <response code="200">Done. The envelope carries a message saying what changed; there is no data with it.</response>

@@ -122,7 +122,7 @@ public class ProposalsController(IProposalService proposalService, ICurrentUserS
         return Ok(ApiResponse.Ok("Student asked to resubmit proposals."));
     }
     /// <summary>
-    /// The publications with proposals in this coordinator's hands, one page at a time — either
+    /// The publications with proposals in this coordinator's hands, one page at a time: either
     /// everything they hold, or only those still needing a supervisor allocated.
     /// </summary>
     /// <response code="200">One page of proposals with the supervisors invited to them, with the total count alongside it so a pager can be drawn without a second request.</response>
@@ -215,8 +215,8 @@ public class ProposalsController(IProposalService proposalService, ICurrentUserS
         return Ok(ApiResponse<IReadOnlyList<ProposalDto>>.Ok(result));
     }
     /// <summary>
-    /// The supervisor's answer: they could supervise this, or they could not, with their
-    /// reasoning. It is an expression of interest — the coordinator still chooses who gets it.
+    /// The supervisor's answer: they could supervise this, or they could not, with their reasoning.
+    /// It is an expression of interest, and the coordinator still chooses who gets it.
     /// </summary>
     /// <response code="200">Done. The envelope carries a message saying what changed; there is no data with it.</response>
     /// <response code="400">The request did not pass validation. Which field, and why, comes back as a problem document rather than the usual envelope.</response>
@@ -275,7 +275,7 @@ public class ProposalsController(IProposalService proposalService, ICurrentUserS
         return Ok(ApiResponse.Ok("Supervisor assigned."));
     }
     /// <summary>
-    /// Holds a publication over to the next cycle when no supervisor could take it — better
+    /// Holds a publication over to the next cycle when no supervisor could take it, which is better
     /// than refusing work nobody was available for.
     /// </summary>
     /// <response code="200">Done. The envelope carries a message saying what changed; there is no data with it.</response>

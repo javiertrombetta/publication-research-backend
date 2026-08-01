@@ -23,7 +23,7 @@ public record SupervisorRequirementDecisionRequest(bool IsRequired, string Comme
 
 /// <summary>
 /// One document this publication has been asked for, and whether it has arrived. Carries the
-/// requirement's id because that is what an upload is addressed to — names can be edited.
+/// requirement's id because that is what an upload is addressed to, and names can be edited.
 /// </summary>
 public record RequiredEthicsDocumentDto(
     Guid RequirementId,

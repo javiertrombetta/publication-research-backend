@@ -78,8 +78,7 @@ public class SettingsController(
     // ---------- Passwords ----------
 
     /// <summary>
-    /// The password rules accounts are held to — length, and which kinds of character are
-    /// required.
+    /// The password rules accounts are held to: length, and which kinds of character are required.
     /// </summary>
     /// <response code="200">The password settings.</response>
     /// <response code="401">No access token was sent, or the one sent has expired.</response>
@@ -136,7 +135,7 @@ public class SettingsController(
     }
 
     /// <summary>
-    /// Changes that. Turning email off does not lose the notification — it still appears in the
+    /// Changes that. Turning email off does not lose the notification, which still appears in the
     /// bell.
     /// </summary>
     /// <response code="200">The notification settings.</response>
@@ -182,7 +181,7 @@ public class SettingsController(
     /// <response code="400">The request did not pass validation. Which field, and why, comes back as a problem document rather than the usual envelope.</response>
     /// <response code="401">No access token was sent, or the one sent has expired.</response>
     /// <response code="403">Signed in, but this is not something your role may do.</response>
-    /// <response code="409">It is already recorded — this has been done, or created, before.</response>
+    /// <response code="409">It is already recorded. This has been done, or created, before.</response>
     [HttpPost("ethics-documents")]
     [ProducesResponseType(typeof(ApiResponse<EthicsDocumentRequirementDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
@@ -197,15 +196,15 @@ public class SettingsController(
     }
 
     /// <summary>
-    /// Renames or re-describes a document. Publications that already recorded it keep the name
-    /// they recorded.
+    /// Renames or re-describes a document. Publications that already recorded it keep the name they
+    /// recorded.
     /// </summary>
     /// <response code="200">The ethics document requirement.</response>
     /// <response code="400">The request did not pass validation. Which field, and why, comes back as a problem document rather than the usual envelope.</response>
     /// <response code="401">No access token was sent, or the one sent has expired.</response>
     /// <response code="403">Signed in, but this is not something your role may do.</response>
     /// <response code="404">No ethics document requirement with that id.</response>
-    /// <response code="409">It is already recorded — this has been done, or created, before.</response>
+    /// <response code="409">It is already recorded. This has been done, or created, before.</response>
     [HttpPut("ethics-documents/{id:guid}")]
     [ProducesResponseType(typeof(ApiResponse<EthicsDocumentRequirementDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
@@ -260,8 +259,7 @@ public class SettingsController(
     }
 
     /// <summary>
-    /// Changes that — including whether the public catalogue exists for anonymous visitors at
-    /// all.
+    /// Changes that, including whether the public catalogue exists for anonymous visitors at all.
     /// </summary>
     /// <response code="200">The access settings.</response>
     /// <response code="400">The request did not pass validation. Which field, and why, comes back as a problem document rather than the usual envelope.</response>

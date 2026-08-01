@@ -1,11 +1,10 @@
 namespace PublicationSite.Api.DTOs.Auth;
 
 /// <summary>
-/// An invitation as an administrator sees it. The token is absent by design — it exists only in
-/// the email that was sent, so an administrator reading this list cannot accept on someone's
-/// behalf.
+/// An invitation as an administrator sees it. The token is absent by design. It exists only in the
+/// email that was sent, so an administrator reading this list cannot accept on someone's behalf.
 /// </summary>
-/// <param name="Status"><summary>Pending, Accepted, Revoked or Expired — what the administrator actually reads.</summary></param>
+/// <param name="Status"><summary>Pending, Accepted, Revoked or Expired, which is what the administrator actually reads.</summary></param>
 public record UserInvitationDto(
     Guid Id,
     string Email,
@@ -23,7 +22,7 @@ public record UserInvitationDto(
 
 /// <summary>
 /// <paramref name="Role"/> is chosen by the administrator as they send it, which is what lets an
-/// invitation reach someone with no institutional address — an external committee member has no
+/// invitation reach someone with no institutional address. An external committee member has no
 /// email domain to be judged by.
 /// </summary>
 public record CreateInvitationRequest(

@@ -12,7 +12,7 @@ namespace PublicationSite.Api.Controllers;
 /// workflow and its paper. A student may have several at once, each at its own stage.
 ///
 /// Opening one allocates a coordinator by departmental workload and records the committee rules in
-/// force that day. What can be read of one depends on who is asking — its student, their supervisor
+/// force that day. What can be read of one depends on who is asking: its student, their supervisor
 /// and coordinator, the head of that department, its committee, or an administrator.
 /// </summary>
 [ApiController]
@@ -21,12 +21,12 @@ namespace PublicationSite.Api.Controllers;
 public class ContainersController(IContainerService containerService, ICurrentUserService currentUser) : ControllerBase
 {
     /// <summary>
-    /// Starts a publication. A student may run several at once, each with its own proposals,
-    /// ethics workflow and paper, so there is no cap.
+    /// Starts a publication. A student may run several at once, each with its own proposals, ethics
+    /// workflow and paper, so there is no cap.
     /// </summary>
     /// <remarks>
     /// A coordinator is allocated automatically by department workload, and the committee
-    /// composition in force today is recorded on it — a publication runs for months, and an
+    /// composition in force today is recorded on it. A publication runs for months, and an
     /// administrator changing the rules in March must not change them for research started in
     /// January.
     /// </remarks>
@@ -82,7 +82,7 @@ public class ContainersController(IContainerService containerService, ICurrentUs
     }
 
     /// <summary>
-    /// The publications of students in the department this person heads — and only that
+    /// The publications of students in the department this person heads, and only that
     /// department's.
     /// </summary>
     /// <response code="200">One page of publications, with the total count alongside it so a pager can be drawn without a second request.</response>
@@ -141,9 +141,9 @@ public class ContainersController(IContainerService containerService, ICurrentUs
     }
 
     /// <summary>
-    /// Everything that has happened to this publication, newest first — who did it, in what
-    /// capacity, and the comment that justified it. This is what makes a decision explicable
-    /// months later.
+    /// Everything that has happened to this publication, newest first: who did it, in what
+    /// capacity, and the comment that justified it. This is what makes a decision explicable months
+    /// later.
     /// </summary>
     /// <response code="200">The matching activity history entrys, all of them.</response>
     /// <response code="401">No access token was sent, or the one sent has expired.</response>

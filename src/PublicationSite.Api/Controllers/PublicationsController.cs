@@ -103,8 +103,8 @@ public class PublicationsController(IPublicationService publicationService, ICur
     }
 
     /// <summary>
-    /// Uploads a new version of the paper. Earlier versions are kept rather than replaced — a
-    /// reviewer's comments refer to the version they read, and that has to remain retrievable.
+    /// Uploads a new version of the paper. Earlier versions are kept rather than replaced, because
+    /// a reviewer's comments refer to the version they read and that has to remain retrievable.
     /// </summary>
     /// <response code="200">The publication version.</response>
     /// <response code="400">The request did not pass validation. Which field, and why, comes back as a problem document rather than the usual envelope.</response>
@@ -200,10 +200,9 @@ public class PublicationsController(IPublicationService publicationService, ICur
     }
 
     /// <summary>
-    /// The papers a supervisor has accepted that still have no evaluation committee — the
-    /// administrator's queue. Answered in one request, because reconstructing it from the
-    /// container listing missed the supervisor's approval and offered papers that would then be
-    /// refused.
+    /// The papers a supervisor has accepted that still have no evaluation committee, which is the
+    /// administrator's queue. Answered in one request, because reconstructing it from the container
+    /// listing missed the supervisor's approval and offered papers that would then be refused.
     /// </summary>
     /// <response code="200">The matching awaiting committees, all of them.</response>
     /// <response code="401">No access token was sent, or the one sent has expired.</response>
@@ -246,7 +245,7 @@ public class PublicationsController(IPublicationService publicationService, ICur
 
     /// <summary>
     /// The file itself, for anyone who can see the publication. Distinct from the catalogue's
-    /// download, which serves published papers to readers — this serves unpublished ones to the
+    /// download, which serves published papers to readers. This serves unpublished ones to the
     /// people who have to judge them.
     /// </summary>
     /// <response code="200">The file itself, as an attachment.</response>
@@ -265,8 +264,8 @@ public class PublicationsController(IPublicationService publicationService, ICur
     }
 
     /// <summary>
-    /// Every review recorded against this paper — the supervisor's, each committee member's,
-    /// and the coordinator's — with the comments behind each one.
+    /// Every review recorded against this paper, with the comments behind each one: the
+    /// supervisor's, each committee member's, and the coordinator's.
     /// </summary>
     /// <response code="200">The matching reviews, all of them.</response>
     /// <response code="401">No access token was sent, or the one sent has expired.</response>

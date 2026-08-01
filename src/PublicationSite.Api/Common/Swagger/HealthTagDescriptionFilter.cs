@@ -10,8 +10,8 @@ namespace PublicationSite.Api.Common.Swagger;
 /// the controller class and its response descriptions on <c>[ProducesResponseType]</c> plus a
 /// <c>&lt;response&gt;</c> comment. <c>/health</c> is a minimal endpoint: no class, no attributes,
 /// nowhere to write either. Left alone it is the one heading in the document with nothing under it
-/// and the one response still labelled "Success" — which is the gap all the other descriptions
-/// were written to close.
+/// and the one response still labelled "Success", which is the gap all the other descriptions were
+/// written to close.
 /// </summary>
 public class HealthTagDescriptionFilter : IDocumentFilter
 {
@@ -26,7 +26,7 @@ public class HealthTagDescriptionFilter : IDocumentFilter
                 Name = "Health",
                 Description =
                     "Whether the API is up. Read by the host that decides whether to keep the process " +
-                    "running, so it answers from the server alone and queries nothing — a check that " +
+                    "running, so it answers from the server alone and queries nothing. A check that " +
                     "touched the database would report the API down whenever the database was merely " +
                     "slow, and the host would restart something that was working."
             });
