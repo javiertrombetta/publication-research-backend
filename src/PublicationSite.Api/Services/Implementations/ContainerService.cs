@@ -223,16 +223,25 @@ public class ContainerService(
         // everything is the safer answer than returning nothing.
         if (wanted != RoleNames.Coordinator) return query;
 
+        // The negation is "a paper under review that is somebody else's turn", not "everything that
+        // is not the coordinator's turn". Those differ by every publication with no paper at all,
+        // every draft and everything already published, and the screen that asks for it is showing
+        // papers in flight. Written into the filter rather than left to the caller, because the
+        // total the pager reports comes from here: a list filtered again after the page was cut
+        // says nineteen and shows three.
         return negate
-            ? query.Where(c => !(c.Publication != null
-                && c.Publication.Status == PublicationStatus.UnderReview
-                && c.Publication.Versions
-                    .OrderByDescending(v => v.VersionNumber)
-                    .Take(1)
-                    .SelectMany(v => v.Reviews)
-                    .Any(r => r.ReviewerType == ReviewerType.Supervisor && r.Decision == ReviewDecision.Approve)
-                && c.Publication.Committee != null
-                && c.Publication.Committee.Status == CommitteeStatus.Completed))
+            ? query.Where(c => c.Publication != null
+                && (c.Publication.Status == PublicationStatus.UnderReview
+                    || c.Publication.Status == PublicationStatus.Resubmitted
+                    || c.Publication.Status == PublicationStatus.RevisionsRequested)
+                && !(c.Publication.Status == PublicationStatus.UnderReview
+                    && c.Publication.Versions
+                        .OrderByDescending(v => v.VersionNumber)
+                        .Take(1)
+                        .SelectMany(v => v.Reviews)
+                        .Any(r => r.ReviewerType == ReviewerType.Supervisor && r.Decision == ReviewDecision.Approve)
+                    && c.Publication.Committee != null
+                    && c.Publication.Committee.Status == CommitteeStatus.Completed))
             : query.Where(c => c.Publication != null
                 && c.Publication.Status == PublicationStatus.UnderReview
                 && c.Publication.Versions
@@ -245,8 +254,12 @@ public class ContainerService(
     }
 
     /// <summary>
-    /// One term across the student's name, the publication's title and its abstract. Separate
-    /// boxes would make a reader decide which of those they were remembering before they could
+    /// One term across everything a reader might be holding in mind: the student's name, the
+    /// paper's title and abstract, the proposals under it, and the people who have reviewed it.
+    ///
+    /// The reviewers are in there because the coordinator's paper queue is often searched by who
+    /// looked at something rather than by what it was called: "the one Okoro sent back". Separate
+    /// boxes would make somebody decide which of those they were remembering before they could
     /// start typing.
     /// </summary>
     private static IQueryable<PublicationContainer> WhereMatches(
@@ -261,7 +274,9 @@ public class ContainerService(
             || c.Student.LastName.Contains(term)
             || (c.Publication != null && (c.Publication.Title.Contains(term)
                                           || c.Publication.Abstract.Contains(term)))
-            || c.Proposals.Any(p => p.Title.Contains(term) || p.Abstract.Contains(term)));
+            || c.Proposals.Any(p => p.Title.Contains(term) || p.Abstract.Contains(term))
+            || (c.Publication != null && c.Publication.Versions.Any(v => v.Reviews.Any(r =>
+                r.ReviewerUser.FirstName.Contains(term) || r.ReviewerUser.LastName.Contains(term)))));
     }
 
     /// <summary>

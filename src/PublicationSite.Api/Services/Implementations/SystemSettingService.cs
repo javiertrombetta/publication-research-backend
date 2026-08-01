@@ -347,6 +347,7 @@ public class SystemSettingService(
             await settings.GetStringAsync(SettingKeys.ResearchEnquiriesEmail, cancellationToken),
             await settings.GetStringAsync(SettingKeys.PrivacyPolicyUrl, cancellationToken),
             await settings.GetStringAsync(SettingKeys.CurrentAcademicCycle, cancellationToken),
+            await settings.GetStringAsync(SettingKeys.WebsiteUrl, cancellationToken),
             (await settings.GetStringAsync(SettingKeys.RegistrationMode, cancellationToken)
              ?? EnvironmentRegistrationDefault) == SettingKeys.RegistrationModeOpen,
             // Carried on the anonymous response because the landing page has to be decided before
@@ -379,6 +380,7 @@ public class SystemSettingService(
         await SetPendingAsync(SettingKeys.ResearchEnquiriesEmail, request.ResearchEnquiriesEmail?.Trim() ?? string.Empty, actingAdminId, cancellationToken);
         await SetPendingAsync(SettingKeys.PrivacyPolicyUrl, request.PrivacyPolicyUrl?.Trim() ?? string.Empty, actingAdminId, cancellationToken);
         await SetPendingAsync(SettingKeys.CurrentAcademicCycle, request.CurrentAcademicCycle?.Trim() ?? string.Empty, actingAdminId, cancellationToken);
+        await SetPendingAsync(SettingKeys.WebsiteUrl, request.WebsiteUrl?.Trim() ?? string.Empty, actingAdminId, cancellationToken);
 
         await CommitAsync(actingAdminId, "InstitutionSettingsUpdated",
             $"Student addresses end in {studentDomain} and staff addresses in {staffDomain}." +
