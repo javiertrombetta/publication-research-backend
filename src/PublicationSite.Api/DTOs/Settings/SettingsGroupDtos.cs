@@ -120,6 +120,7 @@ public record InstitutionSettingsDto(
     string? ResearchEnquiriesEmail,
     string? PrivacyPolicyUrl,
     string? CurrentAcademicCycle,
+    string? WebsiteUrl = null,
     bool SelfRegistrationOpen = false,
     bool PublicCatalogueEnabled = true);
 
@@ -130,7 +131,8 @@ public record UpdateInstitutionSettingsRequest(
     string? ItSupportEmail,
     string? ResearchEnquiriesEmail,
     string? PrivacyPolicyUrl,
-    string? CurrentAcademicCycle);
+    string? CurrentAcademicCycle,
+    string? WebsiteUrl = null);
 
 /// <summary>
 /// How long each stage is expected to take. Zero means nothing is ever reported late for it.

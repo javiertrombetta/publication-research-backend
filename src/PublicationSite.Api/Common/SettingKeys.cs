@@ -181,6 +181,16 @@ public static class SettingKeys
     public const string PrivacyPolicyUrl = "institution.privacy-policy-url";
 
     /// <summary>
+    /// The institution's own website, where its contact details live.
+    ///
+    /// Somewhere to send a member of the public who wants the full text of a paper and finds no
+    /// enquiries address published. Telling them to get in touch "through the usual channels" is
+    /// not an answer to anybody who does not already know what those are, and a telephone number
+    /// hardcoded in a view would outlive its accuracy. A URL an administrator maintains does not.
+    /// </summary>
+    public const string WebsiteUrl = "institution.website-url";
+
+    /// <summary>
     /// The intake now running, as people say it: "2026 Semester 2". A proposal deferred to the next
     /// cycle is deferred to something, and nothing in the system said what.
     /// </summary>
