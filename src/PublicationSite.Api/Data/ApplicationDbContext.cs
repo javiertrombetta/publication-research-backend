@@ -28,6 +28,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<ResearchProposal> ResearchProposals => Set<ResearchProposal>();
     public DbSet<ProposalSupervisorSelection> ProposalSupervisorSelections => Set<ProposalSupervisorSelection>();
     public DbSet<ProposalAssignment> ProposalAssignments => Set<ProposalAssignment>();
+    public DbSet<SupervisorGroup> SupervisorGroups => Set<SupervisorGroup>();
+    public DbSet<SupervisorGroupMember> SupervisorGroupMembers => Set<SupervisorGroupMember>();
 
     public DbSet<EthicsDeclaration> EthicsDeclarations => Set<EthicsDeclaration>();
     public DbSet<EthicsApproval> EthicsApprovals => Set<EthicsApproval>();

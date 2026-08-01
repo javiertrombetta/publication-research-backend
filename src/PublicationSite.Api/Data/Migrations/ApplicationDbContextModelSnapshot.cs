@@ -1216,6 +1216,49 @@ namespace PublicationSite.Api.Data.Migrations
                     b.ToTable("StudentProfiles");
                 });
 
+            modelBuilder.Entity("PublicationSite.Api.Entities.SupervisorGroup", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("varchar(80)");
+
+                    b.Property<Guid>("OwnerId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OwnerId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("SupervisorGroups");
+                });
+
+            modelBuilder.Entity("PublicationSite.Api.Entities.SupervisorGroupMember", b =>
+                {
+                    b.Property<Guid>("SupervisorGroupId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<Guid>("SupervisorId")
+                        .HasColumnType("char(36)");
+
+                    b.HasKey("SupervisorGroupId", "SupervisorId");
+
+                    b.HasIndex("SupervisorId");
+
+                    b.ToTable("SupervisorGroupMembers");
+                });
+
             modelBuilder.Entity("PublicationSite.Api.Entities.SupervisorProfile", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1842,6 +1885,36 @@ namespace PublicationSite.Api.Data.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("PublicationSite.Api.Entities.SupervisorGroup", b =>
+                {
+                    b.HasOne("PublicationSite.Api.Entities.ApplicationUser", "Owner")
+                        .WithMany()
+                        .HasForeignKey("OwnerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Owner");
+                });
+
+            modelBuilder.Entity("PublicationSite.Api.Entities.SupervisorGroupMember", b =>
+                {
+                    b.HasOne("PublicationSite.Api.Entities.SupervisorGroup", "SupervisorGroup")
+                        .WithMany("Members")
+                        .HasForeignKey("SupervisorGroupId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("PublicationSite.Api.Entities.ApplicationUser", "Supervisor")
+                        .WithMany()
+                        .HasForeignKey("SupervisorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Supervisor");
+
+                    b.Navigation("SupervisorGroup");
+                });
+
             modelBuilder.Entity("PublicationSite.Api.Entities.SupervisorProfile", b =>
                 {
                     b.HasOne("PublicationSite.Api.Entities.Department", "Department")
@@ -1989,6 +2062,11 @@ namespace PublicationSite.Api.Data.Migrations
                     b.Navigation("Assignment");
 
                     b.Navigation("SupervisorSelections");
+                });
+
+            modelBuilder.Entity("PublicationSite.Api.Entities.SupervisorGroup", b =>
+                {
+                    b.Navigation("Members");
                 });
 #pragma warning restore 612, 618
         }

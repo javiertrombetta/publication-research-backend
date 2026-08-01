@@ -158,6 +158,7 @@ builder.Services.AddScoped<IDepartmentService, DepartmentService>();
 builder.Services.AddScoped<IContainerAccessService, ContainerAccessService>();
 builder.Services.AddScoped<IContainerService, ContainerService>();
 builder.Services.AddScoped<IProposalService, ProposalService>();
+builder.Services.AddScoped<ISupervisorGroupService, SupervisorGroupService>();
 builder.Services.AddScoped<IEthicsService, EthicsService>();
 builder.Services.AddScoped<IPublicationService, PublicationService>();
 builder.Services.AddScoped<ICommitteeService, CommitteeService>();
