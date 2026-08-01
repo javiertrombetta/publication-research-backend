@@ -73,4 +73,18 @@ public class ContainerQuery : PageRequest
     public IReadOnlyList<string>? EthicsStep => string.IsNullOrWhiteSpace(EthicsSteps)
         ? null
         : EthicsSteps.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+    /// <summary>
+    /// Whose turn it is on the research paper, as a role name, so a screen can ask for its own
+    /// queue instead of everything. <c>!</c> in front of a name asks for the opposite: the paper
+    /// listings are two lists side by side, one the coordinator can act on and one they are only
+    /// watching, and each has to be a page of its own or neither can be paged at all.
+    /// </summary>
+    public string? PaperAwaiting { get; set; }
+
+    /// <summary>
+    /// A word to look for in the student's name, the publication's title or its abstract. One term
+    /// across all three, because somebody hunting for a row remembers whichever of them stuck.
+    /// </summary>
+    public string? Search { get; set; }
 }

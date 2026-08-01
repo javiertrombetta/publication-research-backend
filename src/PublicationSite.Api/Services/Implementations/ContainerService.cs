@@ -193,9 +193,75 @@ public class ContainerService(
             containers = containers.Where(c => c.Status == statusFilter);
         }
 
+        containers = WherePaperAwaiting(containers, query.PaperAwaiting);
+        containers = WhereMatches(containers, query.Search);
+
         return await ProjectToDto(
                 WhereEthicsStep(containers, query.EthicsStep).SortBy(query, c => c.CreatedAt, SortColumns))
             .ToPageAsync(query, cancellationToken);
+    }
+
+    /// <summary>
+    /// Narrows to the publications whose research paper is waiting on a particular role, or on
+    /// anybody but that role when the name is prefixed with <c>!</c>.
+    ///
+    /// Expressed against the entity for the same reason as the ethics filter: the role name in the
+    /// DTO is a CASE built during projection, and EF Core cannot filter on it afterwards. The two
+    /// stay in step by construction, because both are written from the same conditions.
+    /// </summary>
+    private static IQueryable<PublicationContainer> WherePaperAwaiting(
+        IQueryable<PublicationContainer> query, string? role)
+    {
+        if (string.IsNullOrWhiteSpace(role)) return query;
+
+        var negate = role.StartsWith('!');
+        var wanted = negate ? role[1..] : role;
+
+        // Only the coordinator's turn is asked for today, and it is the last of the four waits
+        // UnderReview covers: a supervisor has approved the latest version, a committee exists, and
+        // it has finished voting. Any other name is not a filter this endpoint knows, and returning
+        // everything is the safer answer than returning nothing.
+        if (wanted != RoleNames.Coordinator) return query;
+
+        return negate
+            ? query.Where(c => !(c.Publication != null
+                && c.Publication.Status == PublicationStatus.UnderReview
+                && c.Publication.Versions
+                    .OrderByDescending(v => v.VersionNumber)
+                    .Take(1)
+                    .SelectMany(v => v.Reviews)
+                    .Any(r => r.ReviewerType == ReviewerType.Supervisor && r.Decision == ReviewDecision.Approve)
+                && c.Publication.Committee != null
+                && c.Publication.Committee.Status == CommitteeStatus.Completed))
+            : query.Where(c => c.Publication != null
+                && c.Publication.Status == PublicationStatus.UnderReview
+                && c.Publication.Versions
+                    .OrderByDescending(v => v.VersionNumber)
+                    .Take(1)
+                    .SelectMany(v => v.Reviews)
+                    .Any(r => r.ReviewerType == ReviewerType.Supervisor && r.Decision == ReviewDecision.Approve)
+                && c.Publication.Committee != null
+                && c.Publication.Committee.Status == CommitteeStatus.Completed);
+    }
+
+    /// <summary>
+    /// One term across the student's name, the publication's title and its abstract. Separate
+    /// boxes would make a reader decide which of those they were remembering before they could
+    /// start typing.
+    /// </summary>
+    private static IQueryable<PublicationContainer> WhereMatches(
+        IQueryable<PublicationContainer> query, string? search)
+    {
+        if (string.IsNullOrWhiteSpace(search)) return query;
+
+        var term = search.Trim();
+
+        return query.Where(c =>
+            c.Student.FirstName.Contains(term)
+            || c.Student.LastName.Contains(term)
+            || (c.Publication != null && (c.Publication.Title.Contains(term)
+                                          || c.Publication.Abstract.Contains(term)))
+            || c.Proposals.Any(p => p.Title.Contains(term) || p.Abstract.Contains(term)));
     }
 
     /// <summary>
