@@ -15,7 +15,8 @@ public class ProposalService(
     ApplicationDbContext db,
     IContainerAccessService accessService,
     IAuditService auditService,
-    INotificationService notificationService) : IProposalService
+    INotificationService notificationService,
+    ISystemSettingsProvider settings) : IProposalService
 {
     public async Task<ProposalDto> CreateAsync(Guid publicationContainerId, Guid studentId, SaveProposalRequest request, CancellationToken cancellationToken = default)
     {
@@ -182,7 +183,17 @@ public class ProposalService(
             .Distinct()
             .CountAsync(cancellationToken);
 
-        return new ReturnedToDispatchSummaryDto(students, await returned.CountAsync(cancellationToken));
+        // The date to offer for the next send, from the institution's own expectation of how long a
+        // supervisor takes to answer. That figure existed as an administrator setting and nothing
+        // read it; a coordinator typing a date by hand every time was choosing a policy the
+        // institution had already chosen.
+        var days = await settings.GetIntAsync(
+            SettingKeys.SupervisorResponseDays, SettingKeys.DefaultSupervisorResponseDays, cancellationToken);
+
+        return new ReturnedToDispatchSummaryDto(
+            students,
+            await returned.CountAsync(cancellationToken),
+            DateTime.UtcNow.AddDays(days <= 0 ? SettingKeys.DefaultSupervisorResponseDays : days));
     }
 
     public async Task<PagedResult<ProposalWithInvitationsDto>> GetForCoordinatorAsync(
