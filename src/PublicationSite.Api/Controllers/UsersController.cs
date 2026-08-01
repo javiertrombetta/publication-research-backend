@@ -13,6 +13,9 @@ namespace PublicationSite.Api.Controllers;
 [Authorize]
 public class UsersController(IUserService userService, ICurrentUserService currentUser) : ControllerBase
 {
+    /// <summary>
+    /// The signed-in user's own account and whichever profile their role carries.
+    /// </summary>
     [HttpGet("me")]
     [ProducesResponseType(typeof(ApiResponse<UserDetailDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetMe()
@@ -21,6 +24,11 @@ public class UsersController(IUserService userService, ICurrentUserService curre
         return Ok(ApiResponse<UserDetailDto>.Ok(result));
     }
 
+    /// <summary>
+    /// Updates what somebody may change about themselves. Their department, student number and
+    /// role are not on that list — those describe their standing at the institution, and an
+    /// administrator maintains them.
+    /// </summary>
     [HttpPut("me")]
     [ProducesResponseType(typeof(ApiResponse<UserDetailDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> UpdateMe([FromBody] UpdateMyProfileRequest request)
@@ -40,6 +48,9 @@ public class UsersController(IUserService userService, ICurrentUserService curre
         return Ok(ApiResponse<UserDetailDto>.Ok(result, "Profile photo updated."));
     }
 
+    /// <summary>
+    /// Removes it, and deletes the stored file rather than only forgetting where it was.
+    /// </summary>
     [HttpDelete("me/photo")]
     [ProducesResponseType(typeof(ApiResponse<UserDetailDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> DeleteMyPhoto()
@@ -58,6 +69,9 @@ public class UsersController(IUserService userService, ICurrentUserService curre
         return File(content, contentType);
     }
 
+    /// <summary>
+    /// The user directory, filtered by role, status and a search over name and address.
+    /// </summary>
     [HttpGet]
     [Authorize(Roles = RoleNames.Admin)]
     [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<UserListItemDto>>), StatusCodes.Status200OK)]
@@ -82,6 +96,9 @@ public class UsersController(IUserService userService, ICurrentUserService curre
         return Ok(ApiResponse<IReadOnlyList<UserListItemDto>>.Ok(result));
     }
 
+    /// <summary>
+    /// One account in full, with its profile and its history.
+    /// </summary>
     [HttpGet("{id:guid}")]
     [Authorize(Roles = RoleNames.Admin)]
     [ProducesResponseType(typeof(ApiResponse<UserDetailDto>), StatusCodes.Status200OK)]
@@ -91,6 +108,10 @@ public class UsersController(IUserService userService, ICurrentUserService curre
         return Ok(ApiResponse<UserDetailDto>.Ok(result));
     }
 
+    /// <summary>
+    /// Creates an account directly, for when inviting somebody is not what is wanted. The role
+    /// is given rather than derived, and the roles that belong to a department require one.
+    /// </summary>
     [HttpPost]
     [Authorize(Roles = RoleNames.Admin)]
     [ProducesResponseType(typeof(ApiResponse<UserDetailDto>), StatusCodes.Status200OK)]
@@ -105,6 +126,10 @@ public class UsersController(IUserService userService, ICurrentUserService curre
                   "Check the mail server under System settings, then reset their password to send it again."));
     }
 
+    /// <summary>
+    /// Corrects somebody's name or institutional identifier. Requires a reason, which is
+    /// recorded.
+    /// </summary>
     [HttpPut("{id:guid}")]
     [Authorize(Roles = RoleNames.Admin)]
     [ProducesResponseType(typeof(ApiResponse<UserDetailDto>), StatusCodes.Status200OK)]
@@ -114,6 +139,15 @@ public class UsersController(IUserService userService, ICurrentUserService curre
         return Ok(ApiResponse<UserDetailDto>.Ok(result));
     }
 
+    /// <summary>
+    /// Moves an account to a different role, creating whatever profile the new role needs
+    /// before the role itself changes — a role granted without the profile it depends on leaves
+    /// an account that cannot do its job.
+    /// </summary>
+    /// <remarks>
+    /// Profiles are never deleted on the way out. Work already allocated points at them, so the
+    /// old one is kept and simply stops being used.
+    /// </remarks>
     [HttpPut("{id:guid}/role")]
     [Authorize(Roles = RoleNames.Admin)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
@@ -123,6 +157,9 @@ public class UsersController(IUserService userService, ICurrentUserService curre
         return Ok(ApiResponse.Ok("Role updated."));
     }
 
+    /// <summary>
+    /// Restores a disabled account.
+    /// </summary>
     [HttpPut("{id:guid}/enable")]
     [Authorize(Roles = RoleNames.Admin)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
@@ -132,6 +169,10 @@ public class UsersController(IUserService userService, ICurrentUserService curre
         return Ok(ApiResponse.Ok("User enabled."));
     }
 
+    /// <summary>
+    /// Stops an account signing in, without removing anything it is attached to. The reversible
+    /// half of taking somebody out of the system.
+    /// </summary>
     [HttpPut("{id:guid}/disable")]
     [Authorize(Roles = RoleNames.Admin)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
@@ -141,6 +182,10 @@ public class UsersController(IUserService userService, ICurrentUserService curre
         return Ok(ApiResponse.Ok("User disabled."));
     }
 
+    /// <summary>
+    /// Sets a password on somebody's behalf, for when they cannot use the emailed reset — a new
+    /// external member who never received it, or an address that no longer works.
+    /// </summary>
     [HttpPost("{id:guid}/reset-password")]
     [Authorize(Roles = RoleNames.Admin)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
@@ -150,6 +195,12 @@ public class UsersController(IUserService userService, ICurrentUserService curre
         return Ok(ApiResponse.Ok("Password reset email sent."));
     }
 
+    /// <summary>
+    /// Retires an account for good: it is anonymised and locked rather than removed, because
+    /// everything it touched — proposals, reviews, decisions, the audit trail — refers to it
+    /// and must keep making sense. Requires a reason, which is recorded against the trail that
+    /// outlives the account.
+    /// </summary>
     [HttpDelete("{id:guid}")]
     [Authorize(Roles = RoleNames.Admin)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]

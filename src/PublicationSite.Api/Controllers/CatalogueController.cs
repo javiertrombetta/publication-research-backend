@@ -18,6 +18,14 @@ namespace PublicationSite.Api.Controllers;
 [PublicCatalogueRequired]
 public class CatalogueController(ICatalogueService catalogueService) : ControllerBase
 {
+    /// <summary>
+    /// The public catalogue: published research, searchable by title, abstract, author,
+    /// supervisor, year, keyword, type, department and research area.
+    /// </summary>
+    /// <remarks>
+    /// Only papers whose author chose to publish them appear, and an administrator can switch
+    /// the whole catalogue off for a deployment that is not ready to have one.
+    /// </remarks>
     [HttpGet]
     [AllowAnonymous]
     [ProducesResponseType(typeof(ApiResponse<PagedResult<CatalogueEntryDto>>), StatusCodes.Status200OK)]
@@ -27,6 +35,9 @@ public class CatalogueController(ICatalogueService catalogueService) : Controlle
         return Ok(ApiResponse<PagedResult<CatalogueEntryDto>>.Ok(result));
     }
 
+    /// <summary>
+    /// One published paper in full, for its own page.
+    /// </summary>
     [HttpGet("{id:guid}")]
     [AllowAnonymous]
     [ProducesResponseType(typeof(ApiResponse<CatalogueEntryDto>), StatusCodes.Status200OK)]
@@ -49,6 +60,10 @@ public class CatalogueController(ICatalogueService catalogueService) : Controlle
         return File(content, "application/pdf", fileName);
     }
 
+    /// <summary>
+    /// The paper's citation, formatted ready to paste. Composed here rather than in each client
+    /// so two readers quoting the same work quote it identically.
+    /// </summary>
     [HttpGet("{id:guid}/citation")]
     [AllowAnonymous]
     [ProducesResponseType(typeof(ApiResponse<CitationDto>), StatusCodes.Status200OK)]

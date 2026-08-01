@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "084676b9-7af0-4ea4-9de0-61e3be6a4298",
     "name": "Publication Research Backend",
-    "description": "AIS Research Publication Site API. Imported from the live OpenAPI spec at /swagger/v1/swagger.json.\n\nQuick start:\n1. Run Auth > Login with your Admin (or any) credentials — the access/refresh tokens are saved automatically into collection variables.\n2. Every other request inherits Bearer auth from the collection using {{access_token}}.\n3. When the access token expires, run Auth > Refresh to get a new pair.",
+    "description": "AIS Research Publication Site API. Imported from the live OpenAPI spec at /swagger/v1.1/swagger.json.\n\nQuick start:\n1. Run Auth > Login with your Admin (or any) credentials — the access/refresh tokens are saved automatically into collection variables.\n2. Every other request inherits Bearer auth from the collection using {{access_token}}.\n3. When the access token expires, run Auth > Refresh to get a new pair.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -1829,6 +1829,80 @@
             }
           },
           "response": []
+        },
+        {
+          "name": "Proposals For Coordinator",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/proposals/for-coordinator?Page=1&PageSize=10&awaitingAllocation=true",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "proposals",
+                "for-coordinator"
+              ],
+              "query": [
+                {
+                  "key": "Page",
+                  "value": "1",
+                  "description": "Which page to return. Defaults to 1.",
+                  "disabled": true
+                },
+                {
+                  "key": "PageSize",
+                  "value": "10",
+                  "description": "Rows per page. Defaults to 10, capped at 100.",
+                  "disabled": true
+                },
+                {
+                  "key": "awaitingAllocation",
+                  "value": "true",
+                  "description": "Only those still needing a supervisor allocated.",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "The publications with proposals in this coordinator's hands, one page at a time."
+          },
+          "response": []
+        },
+        {
+          "name": "Proposals In My Department",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/proposals/in-my-department?Page=1&PageSize=10",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "proposals",
+                "in-my-department"
+              ],
+              "query": [
+                {
+                  "key": "Page",
+                  "value": "1",
+                  "description": "Which page to return. Defaults to 1.",
+                  "disabled": true
+                },
+                {
+                  "key": "PageSize",
+                  "value": "10",
+                  "description": "Rows per page. Defaults to 10, capped at 100.",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "The proposals from students in the department this person heads, abstracts included."
+          },
+          "response": []
         }
       ]
     },
@@ -2268,6 +2342,42 @@
               ]
             },
             "description": "The documents THIS publication was asked for, copied from the master list when documentation was requested rather than read live — so an administrator adding a fourth form does not reopen an ethics stage somebody already completed. Each one says whether it has been supplied."
+          },
+          "response": []
+        },
+        {
+          "name": "Containers Ethics Documents Download",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/containers/{containerId}/ethics/documents/{documentId}/download",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "containers",
+                ":containerId",
+                "ethics",
+                "documents",
+                ":documentId",
+                "download"
+              ],
+              "variable": [
+                {
+                  "key": "containerId",
+                  "value": "",
+                  "description": "path parameter containerId"
+                },
+                {
+                  "key": "documentId",
+                  "value": "",
+                  "description": "path parameter documentId"
+                }
+              ]
+            },
+            "description": "Returns the ethics document itself, for the people entitled to read it."
           },
           "response": []
         }
@@ -2731,6 +2841,41 @@
               ]
             },
             "description": "Anyone with access to the owning container: the student, their Coordinator and Supervisor, the Head of that department, the evaluation committee, and an Admin."
+          },
+          "response": []
+        },
+        {
+          "name": "Publications Versions Download",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/publications/{publicationId}/versions/{versionId}/download",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "publications",
+                ":publicationId",
+                "versions",
+                ":versionId",
+                "download"
+              ],
+              "variable": [
+                {
+                  "key": "publicationId",
+                  "value": "",
+                  "description": "path parameter publicationId"
+                },
+                {
+                  "key": "versionId",
+                  "value": "",
+                  "description": "path parameter versionId"
+                }
+              ]
+            },
+            "description": "Returns the paper file itself, for the people entitled to read it."
           },
           "response": []
         }
@@ -3318,38 +3463,6 @@
                 "api",
                 "settings"
               ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Update",
-          "request": {
-            "method": "PUT",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/api/settings",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "api",
-                "settings"
-              ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"key\": \"\",\n  \"value\": \"\",\n  \"description\": \"\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
             }
           },
           "response": []

@@ -25,12 +25,13 @@ public class DevToolsController(
     /// for it, the demonstration dataset (see <see cref="DemoDataSeeder"/>) — everything gets
     /// wiped, including every account's login. Log in again afterwards; any token issued before
     /// the reset stops working.
-    ///
+    /// </summary>
+    /// <remarks>
     /// Returns as soon as the schema and the accounts needed to sign in exist. The demonstration
     /// publications are built in the background over the following minute or so, because doing it
     /// inline would hold this request open long enough for a proxy in front to give up on it.
     /// Poll <c>GET api/dev/demo-data</c> to see when it has finished.
-    /// </summary>
+    /// </remarks>
     [HttpPost("reset-database")]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     public async Task<IActionResult> ResetDatabase()

@@ -11,6 +11,11 @@ namespace PublicationSite.Api.Controllers;
 [Authorize]
 public class NotificationsController(INotificationQueryService notificationQueryService, ICurrentUserService currentUser) : ControllerBase
 {
+    /// <summary>
+    /// This person's notifications, newest first, optionally only the unread ones. Every
+    /// notification is delivered here whether or not email is switched on, so this is the
+    /// record rather than a copy of one.
+    /// </summary>
     [HttpGet]
     [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<NotificationDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetAll([FromQuery] bool? unreadOnly)
@@ -31,6 +36,9 @@ public class NotificationsController(INotificationQueryService notificationQuery
         return Ok(ApiResponse<int>.Ok(result));
     }
 
+    /// <summary>
+    /// Marks one as read — what opening it does.
+    /// </summary>
     [HttpPut("{id:guid}/read")]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     public async Task<IActionResult> MarkAsRead(Guid id)
@@ -39,6 +47,9 @@ public class NotificationsController(INotificationQueryService notificationQuery
         return Ok(ApiResponse.Ok("Notification marked as read."));
     }
 
+    /// <summary>
+    /// Clears the whole unread count in one go, and says how many that was.
+    /// </summary>
     [HttpPut("read")]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     public async Task<IActionResult> MarkAllAsRead()

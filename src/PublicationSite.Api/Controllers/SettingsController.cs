@@ -19,6 +19,9 @@ public class SettingsController(
     IEthicsDocumentRequirementService ethicsRequirementService,
     ICurrentUserService currentUser) : ControllerBase
 {
+    /// <summary>
+    /// Every configurable setting in one response, for the administrator's settings screen.
+    /// </summary>
     [HttpGet]
     [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<SystemSettingDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetAll()
@@ -29,6 +32,9 @@ public class SettingsController(
 
     // ---------- Committees ----------
 
+    /// <summary>
+    /// How many internal and external members a committee needs by default.
+    /// </summary>
     [HttpGet("committees")]
     [ProducesResponseType(typeof(ApiResponse<CommitteeSettingsDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetCommittees()
@@ -37,6 +43,10 @@ public class SettingsController(
         return Ok(ApiResponse<CommitteeSettingsDto>.Ok(result));
     }
 
+    /// <summary>
+    /// Changes those defaults. Publications already open keep the figures they were opened
+    /// under.
+    /// </summary>
     [HttpPut("committees")]
     [ProducesResponseType(typeof(ApiResponse<CommitteeSettingsDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> UpdateCommittees([FromBody] UpdateCommitteeSettingsRequest request)
@@ -48,6 +58,10 @@ public class SettingsController(
 
     // ---------- Passwords ----------
 
+    /// <summary>
+    /// The password rules accounts are held to — length, and which kinds of character are
+    /// required.
+    /// </summary>
     [HttpGet("passwords")]
     [ProducesResponseType(typeof(ApiResponse<PasswordSettingsDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetPasswords()
@@ -56,6 +70,11 @@ public class SettingsController(
         return Ok(ApiResponse<PasswordSettingsDto>.Ok(result));
     }
 
+    /// <summary>
+    /// Changes those rules. They apply when a password is next set; existing passwords are not
+    /// invalidated, since nobody can be locked out of an account by a rule change they never
+    /// saw.
+    /// </summary>
     [HttpPut("passwords")]
     [ProducesResponseType(typeof(ApiResponse<PasswordSettingsDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> UpdatePasswords([FromBody] UpdatePasswordSettingsRequest request)
@@ -67,6 +86,9 @@ public class SettingsController(
 
     // ---------- Notifications ----------
 
+    /// <summary>
+    /// Which events send an email, and which only raise a notification in the application.
+    /// </summary>
     [HttpGet("notifications")]
     [ProducesResponseType(typeof(ApiResponse<NotificationSettingsDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetNotifications()
@@ -75,6 +97,10 @@ public class SettingsController(
         return Ok(ApiResponse<NotificationSettingsDto>.Ok(result));
     }
 
+    /// <summary>
+    /// Changes that. Turning email off does not lose the notification — it still appears in the
+    /// bell.
+    /// </summary>
     [HttpPut("notifications")]
     [ProducesResponseType(typeof(ApiResponse<NotificationSettingsDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> UpdateNotifications([FromBody] UpdateNotificationSettingsRequest request)
@@ -97,6 +123,9 @@ public class SettingsController(
         return Ok(ApiResponse<IReadOnlyList<EthicsDocumentRequirementDto>>.Ok(result));
     }
 
+    /// <summary>
+    /// Adds a document to that list, available to ethics decisions made from now on.
+    /// </summary>
     [HttpPost("ethics-documents")]
     [ProducesResponseType(typeof(ApiResponse<EthicsDocumentRequirementDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> CreateEthicsDocument([FromBody] SaveEthicsDocumentRequirementRequest request)
@@ -106,6 +135,10 @@ public class SettingsController(
             "Added. Publications whose ethics stage starts from now on will be asked for it."));
     }
 
+    /// <summary>
+    /// Renames or re-describes a document. Publications that already recorded it keep the name
+    /// they recorded.
+    /// </summary>
     [HttpPut("ethics-documents/{id:guid}")]
     [ProducesResponseType(typeof(ApiResponse<EthicsDocumentRequirementDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> UpdateEthicsDocument(Guid id, [FromBody] SaveEthicsDocumentRequirementRequest request)
@@ -129,6 +162,9 @@ public class SettingsController(
 
     // ---------- Access ----------
 
+    /// <summary>
+    /// Who may see what without signing in, and whether registration is open.
+    /// </summary>
     [HttpGet("access")]
     [ProducesResponseType(typeof(ApiResponse<AccessSettingsDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetAccess()
@@ -137,6 +173,10 @@ public class SettingsController(
         return Ok(ApiResponse<AccessSettingsDto>.Ok(result));
     }
 
+    /// <summary>
+    /// Changes that — including whether the public catalogue exists for anonymous visitors at
+    /// all.
+    /// </summary>
     [HttpPut("access")]
     [ProducesResponseType(typeof(ApiResponse<AccessSettingsDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> UpdateAccess([FromBody] UpdateAccessSettingsRequest request)
@@ -147,6 +187,9 @@ public class SettingsController(
 
     // ---------- Uploads ----------
 
+    /// <summary>
+    /// The file types and size limits accepted for papers and for ethics documents.
+    /// </summary>
     [HttpGet("uploads")]
     [ProducesResponseType(typeof(ApiResponse<UploadSettingsDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetUploads()
@@ -155,6 +198,9 @@ public class SettingsController(
         return Ok(ApiResponse<UploadSettingsDto>.Ok(result));
     }
 
+    /// <summary>
+    /// Changes those limits. They are applied at upload, so files already accepted stay.
+    /// </summary>
     [HttpPut("uploads")]
     [ProducesResponseType(typeof(ApiResponse<UploadSettingsDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> UpdateUploads([FromBody] UpdateUploadSettingsRequest request)
@@ -178,6 +224,9 @@ public class SettingsController(
         return Ok(ApiResponse<InstitutionSettingsDto>.Ok(result));
     }
 
+    /// <summary>
+    /// Changes those details.
+    /// </summary>
     [HttpPut("institution")]
     [ProducesResponseType(typeof(ApiResponse<InstitutionSettingsDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> UpdateInstitution([FromBody] UpdateInstitutionSettingsRequest request)
@@ -188,6 +237,9 @@ public class SettingsController(
 
     // ---------- Deadlines ----------
 
+    /// <summary>
+    /// The dates set for each stage of the cycle.
+    /// </summary>
     [HttpGet("deadlines")]
     [ProducesResponseType(typeof(ApiResponse<DeadlineSettingsDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetDeadlines()
@@ -196,6 +248,9 @@ public class SettingsController(
         return Ok(ApiResponse<DeadlineSettingsDto>.Ok(result));
     }
 
+    /// <summary>
+    /// Changes those dates.
+    /// </summary>
     [HttpPut("deadlines")]
     [ProducesResponseType(typeof(ApiResponse<DeadlineSettingsDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> UpdateDeadlines([FromBody] UpdateDeadlineSettingsRequest request)

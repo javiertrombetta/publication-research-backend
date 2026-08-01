@@ -5,6 +5,10 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
 
+    <!-- Kept in step with Common/ApiVersion.cs, which is what the OpenAPI document is named and
+         served under. This one stamps the assembly, so a deployed binary can be identified. -->
+    <Version>1.1.0</Version>
+
     <!-- Emitted so Swagger can show the summaries that are already written against every endpoint
          and DTO. Without it they exist only in the source, and the API reference is a list of
          method names explaining nothing. -->

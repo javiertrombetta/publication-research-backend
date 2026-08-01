@@ -10,6 +10,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.Identity.Web;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using PublicationSite.Api.Common;
 using PublicationSite.Api.Common.Middleware;
 using PublicationSite.Api.Common.Options;
 using PublicationSite.Api.Data;
@@ -221,10 +222,10 @@ builder.Services.AddControllers()
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
-    options.SwaggerDoc("v1", new OpenApiInfo
+    options.SwaggerDoc(ApiVersion.Current, new OpenApiInfo
     {
         Title = "AIS Research Publication Site API",
-        Version = "v1",
+        Version = ApiVersion.Current,
         Description = "Backend API for the AIS Research Publication Site."
     });
 
@@ -290,7 +291,13 @@ var swaggerEnabled = app.Environment.IsDevelopment() || app.Configuration.GetVal
 if (swaggerEnabled)
 {
     app.UseSwagger();
-    app.UseSwaggerUI();
+
+    // The document is named after the version, so the spec moves with it. Naming the endpoint
+    // explicitly matters: the default UI only ever looks for /swagger/v1/swagger.json, and would
+    // show an empty page the moment the version stopped being "v1".
+    app.UseSwaggerUI(options =>
+        options.SwaggerEndpoint($"/swagger/{ApiVersion.Current}/swagger.json",
+            $"AIS Research Publication Site API {ApiVersion.Current}"));
 }
 
 app.UseHttpsRedirection();
@@ -299,8 +306,14 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+// A minimal endpoint rather than a controller action, so it carries its description as metadata
+// instead of an XML comment. It answers as soon as the server is listening and touches nothing
+// else — a health check that queried the database would report the API down whenever the database
+// was merely slow, and the host would restart a process that was working.
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestampUtc = DateTime.UtcNow }))
-    .AllowAnonymous();
+    .AllowAnonymous()
+    .WithTags("Health")
+    .WithSummary("Says that the API is up, for the host that decides whether to keep it running.");
 
 app.Run();
 
