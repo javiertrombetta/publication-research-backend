@@ -12,6 +12,7 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using PublicationSite.Api.Common;
 using PublicationSite.Api.Common.Middleware;
+using PublicationSite.Api.Common.Swagger;
 using PublicationSite.Api.Common.Options;
 using PublicationSite.Api.Data;
 using PublicationSite.Api.Entities;
@@ -253,6 +254,11 @@ builder.Services.AddSwaggerGen(options =>
     {
         options.IncludeXmlComments(documentation, includeControllerXmlComments: true);
     }
+
+    // Every other group in the reference is a controller, and takes its description from the
+    // controller's own summary. /health is a minimal endpoint with no class to hang one on, so
+    // its group would be the only heading in the document with nothing under it but a route.
+    options.DocumentFilter<HealthTagDescriptionFilter>();
 });
 
 var app = builder.Build();
@@ -314,6 +320,8 @@ app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestampUtc = 
     .AllowAnonymous()
     .WithTags("Health")
     .WithSummary("Says that the API is up, for the host that decides whether to keep it running.");
+// Its 200 is described in HealthTagDescriptionFilter, alongside the group: a minimal endpoint has
+// no [ProducesResponseType] and no XML comment to carry either of them.
 
 app.Run();
 

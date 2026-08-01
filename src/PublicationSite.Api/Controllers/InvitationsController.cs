@@ -18,8 +18,13 @@ public class InvitationsController(IInvitationService invitationService, ICurren
     /// <summary>
     /// Every invitation and where it stands — pending, accepted, expired or withdrawn.
     /// </summary>
+    /// <response code="200">The matching user invitations, all of them.</response>
+    /// <response code="401">No access token was sent, or the one sent has expired.</response>
+    /// <response code="403">Signed in, but this is not something your role may do.</response>
     [HttpGet]
     [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<UserInvitationDto>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> GetAll()
     {
         var result = await invitationService.GetAllAsync();
@@ -37,8 +42,19 @@ public class InvitationsController(IInvitationService invitationService, ICurren
     /// emailed the response says so — the invitation exists, and the trail records it, so it
     /// can be sent again once a mail server is configured.
     /// </remarks>
+    /// <response code="200">The user invitation.</response>
+    /// <response code="400">The request did not pass validation. Which field, and why, comes back as a problem document rather than the usual envelope.</response>
+    /// <response code="401">No access token was sent, or the one sent has expired.</response>
+    /// <response code="403">Signed in, but this is not something your role may do.</response>
+    /// <response code="409">It is already recorded — this has been done, or created, before.</response>
+    /// <response code="422">Understood, and refused: the workflow does not allow this at the point it has reached.</response>
     [HttpPost]
     [ProducesResponseType(typeof(ApiResponse<UserInvitationDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status409Conflict)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status422UnprocessableEntity)]
     public async Task<IActionResult> Create([FromBody] CreateInvitationRequest request)
     {
         var result = await invitationService.CreateAsync(request, currentUser.UserId);
@@ -49,8 +65,17 @@ public class InvitationsController(IInvitationService invitationService, ICurren
     /// Sends it again with a fresh token, which retires the previous link. Re-sending because
     /// an email went astray should not leave two live ways in.
     /// </summary>
+    /// <response code="200">The user invitation.</response>
+    /// <response code="401">No access token was sent, or the one sent has expired.</response>
+    /// <response code="403">Signed in, but this is not something your role may do.</response>
+    /// <response code="404">No user invitation with that id.</response>
+    /// <response code="422">Understood, and refused: the workflow does not allow this at the point it has reached.</response>
     [HttpPost("{id:guid}/resend")]
     [ProducesResponseType(typeof(ApiResponse<UserInvitationDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status422UnprocessableEntity)]
     public async Task<IActionResult> Resend(Guid id)
     {
         var result = await invitationService.ResendAsync(id, currentUser.UserId);
@@ -63,8 +88,17 @@ public class InvitationsController(IInvitationService invitationService, ICurren
     /// what exists then is an account, and accounts are disabled or deleted rather than
     /// uninvited.
     /// </summary>
+    /// <response code="200">The user invitation.</response>
+    /// <response code="401">No access token was sent, or the one sent has expired.</response>
+    /// <response code="403">Signed in, but this is not something your role may do.</response>
+    /// <response code="404">No user invitation with that id.</response>
+    /// <response code="422">Understood, and refused: the workflow does not allow this at the point it has reached.</response>
     [HttpPost("{id:guid}/revoke")]
     [ProducesResponseType(typeof(ApiResponse<UserInvitationDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status422UnprocessableEntity)]
     public async Task<IActionResult> Revoke(Guid id)
     {
         var result = await invitationService.RevokeAsync(id, currentUser.UserId);
@@ -77,9 +111,12 @@ public class InvitationsController(IInvitationService invitationService, ICurren
     /// Anonymous by necessity: the whole point is that this person has no account. The token is
     /// the only credential, and it is unguessable and single-use.
     /// </summary>
+    /// <response code="200">The invitation preview.</response>
+    /// <response code="422">Understood, and refused: the workflow does not allow this at the point it has reached.</response>
     [HttpGet("preview")]
     [AllowAnonymous]
     [ProducesResponseType(typeof(ApiResponse<InvitationPreviewDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status422UnprocessableEntity)]
     public async Task<IActionResult> Preview([FromQuery] string token)
     {
         var result = await invitationService.PreviewAsync(token);
@@ -91,9 +128,16 @@ public class InvitationsController(IInvitationService invitationService, ICurren
     /// role the invitation was sent for. Open without a session, because the person accepting has no
     /// account yet — the token in the link is what proves they were invited.
     /// </summary>
+    /// <response code="200">Done. The envelope carries a message saying what changed; there is no data with it.</response>
+    /// <response code="400">The request did not pass validation. Which field, and why, comes back as a problem document rather than the usual envelope.</response>
+    /// <response code="409">It is already recorded — this has been done, or created, before.</response>
+    /// <response code="422">Understood, and refused: the workflow does not allow this at the point it has reached.</response>
     [HttpPost("accept")]
     [AllowAnonymous]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status409Conflict)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status422UnprocessableEntity)]
     public async Task<IActionResult> Accept([FromBody] AcceptInvitationRequest request)
     {
         await invitationService.AcceptAsync(request);

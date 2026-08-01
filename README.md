@@ -106,11 +106,38 @@ list. Two things make it worth reading, and both had to be switched on deliberat
   `IncludeXmlComments` feeds to Swagger; without it every `<summary>` written against an endpoint
   or a DTO stayed in the source and reached nobody.
 
-All 128 operations carry a description. That is worth stating as a number, because partial coverage
-is the state a reference tends to settle into: the endpoints somebody happened to explain are
-described, the rest are a method name, and a reader cannot tell which they are looking at until
-they have read it. `/health` is a minimal endpoint rather than a controller action, so it carries
-its description as `.WithSummary(...)` metadata instead of an XML comment.
+Coverage is complete, and it is worth stating as numbers, because partial coverage is the state a
+reference settles into: the endpoints somebody happened to explain are described, the rest are a
+method name and a bare `Success`, and a reader cannot tell which they are looking at until they
+have read it.
+
+- **16 of 16 groups** carry a description, on the controller class.
+- **128 of 128 operations** carry a summary.
+- **519 responses** are declared, and none of them is left showing only its reason phrase.
+
+The error responses are not guesswork. `ExceptionHandlingMiddleware` maps five exception types onto
+five statuses, so the question "which can this endpoint answer with?" has an answer in the code:
+whichever of them is reachable from the action. They were derived by walking the call graph across
+the service implementations and taking the transitive closure, then checked against the running API
+— 401 without a token, 403 for the wrong role, 404 for an unknown id, 400 for a body that fails
+validation, 422 for a step the workflow does not allow at that point.
+
+Two things that check turned up. `POST /api/containers`, `/api/departments` and `/api/users` answer
+**201** with a `Location` header and were declaring 200. And a `NotFoundException` is only
+documented where the caller supplies the identifier — in the route, the query or the body. Reached
+any other way it is an internal read-back failing on a record just written, or on the caller's own
+account: a bug, not a contract, and documenting it tells a client to handle something it cannot
+provoke.
+
+One inconsistency is documented rather than fixed, because fixing it would break callers. A 400 has
+two shapes: FluentValidation's automatic validation returns `ValidationProblemDetails`, with the
+failure per field, while a `ValidationAppException` returns the usual envelope. The frontend's
+`ApiClientBase` already branches on both — that is what per-field errors on a form depend on — so
+the declared type per endpoint is whichever one that endpoint actually produces.
+
+`/health` has no class and no attributes to carry any of this, being a minimal endpoint. Its
+summary is `.WithSummary(...)`; its group description and its 200 are filled in by
+`Common/Swagger/HealthTagDescriptionFilter.cs`.
 
 The version is `Common/ApiVersion.cs`, currently **v1.1**, and the document is served under it at
 `/swagger/v1.1/swagger.json`. It is deliberately not in the route — every path stays `api/…`, which

@@ -32,8 +32,13 @@ public class DevToolsController(
     /// inline would hold this request open long enough for a proxy in front to give up on it.
     /// Poll <c>GET api/dev/demo-data</c> to see when it has finished.
     /// </remarks>
+    /// <response code="200">Done. The envelope carries a message saying what changed; there is no data with it.</response>
+    /// <response code="401">No access token was sent, or the one sent has expired.</response>
+    /// <response code="403">Signed in, but not entitled to this: either the role is wrong for the endpoint, or the record belongs to somebody else.</response>
     [HttpPost("reset-database")]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> ResetDatabase()
     {
         if (!bool.TryParse(configuration["DevTools:EnableDatabaseReset"], out var enabled) || !enabled)
@@ -81,8 +86,13 @@ public class DevToolsController(
     /// the question the reset endpoint leaves open: the rebuild finishes after the response, so
     /// something has to be able to say when.
     /// </summary>
+    /// <response code="200">Done. The envelope carries a message saying what changed; there is no data with it.</response>
+    /// <response code="401">No access token was sent, or the one sent has expired.</response>
+    /// <response code="403">Signed in, but this is not something your role may do.</response>
     [HttpGet("demo-data")]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> DemoDataStatus(CancellationToken cancellationToken)
     {
         return Ok(ApiResponse<object>.Ok(new
