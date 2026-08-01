@@ -41,7 +41,11 @@ public class SystemSettingServiceTests : IDisposable
         // A fresh cache per service, so one test's writes never leak into another's reads.
         var provider = new SystemSettingsProvider(_fixture.Context, new MemoryCache(new MemoryCacheOptions()));
 
-        return new SystemSettingService(_fixture.Context, provider, _auditService.Object, environment.Object, configuration);
+        // Storage is only reached when a destination is being saved or tested, and none of these
+        // tests do either, so a stub is honest here in a way it would not be for the settings
+        // provider above.
+        return new SystemSettingService(_fixture.Context, provider, _auditService.Object,
+            environment.Object, configuration, new Mock<IFileStorageService>().Object);
     }
 
     public void Dispose() => _fixture.Dispose();

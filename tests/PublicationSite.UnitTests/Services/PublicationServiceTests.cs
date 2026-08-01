@@ -181,9 +181,44 @@ public class PublicationServiceTests : IDisposable
         await ForceStatusAsync(publication.Id, PublicationStatus.Accepted);
 
         var admin = Guid.NewGuid();
-        var act = () => _sut.PublishDecisionAsync(publication.Id, admin, new PublishDecisionRequest(true, null));
+        var act = () => _sut.PublishDecisionAsync(
+            publication.Id, admin, new PublishDecisionRequest(true, null), actingAsAdmin: true);
 
         await act.Should().ThrowAsync<BusinessRuleException>();
+    }
+
+    /// <summary>
+    /// Publishing is the author's decision. Holding the Student role said nothing about whose
+    /// paper this is, and the only question the method asked was whether to insist on a reason,
+    /// so answering it let any student publish anybody's accepted work.
+    /// </summary>
+    [Fact]
+    public async Task PublishDecisionAsync_refuses_a_student_who_is_not_the_author()
+    {
+        var (student, _, _, container) = SeedAtResearchPaperStage();
+        var publication = await _sut.GetOrCreateDraftAsync(container.Id, student.Id);
+        await ForceStatusAsync(publication.Id, PublicationStatus.Accepted);
+
+        var somebodyElse = Guid.NewGuid();
+        var act = () => _sut.PublishDecisionAsync(
+            publication.Id, somebodyElse, new PublishDecisionRequest(true, "Not mine to publish."));
+
+        await act.Should().ThrowAsync<ForbiddenException>();
+    }
+
+    /// <summary>The publication's own coordinator may, with a reason on record.</summary>
+    [Fact]
+    public async Task PublishDecisionAsync_allows_the_coordinator_of_that_publication()
+    {
+        var (student, _, coordinator, container) = SeedAtResearchPaperStage();
+        var publication = await _sut.GetOrCreateDraftAsync(container.Id, student.Id);
+        await ForceStatusAsync(publication.Id, PublicationStatus.Accepted);
+
+        await _sut.PublishDecisionAsync(publication.Id, coordinator.Id,
+            new PublishDecisionRequest(true, "Published on the author's written instruction."));
+
+        var updated = await _sut.GetByIdAsync(publication.Id, student.Id);
+        updated.Status.Should().Be(PublicationStatus.Published.ToString());
     }
 
     [Fact]
