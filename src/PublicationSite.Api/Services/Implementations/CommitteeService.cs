@@ -251,11 +251,22 @@ public class CommitteeService(
             .ToListAsync(cancellationToken);
     }
 
-    public async Task SetCommitteeConfigAsync(Guid committeeId, SetCommitteeRoleConfigRequest request, Guid actingUserId, CancellationToken cancellationToken = default)
+    public async Task SetCommitteeConfigAsync(
+        Guid committeeId, SetCommitteeRoleConfigRequest request, Guid actingUserId, bool actingAsAdmin = false,
+        CancellationToken cancellationToken = default)
     {
-        if (!await db.Committees.AnyAsync(c => c.Id == committeeId, cancellationToken))
+        var committee = await db.Committees
+            .Include(c => c.Publication).ThenInclude(p => p.PublicationContainer)
+            .FirstOrDefaultAsync(c => c.Id == committeeId, cancellationToken)
+            ?? throw new NotFoundException(nameof(Committee), committeeId);
+
+        // Whose committee this is. The acting user was already being passed in and then ignored,
+        // so a coordinator could rewrite the make-up of a committee sitting on a publication in
+        // another department. Administrators set the rules for the institution; a coordinator sets
+        // them for their own students.
+        if (!actingAsAdmin && committee.Publication.PublicationContainer.CoordinatorId != actingUserId)
         {
-            throw new NotFoundException(nameof(Committee), committeeId);
+            throw new ForbiddenException("You are not the Coordinator for this publication.");
         }
 
         await UpsertRoleConfigAsync(committeeId, request, cancellationToken);

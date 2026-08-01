@@ -326,7 +326,8 @@ public class PublicationsController(IPublicationService publicationService, ICur
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status422UnprocessableEntity)]
     public async Task<IActionResult> PublishDecision(Guid publicationId, [FromBody] PublishDecisionRequest request)
     {
-        await publicationService.PublishDecisionAsync(publicationId, currentUser.UserId, request);
+        await publicationService.PublishDecisionAsync(
+            publicationId, currentUser.UserId, request, User.IsInRole(RoleNames.Admin));
         return Ok(ApiResponse.Ok("Publication decision recorded."));
     }
 

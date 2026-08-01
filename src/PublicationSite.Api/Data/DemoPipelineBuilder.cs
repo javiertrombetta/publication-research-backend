@@ -308,7 +308,8 @@ public class DemoPipelineBuilder(
         if (plan.Stage == DemoStage.PaperAccepted) return;
 
         await StepAsync(() => publications.PublishDecisionAsync(paper.Id, cast.StudentId,
-            new PublishDecisionRequest(true, "I am happy for this to appear in the public catalogue."), ct));
+            new PublishDecisionRequest(true, "I am happy for this to appear in the public catalogue."),
+            cancellationToken: ct));
     }
 
     private async Task StepAsync(Func<Task> step)
