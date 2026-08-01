@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Moq;
 using PublicationSite.Api.Common.Exceptions;
 using PublicationSite.Api.DTOs.Proposals;
@@ -19,12 +20,22 @@ public class ProposalServiceTests : IDisposable
     private readonly Mock<IContainerAccessService> _accessService = new();
     private readonly Mock<IAuditService> _auditService = new();
     private readonly Mock<INotificationService> _notificationService = new();
+
+    /// <summary>
+    /// A real provider over the test database rather than a mock: the service reads the expected
+    /// supervisor response time through it, and a stub returning zero would quietly test a default
+    /// nobody ships. With no rows written it falls back to the same value the application does.
+    /// </summary>
+    private readonly SystemSettingsProvider _settings;
+
     private readonly ProposalService _sut;
 
     public ProposalServiceTests()
     {
         _accessService.Setup(a => a.EnsureAccessAsync(It.IsAny<Guid>(), It.IsAny<Guid>())).Returns(Task.CompletedTask);
-        _sut = new ProposalService(_fixture.Context, _accessService.Object, _auditService.Object, _notificationService.Object);
+        _settings = new SystemSettingsProvider(_fixture.Context, new MemoryCache(new MemoryCacheOptions()));
+        _sut = new ProposalService(_fixture.Context, _accessService.Object, _auditService.Object,
+            _notificationService.Object, _settings);
     }
 
     public void Dispose() => _fixture.Dispose();
@@ -124,17 +135,47 @@ public class ProposalServiceTests : IDisposable
     [Fact]
     public async Task RequestNewSubmissionAsync_rejects_existing_proposals_and_notifies_student()
     {
-        var (student, _, container) = SeedContainer();
+        var (student, coordinator, container) = SeedContainer();
         await _sut.CreateAsync(container.Id, student.Id, new SaveProposalRequest("A", "Abstract"));
         await _sut.FinishSubmissionAsync(container.Id, student.Id);
 
-        await _sut.RequestNewSubmissionAsync(container.Id, "Please resubmit", Guid.NewGuid());
+        await _sut.RequestNewSubmissionAsync(container.Id, "Please resubmit", coordinator.Id);
 
         var proposals = await _sut.GetByContainerAsync(container.Id, student.Id);
         proposals.Should().OnlyContain(p => p.Status == ProposalStatus.Rejected.ToString());
         _notificationService.Verify(n => n.NotifyAsync(
             student.Id, NotificationType.NewProposalSubmissionRequested,
             It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<Guid?>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    /// <summary>
+    /// Holding the Coordinator role is not the same as coordinating this student. Without the
+    /// check, any coordinator could throw away the proposals of somebody in another department.
+    /// </summary>
+    [Fact]
+    public async Task RequestNewSubmissionAsync_refuses_a_coordinator_from_somewhere_else()
+    {
+        var (student, _, container) = SeedContainer();
+        await _sut.CreateAsync(container.Id, student.Id, new SaveProposalRequest("A", "Abstract"));
+        await _sut.FinishSubmissionAsync(container.Id, student.Id);
+
+        var act = () => _sut.RequestNewSubmissionAsync(container.Id, "Please resubmit", Guid.NewGuid());
+
+        await act.Should().ThrowAsync<ForbiddenException>();
+    }
+
+    /// <summary>An administrator may, which is the exemption the acting-as-admin flag carries.</summary>
+    [Fact]
+    public async Task RequestNewSubmissionAsync_allows_an_administrator()
+    {
+        var (student, _, container) = SeedContainer();
+        await _sut.CreateAsync(container.Id, student.Id, new SaveProposalRequest("A", "Abstract"));
+        await _sut.FinishSubmissionAsync(container.Id, student.Id);
+
+        await _sut.RequestNewSubmissionAsync(container.Id, "Please resubmit", Guid.NewGuid(), actingAsAdmin: true);
+
+        var proposals = await _sut.GetByContainerAsync(container.Id, student.Id);
+        proposals.Should().OnlyContain(p => p.Status == ProposalStatus.Rejected.ToString());
     }
 
     [Fact]

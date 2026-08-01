@@ -81,11 +81,24 @@ public class FullPublicationJourneyTests(ApiTestFactory factory)
         var (_, pendingBody) = await coordinatorClient.GetAsync<PagedResult<ProposalDto>>("/api/proposals/pending");
         pendingBody!.Data!.Items.Should().ContainSingle(p => p.Id == proposal.Id);
 
+        // A round has to say when it runs out. Without a date it would never end, so the supervisors
+        // in it could be waited on for ever and nothing would notice.
         var (sendStatus, _) = await coordinatorClient.PostAsync<object>("/api/proposals/send-to-supervisors", new
+        {
+            proposalIds = new[] { proposal.Id },
+            supervisorIds = new[] { supervisor.Id },
+            comments = "Please evaluate",
+            respondBy = DateTime.UtcNow.AddDays(14)
+        });
+        sendStatus.Should().Be(HttpStatusCode.OK);
+
+        // And the same send without one is refused, which is what makes the line above a rule
+        // rather than a habit.
+        var (undatedStatus, _) = await coordinatorClient.PostAsync<object>("/api/proposals/send-to-supervisors", new
         {
             proposalIds = new[] { proposal.Id }, supervisorIds = new[] { supervisor.Id }, comments = "Please evaluate"
         });
-        sendStatus.Should().Be(HttpStatusCode.OK);
+        undatedStatus.Should().Be(HttpStatusCode.BadRequest);
 
         var (_, invitedBody) = await supervisorClient.GetAsync<IReadOnlyList<ProposalDto>>("/api/proposals/invited");
         invitedBody!.Data.Should().ContainSingle(p => p.Id == proposal.Id);
