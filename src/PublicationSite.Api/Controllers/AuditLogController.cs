@@ -9,9 +9,9 @@ using PublicationSite.Api.DTOs.Common;
 namespace PublicationSite.Api.Controllers;
 
 /// <summary>
-/// The trail. Every consequential act in the system writes a line here — who did it, in what
-/// capacity, to what, and the comment that justified it — and nothing removes one. It is what makes
-/// a decision explicable months later, and it is why accounts are anonymised rather than deleted.
+/// The trail. Every consequential act in the system writes a line here: who did it, in what
+/// capacity, to what, and the comment that justified it. Nothing removes one. It is what makes a
+/// decision explicable months later, and it is why accounts are anonymised rather than deleted.
 /// Administrators only.
 /// </summary>
 [ApiController]
@@ -39,7 +39,7 @@ public class AuditLogController(IAuditLogQueryService auditLogQueryService) : Co
 
     /// <summary>
     /// The same trail as a CSV file, for handing to somebody who is not going to be given an
-    /// account — an auditor, or a committee asking how a decision was reached.
+    /// account, such as an auditor or a committee asking how a decision was reached.
     /// </summary>
     /// <response code="200">The file itself, as an attachment.</response>
     /// <response code="401">No access token was sent, or the one sent has expired.</response>

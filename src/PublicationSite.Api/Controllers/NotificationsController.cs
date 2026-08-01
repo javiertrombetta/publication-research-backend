@@ -47,7 +47,7 @@ public class NotificationsController(INotificationQueryService notificationQuery
     }
 
     /// <summary>
-    /// Marks one as read — what opening it does.
+    /// Marks one as read, which is what opening it does.
     /// </summary>
     /// <response code="200">Done. The envelope carries a message saying what changed; there is no data with it.</response>
     /// <response code="401">No access token was sent, or the one sent has expired.</response>

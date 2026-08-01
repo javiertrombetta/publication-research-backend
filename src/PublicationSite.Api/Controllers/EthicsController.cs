@@ -10,20 +10,20 @@ namespace PublicationSite.Api.Controllers;
 /// The ethics workflow, which is the reason this system exists rather than a shared drive.
 ///
 /// A student declares whether their research needs approval, but does not settle it: the supervisor
-/// decides, the coordinator confirms that decision, and only then does anything move. Where approval
-/// is required, the documents asked for are recorded at that moment and the student is judged against
-/// that list — not against one that changed while they were preparing it. The uploads are then read by
-/// the supervisor, the coordinator and the head of department in turn, and the coordinator closes the
-/// stage. Nothing reaches the paper stage until it does.
+/// decides, the coordinator confirms that decision, and only then does anything move. Where
+/// approval is required, the documents asked for are recorded at that moment and the student is
+/// judged against that list, not against one that changed while they were preparing it. The uploads
+/// are then read by the supervisor, the coordinator and the head of department in turn, and the
+/// coordinator closes the stage. Nothing reaches the paper stage until it does.
 /// </summary>
 [ApiController]
 [Authorize]
 public class EthicsController(IEthicsService ethicsService, ICurrentUserService currentUser) : ControllerBase
 {
     /// <summary>
-    /// The questions a student should ask themselves before declaring whether their research
-    /// needs ethics approval, and what each answer means. Open to anyone, including someone not
-    /// yet signed in — it is guidance, not a record.
+    /// The questions a student should ask themselves before declaring whether their research needs
+    /// ethics approval, and what each answer means. Open to anyone, including someone not yet
+    /// signed in, because it is guidance rather than a record.
     /// </summary>
     /// <response code="200">The ethics guidance.</response>
     [HttpGet("api/ethics/guidance")]
@@ -254,8 +254,8 @@ public class EthicsController(IEthicsService ethicsService, ICurrentUserService 
     }
 
     /// <summary>
-    /// The head of department's review — the last academic check before the coordinator closes
-    /// the ethics stage.
+    /// The head of department's review, which is the last academic check before the coordinator
+    /// closes the ethics stage.
     /// </summary>
     /// <response code="200">Done. The envelope carries a message saying what changed; there is no data with it.</response>
     /// <response code="400">The request did not pass validation. Which field, and why, comes back as a problem document rather than the usual envelope.</response>

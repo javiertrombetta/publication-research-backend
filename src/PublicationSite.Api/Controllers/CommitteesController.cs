@@ -12,7 +12,7 @@ namespace PublicationSite.Api.Controllers;
 /// many members of each kind a committee needs.
 ///
 /// A publication is judged by the composition recorded on it when it was opened, not by whatever is
-/// configured today — research that runs for months cannot have its rules changed underneath it.
+/// configured today. Research that runs for months cannot have its rules changed underneath it.
 /// Anyone at the institution except a student may sit on one.
 /// </summary>
 [ApiController]
@@ -21,20 +21,19 @@ public class CommitteesController(ICommitteeService committeeService, ICurrentUs
 {
     /// <summary>
     /// Appoints the evaluation committee for a paper the supervisor has approved. Nothing moves
-    /// until this happens — the coordinator's final decision is blocked on it.
+    /// until this happens, because the coordinator's final decision is blocked on it.
     /// </summary>
     /// <remarks>
-    /// Anyone at the institution except a student may be appointed; a committee judges a
-    /// student's work, so it cannot be drawn from the people whose work is judged. The
-    /// composition must match what the publication was opened under, not what is configured
-    /// today.
+    /// Anyone at the institution except a student may be appointed; a committee judges a student's
+    /// work, so it cannot be drawn from the people whose work is judged. The composition must match
+    /// what the publication was opened under, not what is configured today.
     /// </remarks>
     /// <response code="200">The committee.</response>
     /// <response code="400">The request did not pass validation. Which field, and why, comes back as a problem document rather than the usual envelope.</response>
     /// <response code="401">No access token was sent, or the one sent has expired.</response>
     /// <response code="403">Signed in, but not entitled to this: either the role is wrong for the endpoint, or the record belongs to somebody else.</response>
     /// <response code="404">Neither the committee nor the publication was found by that id.</response>
-    /// <response code="409">It is already recorded — this has been done, or created, before.</response>
+    /// <response code="409">It is already recorded. This has been done, or created, before.</response>
     /// <response code="422">Understood, and refused: the workflow does not allow this at the point it has reached.</response>
     [HttpPost("api/publications/{publicationId:guid}/assign-committee")]
     [Authorize(Roles = RoleNames.Admin)]
@@ -89,16 +88,15 @@ public class CommitteesController(ICommitteeService committeeService, ICurrentUs
     }
 
     /// <summary>
-    /// Records this member's own decision and the comments behind it, once. When the last
-    /// member has voted the committee is complete and the coordinator is told there is a
-    /// decision to make.
+    /// Records this member's own decision and the comments behind it, once. When the last member
+    /// has voted the committee is complete and the coordinator is told there is a decision to make.
     /// </summary>
     /// <response code="200">Done. The envelope carries a message saying what changed; there is no data with it.</response>
     /// <response code="400">The request did not pass validation. Which field, and why, comes back as a problem document rather than the usual envelope.</response>
     /// <response code="401">No access token was sent, or the one sent has expired.</response>
     /// <response code="403">Signed in, but not entitled to this: either the role is wrong for the endpoint, or the record belongs to somebody else.</response>
     /// <response code="404">No committee with that id.</response>
-    /// <response code="409">It is already recorded — this has been done, or created, before.</response>
+    /// <response code="409">It is already recorded. This has been done, or created, before.</response>
     [HttpPost("api/committees/{committeeId:guid}/review")]
     [Authorize(Roles = $"{RoleNames.InternalCommitteeMember},{RoleNames.ExternalCommitteeMember}")]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]

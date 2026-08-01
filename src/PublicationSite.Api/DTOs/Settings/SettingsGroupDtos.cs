@@ -77,12 +77,12 @@ public record SaveEthicsDocumentRequirementRequest(string Name, string? Descript
 /// Who is allowed to get an account, and how long a session lasts.
 ///
 /// <paramref name="RegistrationMode"/> is "Open" or "InviteOnly".
-/// <paramref name="IsEnvironmentDefault"/> says the mode has never been set and is being taken
-/// from the hosting environment — open in development, invite-only in production — which is
-/// worth telling an administrator so they know why it reads as it does.
-/// <paramref name="AzureSsoConfigured"/> is not a setting: it reports whether a tenant is
-/// actually configured on the server, so the screen can say that switching single sign-on on
-/// would currently do nothing.
+/// <paramref name="IsEnvironmentDefault"/> says the mode has never been set and is being taken from
+/// the hosting environment, open in development and invite-only in production, which is worth
+/// telling an administrator so they know why it reads as it does.
+/// <paramref name="AzureSsoConfigured"/> is not a setting: it reports whether a tenant is actually
+/// configured on the server, so the screen can say that switching single sign-on on would currently
+/// do nothing.
 /// </summary>
 public record AccessSettingsDto(
     string RegistrationMode,
@@ -108,10 +108,10 @@ public record UploadSettingsDto(int MaxMegabytes, string AllowedExtensions);
 public record UpdateUploadSettingsRequest(int MaxMegabytes, string AllowedExtensions);
 
 /// <summary>
-/// The institution itself: its name, the address suffixes that decide what someone is, where
-/// people write for help or to ask for a paper, and the intake currently running.
+/// The institution itself: its name, the address suffixes that decide what someone is, where people
+/// write for help or to ask for a paper, and the intake currently running.
 /// </summary>
-/// <param name="SelfRegistrationOpen">Whether anyone may sign themselves up. Read-only here and set under access settings — it rides along on this group because this is the one endpoint a signed-out visitor can call, and the sign-up page needs to know before offering a form the API would reject. It discloses nothing: attempting to register reveals the same thing.</param>
+/// <param name="SelfRegistrationOpen">Whether anyone may sign themselves up. Read-only here and set under access settings. It rides along on this group because this is the one endpoint a signed-out visitor can call, and the sign-up page needs to know before offering a form the API would reject. It discloses nothing: attempting to register reveals the same thing.</param>
 public record InstitutionSettingsDto(
     string Name,
     string StudentEmailDomain,

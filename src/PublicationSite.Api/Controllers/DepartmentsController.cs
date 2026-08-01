@@ -48,14 +48,14 @@ public class DepartmentsController(IDepartmentService departmentService) : Contr
     }
 
     /// <summary>
-    /// Adds a department. Its code is what appears against a student, so it is expected to be
-    /// short and is required to be unique.
+    /// Adds a department. Its code is what appears against a student, so it is expected to be short
+    /// and is required to be unique.
     /// </summary>
     /// <response code="201">The department was created. Its id is in the body, and the Location header points at it.</response>
     /// <response code="400">The request did not pass validation. Which field, and why, comes back as a problem document rather than the usual envelope.</response>
     /// <response code="401">No access token was sent, or the one sent has expired.</response>
     /// <response code="403">Signed in, but this is not something your role may do.</response>
-    /// <response code="409">It is already recorded — this has been done, or created, before.</response>
+    /// <response code="409">It is already recorded. This has been done, or created, before.</response>
     [HttpPost]
     [Authorize(Roles = RoleNames.Admin)]
     [ProducesResponseType(typeof(ApiResponse<DepartmentDto>), StatusCodes.Status201Created)]
@@ -91,14 +91,14 @@ public class DepartmentsController(IDepartmentService departmentService) : Contr
     }
 
     /// <summary>
-    /// Removes a department, provided nobody belongs to it. Students, supervisors and
-    /// coordinators reference it, so one still in use is refused rather than emptied.
+    /// Removes a department, provided nobody belongs to it. Students, supervisors and coordinators
+    /// reference it, so one still in use is refused rather than emptied.
     /// </summary>
     /// <response code="200">Done. The envelope carries a message saying what changed; there is no data with it.</response>
     /// <response code="401">No access token was sent, or the one sent has expired.</response>
     /// <response code="403">Signed in, but this is not something your role may do.</response>
     /// <response code="404">No department with that id.</response>
-    /// <response code="409">It is already recorded — this has been done, or created, before.</response>
+    /// <response code="409">It is already recorded. This has been done, or created, before.</response>
     [HttpDelete("{id:guid}")]
     [Authorize(Roles = RoleNames.Admin)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]

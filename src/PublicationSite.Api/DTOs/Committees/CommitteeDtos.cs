@@ -8,11 +8,9 @@ public record CommitteeMemberDto(
     string? DecisionComments,
     DateTime? DecidedAt);
 
-/// <param name="Paper">
-/// What the committee is being asked to judge, carried with the assignment. Without it a member's
-/// list of assignments had to fetch each paper separately — a request per committee, before the
-/// page could be shown at all.
-/// </param>
+/// <param name="Paper"> What the committee is being asked to judge, carried with the assignment.
+/// Without it a member's list of assignments had to fetch each paper separately, a request per
+/// committee, before the page could be shown at all. </param>
 public record CommitteeDto(
     Guid Id,
     Guid PublicationId,

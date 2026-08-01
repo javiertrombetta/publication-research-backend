@@ -16,7 +16,7 @@ namespace PublicationSite.Api.Controllers;
 public class InvitationsController(IInvitationService invitationService, ICurrentUserService currentUser) : ControllerBase
 {
     /// <summary>
-    /// Every invitation and where it stands — pending, accepted, expired or withdrawn.
+    /// Every invitation and where it stands: pending, accepted, expired or withdrawn.
     /// </summary>
     /// <response code="200">The matching user invitations, all of them.</response>
     /// <response code="401">No access token was sent, or the one sent has expired.</response>
@@ -33,20 +33,20 @@ public class InvitationsController(IInvitationService invitationService, ICurren
 
     /// <summary>
     /// Invites somebody to an account, with their role fixed at the moment of sending so they
-    /// cannot choose their own. This is how anyone gets an account wherever self-registration
-    /// is closed, and the only route there has ever been for external committee members, who
-    /// are outside the institution and have no address it could recognise.
+    /// cannot choose their own. This is how anyone gets an account wherever self-registration is
+    /// closed, and the only route there has ever been for external committee members, who are
+    /// outside the institution and have no address it could recognise.
     /// </summary>
     /// <remarks>
     /// A department is required for the roles that belong to one. If the invitation cannot be
-    /// emailed the response says so — the invitation exists, and the trail records it, so it
-    /// can be sent again once a mail server is configured.
+    /// emailed the response says so. The invitation exists, and the trail records it, so it can be
+    /// sent again once a mail server is configured.
     /// </remarks>
     /// <response code="200">The user invitation.</response>
     /// <response code="400">The request did not pass validation. Which field, and why, comes back as a problem document rather than the usual envelope.</response>
     /// <response code="401">No access token was sent, or the one sent has expired.</response>
     /// <response code="403">Signed in, but this is not something your role may do.</response>
-    /// <response code="409">It is already recorded — this has been done, or created, before.</response>
+    /// <response code="409">It is already recorded. This has been done, or created, before.</response>
     /// <response code="422">Understood, and refused: the workflow does not allow this at the point it has reached.</response>
     [HttpPost]
     [ProducesResponseType(typeof(ApiResponse<UserInvitationDto>), StatusCodes.Status200OK)]
@@ -125,12 +125,12 @@ public class InvitationsController(IInvitationService invitationService, ICurren
 
     /// <summary>
     /// Turns an invitation into an account: the invited person sets their password and is given the
-    /// role the invitation was sent for. Open without a session, because the person accepting has no
-    /// account yet — the token in the link is what proves they were invited.
+    /// role the invitation was sent for. Open without a session, because the person accepting has
+    /// no account yet. The token in the link is what proves they were invited.
     /// </summary>
     /// <response code="200">Done. The envelope carries a message saying what changed; there is no data with it.</response>
     /// <response code="400">The request did not pass validation. Which field, and why, comes back as a problem document rather than the usual envelope.</response>
-    /// <response code="409">It is already recorded — this has been done, or created, before.</response>
+    /// <response code="409">It is already recorded. This has been done, or created, before.</response>
     /// <response code="422">Understood, and refused: the workflow does not allow this at the point it has reached.</response>
     [HttpPost("accept")]
     [AllowAnonymous]

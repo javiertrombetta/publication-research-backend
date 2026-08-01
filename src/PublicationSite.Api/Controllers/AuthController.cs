@@ -19,14 +19,14 @@ namespace PublicationSite.Api.Controllers;
 public class AuthController(IAuthService authService, ICurrentUserService currentUser) : ControllerBase
 {
     /// <summary>
-    /// Creates an account from an institutional address, where an administrator has left
-    /// self-registration open. The role follows the domain — a student address makes a student
-    /// — so nobody chooses what they are.
+    /// Creates an account from an institutional address, where an administrator has left self-
+    /// registration open. The role follows the domain, so a student address makes a student and
+    /// nobody chooses what they are.
     /// </summary>
     /// <remarks>
-    /// The account cannot be used until the address is confirmed. If the verification email
-    /// cannot be sent the account is still created and the response says so, rather than
-    /// failing something that has already happened.
+    /// The account cannot be used until the address is confirmed. If the verification email cannot
+    /// be sent the account is still created and the response says so, rather than failing something
+    /// that has already happened.
     /// </remarks>
     /// <response code="200">Done. The envelope carries a message saying what changed; there is no data with it.</response>
     /// <response code="400">The request did not pass validation. Which field, and why, comes back as a problem document rather than the usual envelope.</response>
@@ -54,10 +54,9 @@ public class AuthController(IAuthService authService, ICurrentUserService curren
     /// Exchanges an email and password for an access token and a refresh token.
     /// </summary>
     /// <remarks>
-    /// Refuses a disabled account, an unconfirmed address and an expired password with a
-    /// message saying which, since each needs a different thing done about it. Repeated wrong
-    /// passwords lock the account for a while — how many and how long are an administrator's
-    /// settings.
+    /// Refuses a disabled account, an unconfirmed address and an expired password with a message
+    /// saying which, since each needs a different thing done about it. Repeated wrong passwords
+    /// lock the account for a while. How many, and for how long, are an administrator's settings.
     /// </remarks>
     /// <response code="200">The auth response.</response>
     /// <response code="400">The request did not pass validation. Which field, and why, comes back as a problem document rather than the usual envelope.</response>
@@ -99,8 +98,8 @@ public class AuthController(IAuthService authService, ICurrentUserService curren
     }
 
     /// <summary>
-    /// Issues a new access token from a refresh token. Access tokens are deliberately short —
-    /// they cannot be withdrawn before they expire — and this is what keeps a session alive
+    /// Issues a new access token from a refresh token. Access tokens are deliberately short,
+    /// because they cannot be withdrawn before they expire, and this is what keeps a session alive
     /// without holding a long-lived one.
     /// </summary>
     /// <response code="200">The auth response.</response>

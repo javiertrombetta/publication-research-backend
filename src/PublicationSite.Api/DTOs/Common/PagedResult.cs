@@ -17,9 +17,9 @@ public record PagedResult<T>(IReadOnlyList<T> Items, int Page, int PageSize, int
 public class PageRequest
 {
     /// <summary>
-    /// Ten rows, matching what the screens show. A caller can ask for more, up to a ceiling —
-    /// without one, a single request could be made to load the whole institution and undo the
-    /// point of paging at all.
+    /// Ten rows, matching what the screens show. A caller can ask for more, up to a ceiling.
+    /// Without one, a single request could be made to load the whole institution and undo the point
+    /// of paging altogether.
     /// </summary>
     public const int DefaultPageSize = 10;
     public const int MaximumPageSize = 100;
@@ -34,7 +34,7 @@ public class PageRequest
     ///
     /// Hidden from binding, and so from the API reference: they are what the two above are read as,
     /// not two more knobs. Swagger listed all four and offered a caller a choice that does not
-    /// exist — nothing is bound to these, since they have no setter.
+    /// exist. Nothing is bound to these, since they have no setter.
     /// </summary>
     [BindNever]
     public int SafePage => Math.Max(1, Page);

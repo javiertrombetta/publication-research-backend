@@ -8,7 +8,7 @@ namespace PublicationSite.Api.Controllers;
 
 /// <summary>
 /// Endpoints for shared testing deployments only. Every action here is a no-op (403) unless
-/// <c>DevTools:EnableDatabaseReset</c> is explicitly set — see appsettings.json / render.yaml.
+/// <c>DevTools:EnableDatabaseReset</c> is explicitly set. See appsettings.json and render.yaml.
 /// </summary>
 [ApiController]
 [Route("api/dev")]
@@ -21,16 +21,16 @@ public class DevToolsController(
 {
     /// <summary>
     /// Drops and recreates the entire schema, then reseeds the eight fixed roles, the configured
-    /// Admin (<c>Seed:AdminEmail</c>/<c>Seed:AdminPassword</c>) and, where this deployment asks
-    /// for it, the demonstration dataset (see <see cref="DemoDataSeeder"/>) — everything gets
-    /// wiped, including every account's login. Log in again afterwards; any token issued before
-    /// the reset stops working.
+    /// Admin (<c>Seed:AdminEmail</c>/<c>Seed:AdminPassword</c>) and, where this deployment asks for
+    /// it, the demonstration dataset (see <see cref="DemoDataSeeder"/>). Everything gets wiped,
+    /// including every account's login. Log in again afterwards; any token issued before the reset
+    /// stops working.
     /// </summary>
     /// <remarks>
     /// Returns as soon as the schema and the accounts needed to sign in exist. The demonstration
     /// publications are built in the background over the following minute or so, because doing it
-    /// inline would hold this request open long enough for a proxy in front to give up on it.
-    /// Poll <c>GET api/dev/demo-data</c> to see when it has finished.
+    /// inline would hold this request open long enough for a proxy in front to give up on it. Poll
+    /// <c>GET api/dev/demo-data</c> to see when it has finished.
     /// </remarks>
     /// <response code="200">Done. The envelope carries a message saying what changed; there is no data with it.</response>
     /// <response code="401">No access token was sent, or the one sent has expired.</response>
@@ -78,7 +78,7 @@ public class DevToolsController(
 
         return Ok(ApiResponse.Ok(
             $"Database reset. Schema recreated, and the roles and configured Admin reseeded. {demoNote} " +
-            "Log in again — previous tokens are no longer valid."));
+            "Log in again, as previous tokens are no longer valid."));
     }
 
     /// <summary>
