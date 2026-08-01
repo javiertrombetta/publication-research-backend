@@ -97,10 +97,20 @@ public class ProposalService(
             previousStatus: ProposalStatus.Draft.ToString(), newStatus: ProposalStatus.Submitted.ToString());
     }
 
-    public async Task RequestNewSubmissionAsync(Guid publicationContainerId, string comments, Guid actingUserId, CancellationToken cancellationToken = default)
+    public async Task RequestNewSubmissionAsync(
+        Guid publicationContainerId, string comments, Guid actingUserId, bool actingAsAdmin = false,
+        CancellationToken cancellationToken = default)
     {
         var container = await db.PublicationContainers.FindAsync([publicationContainerId], cancellationToken)
             ?? throw new NotFoundException(nameof(PublicationContainer), publicationContainerId);
+
+        // Whose student this is. Without the check any coordinator could throw away the proposals
+        // of a student in another department, which is not a thing the screen offers but was a
+        // thing the endpoint allowed. Administrators are exempt, as they are everywhere else.
+        if (!actingAsAdmin && container.CoordinatorId != actingUserId)
+        {
+            throw new ForbiddenException("You are not the Coordinator for this publication.");
+        }
 
         var proposals = await db.ResearchProposals
             .Where(p => p.PublicationContainerId == container.Id && p.Status != ProposalStatus.Rejected)
@@ -136,18 +146,43 @@ public class ProposalService(
     };
 
     public async Task<PagedResult<ProposalWithInvitationsDto>> GetPendingForCoordinatorAsync(
-        Guid coordinatorId, PageRequest page, string? search = null, CancellationToken cancellationToken = default)
+        Guid coordinatorId, PageRequest page, string? search = null, bool returnedOnly = false,
+        CancellationToken cancellationToken = default)
     {
-        // Carries the student's name, like the other listings. The dispatch screen groups proposals
-        // by student, and was naming them from a separate page of containers: any student whose
-        // publication fell past the first page of that lookup was headed "Unknown student".
-        var query = ApplySearch(
-            db.ResearchProposals.Where(p => p.PublicationContainer.CoordinatorId == coordinatorId
-                                            && p.Status == ProposalStatus.Submitted
-                                            && !p.SupervisorSelections.Any()),
-            search);
+        var query = ApplySearch(AwaitingDispatch(coordinatorId), search);
+
+        if (returnedOnly) query = query.Where(p => p.ReturnedToDispatchAt != null);
 
         return await ProjectWithInvitations(query, page).ToPageAsync(page, cancellationToken);
+    }
+
+    /// <summary>
+    /// Proposals with nobody asked about them yet: submitted, and carrying no invitation at all.
+    /// A proposal whose round was discarded loses its invitations, which is what brings it back
+    /// into this queue rather than leaving it stranded between two screens.
+    ///
+    /// Carries the student's name, like the other listings. The dispatch screen groups proposals
+    /// by student, and was naming them from a separate page of containers: any student whose
+    /// publication fell past the first page of that lookup was headed "Unknown student".
+    /// </summary>
+    private IQueryable<ResearchProposal> AwaitingDispatch(Guid coordinatorId) =>
+        db.ResearchProposals.Where(p => p.PublicationContainer.CoordinatorId == coordinatorId
+                                        && p.Status == ProposalStatus.Submitted
+                                        && !p.SupervisorSelections.Any());
+
+    public async Task<ReturnedToDispatchSummaryDto> GetReturnedToDispatchSummaryAsync(
+        Guid coordinatorId, CancellationToken cancellationToken = default)
+    {
+        var returned = AwaitingDispatch(coordinatorId).Where(p => p.ReturnedToDispatchAt != null);
+
+        // Students rather than publications: a coordinator reading this wants to know how many
+        // people are waiting on them, and one student can have more than one publication open.
+        var students = await returned
+            .Select(p => p.PublicationContainer.StudentId)
+            .Distinct()
+            .CountAsync(cancellationToken);
+
+        return new ReturnedToDispatchSummaryDto(students, await returned.CountAsync(cancellationToken));
     }
 
     public async Task<PagedResult<ProposalWithInvitationsDto>> GetForCoordinatorAsync(
@@ -242,7 +277,8 @@ public class ProposalService(
                         s.Comments,
                         s.InvitedAt,
                         s.SelectedAt))
-                    .ToList()));
+                    .ToList(),
+                p.ReturnedToDispatchAt));
 
     public async Task SendToSupervisorsAsync(SendToSupervisorsRequest request, Guid coordinatorId, CancellationToken cancellationToken = default)
     {
@@ -282,6 +318,10 @@ public class ProposalService(
                     });
                 }
             }
+
+            // It is out again, so it is no longer waiting for a second try. Left set, the dispatch
+            // screen would keep counting it among the ones that came back long after it had gone.
+            proposal.ReturnedToDispatchAt = null;
 
             await auditService.LogActivityAsync(proposal.PublicationContainerId, coordinatorId, "ProposalsSentToSupervisors",
                 request.Comments);
@@ -424,6 +464,95 @@ public class ProposalService(
 
         await auditService.LogActivityAsync(container.Id, coordinatorId, "ProposalsDeferredToNextCycle", comments,
             newStatus: ProposalStatus.DeferredToNextCycle.ToString());
+    }
+
+    public async Task<DiscardSelectionsResultDto> DiscardSelectionsAsync(
+        Guid proposalId, string comments, Guid coordinatorId, CancellationToken cancellationToken = default)
+    {
+        var proposal = await db.ResearchProposals
+            .Include(p => p.PublicationContainer).ThenInclude(c => c.Student)
+            .FirstOrDefaultAsync(p => p.Id == proposalId, cancellationToken)
+            ?? throw new NotFoundException(nameof(ResearchProposal), proposalId);
+
+        var container = proposal.PublicationContainer;
+
+        if (container.CoordinatorId != coordinatorId)
+        {
+            throw new ForbiddenException("You are not the Coordinator for this proposal.");
+        }
+
+        if (proposal.Status == ProposalStatus.Assigned || container.AssignedSupervisorId is not null)
+        {
+            throw new BusinessRuleException(
+                "This publication already has a supervisor, so there is no offer left to refuse.");
+        }
+
+        if (container.CurrentPipeline != PipelineStage.ResearchProposals)
+        {
+            throw new BusinessRuleException("This publication has moved past its research proposals.");
+        }
+
+        var hasOffer = await db.ProposalSupervisorSelections
+            .AnyAsync(s => s.ProposalId == proposalId && s.IsSelected, cancellationToken);
+
+        if (!hasOffer)
+        {
+            throw new BusinessRuleException("No supervisor has offered to take this proposal on.");
+        }
+
+        // Read before anything is changed: whether the rest of this student's work still has
+        // somebody willing decides how much goes back, and asking afterwards would be asking
+        // about a state this method has already altered.
+        var offerElsewhere = await db.ProposalSupervisorSelections.AnyAsync(
+            s => s.ProposalId != proposalId
+                 && s.Proposal.PublicationContainerId == container.Id
+                 && s.Proposal.Status != ProposalStatus.Rejected
+                 && s.IsSelected,
+            cancellationToken);
+
+        var returning = new List<ResearchProposal> { proposal };
+
+        if (!offerElsewhere)
+        {
+            // Nobody wants any of it. Half a student in the dispatch queue and half in the
+            // selection queue is a state neither screen reads properly, so the round is void and
+            // all of it goes back together, including proposals whose supervisors never replied.
+            returning.AddRange(await db.ResearchProposals
+                .Where(p => p.PublicationContainerId == container.Id
+                            && p.Id != proposalId
+                            && p.Status != ProposalStatus.Assigned
+                            && p.Status != ProposalStatus.Rejected)
+                .ToListAsync(cancellationToken));
+        }
+
+        var returningIds = returning.Select(p => p.Id).ToList();
+
+        // The invitations go, not just the offers. A proposal is back in the dispatch queue when
+        // nobody has been asked about it, so leaving the rows behind would take it off the
+        // selection screen without putting it on any other.
+        var invitations = await db.ProposalSupervisorSelections
+            .Where(s => returningIds.Contains(s.ProposalId))
+            .ToListAsync(cancellationToken);
+
+        db.ProposalSupervisorSelections.RemoveRange(invitations);
+
+        var now = DateTime.UtcNow;
+        foreach (var returned in returning)
+        {
+            returned.Status = ProposalStatus.Submitted;
+            returned.ReturnedToDispatchAt = now;
+            returned.UpdatedAt = now;
+        }
+
+        await db.SaveChangesAsync(cancellationToken);
+
+        await auditService.LogActivityAsync(container.Id, coordinatorId, "SupervisorOffersDiscarded",
+            comments, newStatus: ProposalStatus.Submitted.ToString());
+
+        return new DiscardSelectionsResultDto(
+            $"{container.Student.FirstName} {container.Student.LastName}",
+            returning.Count,
+            !offerElsewhere);
     }
 
     private async Task<PublicationContainer> GetOwnedContainerAsync(Guid containerId, Guid studentId, CancellationToken cancellationToken)
