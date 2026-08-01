@@ -45,7 +45,8 @@ public class SystemSettingServiceTests : IDisposable
         // tests do either, so a stub is honest here in a way it would not be for the settings
         // provider above.
         return new SystemSettingService(_fixture.Context, provider, _auditService.Object,
-            environment.Object, configuration, new Mock<IFileStorageService>().Object);
+            environment.Object, configuration, new Mock<IFileStorageService>().Object,
+            new Mock<IStorageMigrationService>().Object);
     }
 
     public void Dispose() => _fixture.Dispose();

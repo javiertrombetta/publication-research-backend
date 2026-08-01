@@ -91,6 +91,30 @@ public class FileStorageService(
         await backend.CheckAsync(cancellationToken);
     }
 
+    public async Task<string> CopyToAsync(
+        string relativePath, string targetProvider, string subFolder, CancellationToken cancellationToken = default)
+    {
+        var (source, path) = Resolve(relativePath);
+        var target = Named(targetProvider);
+
+        if (source.Name == target.Name) return relativePath;
+
+        await using var content = await source.ReadAsync(path, cancellationToken);
+
+        // The extension and size are not re-checked. These bytes were accepted once already, and
+        // an administrator who has since narrowed the allowed types would otherwise find that
+        // moving their files quietly refused to bring some of them, which is a worse outcome than
+        // a stored file that no longer matches today's rules.
+        var storedFileName = Path.GetFileName(path);
+        if (string.IsNullOrWhiteSpace(storedFileName)) storedFileName = $"{Guid.NewGuid()}";
+
+        var written = await target.WriteAsync(content, subFolder, storedFileName, cancellationToken);
+
+        return $"{target.Name}{Separator}{written}";
+    }
+
+    public string ProviderOf(string relativePath) => Resolve(relativePath).Backend.Name;
+
     /// <summary>
     /// Which backend a stored key belongs to, and the path within it.
     ///

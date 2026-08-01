@@ -33,4 +33,16 @@ public interface IFileStorageService
     /// </summary>
     /// <param name="providerName">A destination to test instead of the one in force, used to check a new one before switching to it.</param>
     Task CheckAsync(string? providerName = null, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Copies a stored file to another destination and returns its new key. The original is left
+    /// where it is: this is a copy, so an interrupted run leaves nothing missing and a key that
+    /// has not been updated yet still points at something real.
+    /// </summary>
+    /// <param name="subFolder">Where it should sit at the destination. Taken from the caller rather than from the source key, because a file kept in the database has no folder to read one from.</param>
+    Task<string> CopyToAsync(
+        string relativePath, string targetProvider, string subFolder, CancellationToken cancellationToken = default);
+
+    /// <summary>Which destination a stored key belongs to, for deciding whether it needs moving at all.</summary>
+    string ProviderOf(string relativePath);
 }
