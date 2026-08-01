@@ -203,15 +203,15 @@ public class ProposalsController(IProposalService proposalService, ICurrentUserS
     }
 
     /// <summary>
-    /// Refuses the offers made on a proposal and puts it back in the dispatch queue, so it can go
-    /// to different supervisors.
+    /// Refuses the offers made on a proposal, so it stops being one the coordinator is choosing
+    /// between. The invitations stay as the record of who was asked.
     ///
-    /// When that leaves the student with nothing anybody is willing to take on, the rest of their
-    /// proposals go back with it and the round is void: half a student on the selection screen and
-    /// half on the dispatch screen is a state neither of them reads properly. The invitations go
-    /// with the proposals, so nobody is left holding a question that no longer stands.
+    /// One proposal of three being turned down is not a student starting again: the others are
+    /// still live and the coordinator is choosing between them, so nothing moves. Only when
+    /// nothing at all of theirs has a supervisor willing to take it on is the round void, and then
+    /// the whole set goes back to the dispatch queue together, invitations and all.
     /// </summary>
-    /// <response code="200">What went back, and whether it was the whole of that student's work.</response>
+    /// <response code="200">Whether that emptied the student's round, and how much went back if it did.</response>
     /// <response code="400">The request did not pass validation. Which field, and why, comes back as a problem document rather than the usual envelope.</response>
     /// <response code="401">No access token was sent, or the one sent has expired.</response>
     /// <response code="403">Signed in, but not entitled to this: either the role is wrong for the endpoint, or the record belongs to somebody else.</response>
@@ -235,7 +235,8 @@ public class ProposalsController(IProposalService proposalService, ICurrentUserS
             result.StudentHasNothingLeft
                 ? $"Nobody was willing to take on {result.StudentName}'s work, so all "
                   + $"{result.ProposalsReturned} of their proposals are back in Send proposals."
-                : "Back in Send proposals, ready to go to different supervisors."));
+                : "Offers turned down. This student still has other proposals a supervisor "
+                  + "is willing to take on."));
     }
     /// <summary>
     /// Asks a chosen set of supervisors whether they could supervise these proposals. Sending

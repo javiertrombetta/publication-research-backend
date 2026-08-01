@@ -18,6 +18,13 @@ public class ProposalSupervisorSelection
 
     public DateTime InvitedAt { get; set; } = DateTime.UtcNow;
 
+    /// <summary>
+    /// When the Coordinator asked for an answer by, and null where they set no date. Held on the
+    /// invitation rather than the proposal because it belongs to the round: the same proposal sent
+    /// again after a round that found nobody gets a new date, and the old one should not follow it.
+    /// </summary>
+    public DateTime? RespondBy { get; set; }
+
     public bool IsSelected { get; set; }
     public string? Comments { get; set; }
     public DateTime? SelectedAt { get; set; }

@@ -159,6 +159,10 @@ builder.Services.AddScoped<IContainerAccessService, ContainerAccessService>();
 builder.Services.AddScoped<IContainerService, ContainerService>();
 builder.Services.AddScoped<IProposalService, ProposalService>();
 builder.Services.AddScoped<ISupervisorGroupService, SupervisorGroupService>();
+
+// Closes proposal rounds whose answer-by date has passed. Without it that date is a note in the
+// database that nothing ever reads.
+builder.Services.AddHostedService<ExpiredProposalRoundService>();
 builder.Services.AddScoped<IEthicsService, EthicsService>();
 builder.Services.AddScoped<IPublicationService, PublicationService>();
 builder.Services.AddScoped<ICommitteeService, CommitteeService>();

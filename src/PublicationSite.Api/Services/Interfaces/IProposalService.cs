@@ -33,10 +33,10 @@ public interface IProposalService
     Task DeferToNextCycleAsync(Guid publicationContainerId, string comments, Guid coordinatorId, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Refuses the offers a supervisor made on one proposal and puts it back in the dispatch queue.
-    /// When that leaves the student with nothing anybody is willing to take on, the rest of their
-    /// proposals go back with it, because a student half in one queue and half in another is not a
-    /// state anybody can work from.
+    /// Refuses the offers a supervisor made on one proposal, so it stops being one the coordinator
+    /// is choosing between. One proposal of three being turned down changes nothing else: the
+    /// others are still live. Only when nothing of the student's still has somebody willing does
+    /// the round come to nothing, and then the whole set goes back to the dispatch queue.
     /// </summary>
     Task<DiscardSelectionsResultDto> DiscardSelectionsAsync(Guid proposalId, string comments, Guid coordinatorId, CancellationToken cancellationToken = default);
 }
