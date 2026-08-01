@@ -11,6 +11,16 @@ namespace PublicationSite.Api.Controllers;
 [Authorize]
 public class CommitteesController(ICommitteeService committeeService, ICurrentUserService currentUser) : ControllerBase
 {
+    /// <summary>
+    /// Appoints the evaluation committee for a paper the supervisor has approved. Nothing moves
+    /// until this happens — the coordinator's final decision is blocked on it.
+    /// </summary>
+    /// <remarks>
+    /// Anyone at the institution except a student may be appointed; a committee judges a
+    /// student's work, so it cannot be drawn from the people whose work is judged. The
+    /// composition must match what the publication was opened under, not what is configured
+    /// today.
+    /// </remarks>
     [HttpPost("api/publications/{publicationId:guid}/assign-committee")]
     [Authorize(Roles = RoleNames.Admin)]
     [ProducesResponseType(typeof(ApiResponse<CommitteeDto>), StatusCodes.Status200OK)]
@@ -20,6 +30,9 @@ public class CommitteesController(ICommitteeService committeeService, ICurrentUs
         return Ok(ApiResponse<CommitteeDto>.Ok(result));
     }
 
+    /// <summary>
+    /// The committee on a paper, with each member's decision and comments.
+    /// </summary>
     [HttpGet("api/publications/{publicationId:guid}/committee")]
     [ProducesResponseType(typeof(ApiResponse<CommitteeDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetByPublication(Guid publicationId)
@@ -28,6 +41,11 @@ public class CommitteesController(ICommitteeService committeeService, ICurrentUs
         return Ok(ApiResponse<CommitteeDto>.Ok(result));
     }
 
+    /// <summary>
+    /// The papers this member has been asked to evaluate, the ones still needing their vote
+    /// first, with the paper itself carried alongside so the list needs nothing further to be
+    /// readable.
+    /// </summary>
     [HttpGet("api/committees/my-assignments")]
     [Authorize(Roles = $"{RoleNames.InternalCommitteeMember},{RoleNames.ExternalCommitteeMember}")]
     [ProducesResponseType(typeof(ApiResponse<PagedResult<CommitteeDto>>), StatusCodes.Status200OK)]
@@ -37,6 +55,11 @@ public class CommitteesController(ICommitteeService committeeService, ICurrentUs
         return Ok(ApiResponse<PagedResult<CommitteeDto>>.Ok(result));
     }
 
+    /// <summary>
+    /// Records this member's own decision and the comments behind it, once. When the last
+    /// member has voted the committee is complete and the coordinator is told there is a
+    /// decision to make.
+    /// </summary>
     [HttpPost("api/committees/{committeeId:guid}/review")]
     [Authorize(Roles = $"{RoleNames.InternalCommitteeMember},{RoleNames.ExternalCommitteeMember}")]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
@@ -46,6 +69,9 @@ public class CommitteesController(ICommitteeService committeeService, ICurrentUs
         return Ok(ApiResponse.Ok("Decision recorded."));
     }
 
+    /// <summary>
+    /// How many members of each kind a committee needs by default.
+    /// </summary>
     [HttpGet("api/settings/default-committee")]
     [Authorize(Roles = RoleNames.Admin)]
     [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<CommitteeRoleConfigDto>>), StatusCodes.Status200OK)]
@@ -55,6 +81,10 @@ public class CommitteesController(ICommitteeService committeeService, ICurrentUs
         return Ok(ApiResponse<IReadOnlyList<CommitteeRoleConfigDto>>.Ok(result));
     }
 
+    /// <summary>
+    /// Changes that default. It applies to publications opened afterwards: each one keeps the
+    /// figures it was opened under.
+    /// </summary>
     [HttpPut("api/settings/default-committee")]
     [Authorize(Roles = RoleNames.Admin)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
@@ -64,6 +94,9 @@ public class CommitteesController(ICommitteeService committeeService, ICurrentUs
         return Ok(ApiResponse.Ok("Default committee configuration updated."));
     }
 
+    /// <summary>
+    /// The composition one particular committee was built to.
+    /// </summary>
     [HttpGet("api/committees/{committeeId:guid}/config")]
     [Authorize(Roles = $"{RoleNames.Admin},{RoleNames.Coordinator}")]
     [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<CommitteeRoleConfigDto>>), StatusCodes.Status200OK)]
@@ -73,6 +106,10 @@ public class CommitteesController(ICommitteeService committeeService, ICurrentUs
         return Ok(ApiResponse<IReadOnlyList<CommitteeRoleConfigDto>>.Ok(result));
     }
 
+    /// <summary>
+    /// Overrides the composition for one committee, for a paper that genuinely needs a
+    /// different panel from the standard one.
+    /// </summary>
     [HttpPut("api/committees/{committeeId:guid}/config")]
     [Authorize(Roles = $"{RoleNames.Admin},{RoleNames.Coordinator}")]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]

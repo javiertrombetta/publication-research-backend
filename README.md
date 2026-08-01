@@ -106,6 +106,19 @@ list. Two things make it worth reading, and both had to be switched on deliberat
   `IncludeXmlComments` feeds to Swagger; without it every `<summary>` written against an endpoint
   or a DTO stayed in the source and reached nobody.
 
+All 128 operations carry a description. That is worth stating as a number, because partial coverage
+is the state a reference tends to settle into: the endpoints somebody happened to explain are
+described, the rest are a method name, and a reader cannot tell which they are looking at until
+they have read it. `/health` is a minimal endpoint rather than a controller action, so it carries
+its description as `.WithSummary(...)` metadata instead of an XML comment.
+
+The version is `Common/ApiVersion.cs`, currently **v1.1**, and the document is served under it at
+`/swagger/v1.1/swagger.json`. It is deliberately not in the route — every path stays `api/…`, which
+is what the frontend, the Postman collection and the team's saved requests are written against.
+Raise the minor part when endpoints are added or described, the major part when something already
+published changes shape. The Swagger UI is pointed at the endpoint explicitly, since its default
+only ever looks for `/swagger/v1/swagger.json`.
+
 A note for anyone documenting a positional record: the `///` block goes **above the record**, as
 `<param name="...">`. Written inside the parameter list it looks right, compiles, and is silently
 discarded — the compiler says so as CS1587, which is invisible until the documentation file is on.
@@ -326,8 +339,8 @@ docker compose up -d          # mysql + the containerised API itself, for a loca
 [docs/postman/](docs/postman/) has a ready-to-import collection (one folder per controller) generated from the
 live OpenAPI spec, plus an environment pointing at the deployed Render instance. Import both, run
 **Auth > Login**, and the access/refresh tokens are saved into collection variables automatically — every
-other request already inherits Bearer auth from them. It predates the Settings and Invitations controllers;
-regenerate it from `/swagger/v1/swagger.json` to pick those up.
+other request already inherits Bearer auth from them. It covers all 128 endpoints and is checked against
+the live spec; if you add one, add it here too or regenerate from `/swagger/v1.1/swagger.json`.
 
 ## Testing
 

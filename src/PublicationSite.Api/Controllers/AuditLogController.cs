@@ -13,6 +13,11 @@ namespace PublicationSite.Api.Controllers;
 [Authorize(Roles = RoleNames.Admin)]
 public class AuditLogController(IAuditLogQueryService auditLogQueryService) : ControllerBase
 {
+    /// <summary>
+    /// Every recorded action, newest first, filtered and paged. The trail is append-only and
+    /// nothing in the application deletes from it, so this is the record of who did what to
+    /// whose work.
+    /// </summary>
     [HttpGet]
     [ProducesResponseType(typeof(ApiResponse<PagedResult<AuditLogEntryDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetAll([FromQuery] AuditLogQuery query)
@@ -21,6 +26,10 @@ public class AuditLogController(IAuditLogQueryService auditLogQueryService) : Co
         return Ok(ApiResponse<PagedResult<AuditLogEntryDto>>.Ok(result));
     }
 
+    /// <summary>
+    /// The same trail as a CSV file, for handing to somebody who is not going to be given an
+    /// account — an auditor, or a committee asking how a decision was reached.
+    /// </summary>
     [HttpGet("export")]
     [ProducesResponseType(typeof(FileResult), StatusCodes.Status200OK)]
     public async Task<IActionResult> Export([FromQuery] AuditLogQuery query)

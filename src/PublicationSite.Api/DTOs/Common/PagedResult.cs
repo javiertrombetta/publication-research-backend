@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Mvc.ModelBinding;
+
 namespace PublicationSite.Api.DTOs.Common;
 
 /// <summary>
@@ -29,7 +31,15 @@ public class PageRequest
     /// Clamped rather than rejected. These numbers arrive from stale links and typed addresses as
     /// often as from a working client, and the nearest sensible page is a better answer than an
     /// error for something nobody meant to get wrong.
+    ///
+    /// Hidden from binding, and so from the API reference: they are what the two above are read as,
+    /// not two more knobs. Swagger listed all four and offered a caller a choice that does not
+    /// exist — nothing is bound to these, since they have no setter.
     /// </summary>
+    [BindNever]
     public int SafePage => Math.Max(1, Page);
+
+    /// <inheritdoc cref="SafePage"/>
+    [BindNever]
     public int SafePageSize => Math.Clamp(PageSize <= 0 ? DefaultPageSize : PageSize, 1, MaximumPageSize);
 }
