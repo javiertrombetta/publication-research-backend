@@ -395,7 +395,9 @@ public class PublicationService(
         }
     }
 
-    public async Task PublishDecisionAsync(Guid publicationId, Guid actingUserId, PublishDecisionRequest request, CancellationToken cancellationToken = default)
+    public async Task PublishDecisionAsync(
+        Guid publicationId, Guid actingUserId, PublishDecisionRequest request, bool actingAsAdmin = false,
+        CancellationToken cancellationToken = default)
     {
         var publication = await db.Publications.Include(p => p.PublicationContainer)
             .FirstOrDefaultAsync(p => p.Id == publicationId, cancellationToken)
@@ -403,6 +405,19 @@ public class PublicationService(
 
         var container = publication.PublicationContainer;
         var isOwner = container.StudentId == actingUserId;
+
+        // Whose decision this is. The author's, and after them only the people who oversee their
+        // work: this publication's own coordinator, or an administrator. Without this the endpoint
+        // let any student publish any accepted paper in the institution, because holding the
+        // Student role was the whole of the check and the rest of the method only asked whether
+        // the caller was the author in order to decide whether to insist on a reason.
+        var onBehalfOfTheAuthor = actingAsAdmin || container.CoordinatorId == actingUserId;
+
+        if (!isOwner && !onBehalfOfTheAuthor)
+        {
+            throw new ForbiddenException(
+                "Only the author, their Coordinator or an Administrator can make this decision.");
+        }
 
         if (!isOwner && string.IsNullOrWhiteSpace(request.Comments))
         {

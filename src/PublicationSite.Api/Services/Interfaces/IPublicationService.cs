@@ -38,6 +38,7 @@ public interface IPublicationService
     Task<IReadOnlyList<ReviewDto>> GetReviewsAsync(Guid publicationId, Guid requestingUserId, CancellationToken cancellationToken = default);
 
     Task CoordinatorFinalDecisionAsync(Guid publicationId, Guid coordinatorId, PaperReviewDecisionRequest request, CancellationToken cancellationToken = default);
-    Task PublishDecisionAsync(Guid publicationId, Guid actingUserId, PublishDecisionRequest request, CancellationToken cancellationToken = default);
+    /// <param name="actingAsAdmin">True when an administrator is deciding. Otherwise the caller has to be the author or the coordinator of their publication.</param>
+    Task PublishDecisionAsync(Guid publicationId, Guid actingUserId, PublishDecisionRequest request, bool actingAsAdmin = false, CancellationToken cancellationToken = default);
     Task RemovePublishedAsync(Guid publicationId, string comments, Guid adminId, CancellationToken cancellationToken = default);
 }

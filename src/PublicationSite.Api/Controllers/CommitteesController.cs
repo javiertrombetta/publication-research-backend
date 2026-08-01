@@ -187,7 +187,8 @@ public class CommitteesController(ICommitteeService committeeService, ICurrentUs
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status422UnprocessableEntity)]
     public async Task<IActionResult> SetCommitteeConfig(Guid committeeId, [FromBody] SetCommitteeRoleConfigRequest request)
     {
-        await committeeService.SetCommitteeConfigAsync(committeeId, request, currentUser.UserId);
+        await committeeService.SetCommitteeConfigAsync(
+            committeeId, request, currentUser.UserId, User.IsInRole(RoleNames.Admin));
         return Ok(ApiResponse.Ok("Committee configuration updated."));
     }
 }
