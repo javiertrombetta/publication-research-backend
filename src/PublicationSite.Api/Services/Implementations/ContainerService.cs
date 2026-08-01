@@ -74,7 +74,34 @@ public class ContainerService(
         ["supervisor"] = c => c.AssignedSupervisor!.LastName,
         ["stage"] = c => c.CurrentPipeline,
         ["status"] = c => c.Status,
-        ["started"] = c => c.CreatedAt
+        ["started"] = c => c.CreatedAt,
+        // What the Coordinator has to do next, ordered so that ascending puts the work first and
+        // the publications waiting on somebody else last. It restates the two conditions the
+        // dashboard reads off EthicsAwaitingRole and PaperStatus, because ordering has to happen
+        // on the entity, before the projection those two fields are computed in. Grouping the two
+        // kinds of work apart is deliberate: a coordinator clearing ethics decisions and one
+        // clearing paper decisions are on different screens.
+        ["waiting"] = c =>
+            c.Status == ContainerStatus.Completed
+                ? 2
+            : c.EthicsApproval != null
+              && ((c.EthicsApproval.Status == EthicsStatus.NotRequired && c.EthicsApproval.FinalDecisionAt == null)
+                  || (c.EthicsApproval.Status == EthicsStatus.PendingVerification
+                      && !c.EthicsApproval.Documents.Any(d => d.Status == EthicsDocumentStatus.PendingReview)
+                      && (c.EthicsApproval.CoordinatorDecisionAt == null
+                          || c.EthicsApproval.HeadOfDepartmentReviewedAt != null)))
+                ? 0
+            : c.Publication != null
+              && c.Publication.Status == PublicationStatus.UnderReview
+              && c.Publication.Versions
+                    .OrderByDescending(v => v.VersionNumber)
+                    .Take(1)
+                    .SelectMany(v => v.Reviews)
+                    .Any(r => r.ReviewerType == ReviewerType.Supervisor && r.Decision == ReviewDecision.Approve)
+              && c.Publication.Committee != null
+              && c.Publication.Committee.Status == CommitteeStatus.Completed
+                ? 1
+            : 2
     };
 
     public async Task<PagedResult<PublicationContainerDto>> GetMineAsync(
