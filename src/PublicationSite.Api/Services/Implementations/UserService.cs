@@ -211,7 +211,7 @@ public class UserService(
 
         if (user.ProfilePhotoPath is { } photoPath)
         {
-            fileStorageService.Delete(photoPath);
+            await fileStorageService.DeleteAsync(photoPath, cancellationToken);
             user.ProfilePhotoPath = null;
         }
 
@@ -275,7 +275,7 @@ public class UserService(
         // referencing a file that no longer exists.
         if (previousPath is not null)
         {
-            fileStorageService.Delete(previousPath);
+            await fileStorageService.DeleteAsync(previousPath, cancellationToken);
         }
 
         await auditService.LogAuditAsync(userId, "ProfilePhotoUpdated", nameof(ApplicationUser), userId,
@@ -294,7 +294,7 @@ public class UserService(
             user.UpdatedAt = DateTime.UtcNow;
             await userManager.UpdateAsync(user);
 
-            fileStorageService.Delete(path);
+            await fileStorageService.DeleteAsync(path, cancellationToken);
 
             await auditService.LogAuditAsync(userId, "ProfilePhotoRemoved", nameof(ApplicationUser), userId,
                 previousValue: path);

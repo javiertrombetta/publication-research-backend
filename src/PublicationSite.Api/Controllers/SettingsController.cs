@@ -352,6 +352,75 @@ public class SettingsController(
         return Ok(ApiResponse<InstitutionSettingsDto>.Ok(result, "Saved."));
     }
 
+    // ---------- Where uploaded files are kept ----------
+
+    /// <summary>
+    /// Where ethics documents, research paper versions and profile photos are written.
+    ///
+    /// The S3 secret key and the Azure connection string come back as a flag saying whether one is
+    /// stored, never as the value: an administrator's browser is not somewhere a storage key
+    /// belongs.
+    /// </summary>
+    /// <response code="200">The storage settings.</response>
+    /// <response code="401">No access token was sent, or the one sent has expired.</response>
+    /// <response code="403">Signed in, but this is not something your role may do.</response>
+    [HttpGet("storage")]
+    [ProducesResponseType(typeof(ApiResponse<StorageSettingsDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetStorage(CancellationToken cancellationToken)
+    {
+        var result = await systemSettingService.GetStorageSettingsAsync(cancellationToken);
+        return Ok(ApiResponse<StorageSettingsDto>.Ok(result));
+    }
+
+    /// <summary>
+    /// Points new uploads at a destination.
+    ///
+    /// Files already stored are unaffected and stay readable: each one records the destination
+    /// that wrote it, so this is a change to where the next upload goes and nothing else. There is
+    /// no migration to run and no moment at which downloads stop working.
+    /// </summary>
+    /// <response code="200">The storage settings as saved.</response>
+    /// <response code="400">The request did not pass validation. Which field, and why, comes back as a problem document rather than the usual envelope.</response>
+    /// <response code="401">No access token was sent, or the one sent has expired.</response>
+    /// <response code="403">Signed in, but this is not something your role may do.</response>
+    /// <response code="422">Understood, and refused: the destination is not one this installation has, or it is missing something it cannot work without.</response>
+    [HttpPut("storage")]
+    [ProducesResponseType(typeof(ApiResponse<StorageSettingsDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status422UnprocessableEntity)]
+    public async Task<IActionResult> UpdateStorage(
+        [FromBody] UpdateStorageSettingsRequest request, CancellationToken cancellationToken)
+    {
+        var result = await systemSettingService.UpdateStorageSettingsAsync(
+            request, currentUser.UserId, cancellationToken);
+
+        return Ok(ApiResponse<StorageSettingsDto>.Ok(result, "Saved."));
+    }
+
+    /// <summary>
+    /// Tries a destination and says what happened: writes something small and removes it again.
+    ///
+    /// A failure comes back as a 200 saying no, because the administrator asked a question and
+    /// that is the answer to it. An error status here would read as the settings screen being
+    /// broken rather than the bucket.
+    /// </summary>
+    /// <response code="200">Whether it answered, and what it said if it did not.</response>
+    /// <response code="401">No access token was sent, or the one sent has expired.</response>
+    /// <response code="403">Signed in, but this is not something your role may do.</response>
+    [HttpPost("storage/check")]
+    [ProducesResponseType(typeof(ApiResponse<StorageCheckResultDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> CheckStorage([FromQuery] string? provider, CancellationToken cancellationToken)
+    {
+        var result = await systemSettingService.CheckStorageAsync(provider, cancellationToken);
+        return Ok(ApiResponse<StorageCheckResultDto>.Ok(result));
+    }
+
     // ---------- Deadlines ----------
 
     /// <summary>

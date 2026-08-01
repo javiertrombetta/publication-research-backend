@@ -17,6 +17,7 @@ using PublicationSite.Api.Common.Options;
 using PublicationSite.Api.Data;
 using PublicationSite.Api.Entities;
 using PublicationSite.Api.Services.Implementations;
+using PublicationSite.Api.Services.Implementations.Storage;
 using PublicationSite.Api.Services.Interfaces;
 using Serilog;
 
@@ -150,7 +151,14 @@ builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IAuditService, AuditService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
-builder.Services.AddScoped<IFileStorageService, LocalFileStorageService>();
+// Where uploaded files go is the administrator's choice, so every destination is registered and
+// the service picks between them. Registered in this order only for tidiness: the one in force is
+// chosen by name from settings, and a file is always read back from the one that wrote it.
+builder.Services.AddScoped<IFileStorageBackend, LocalFileStorageBackend>();
+builder.Services.AddScoped<IFileStorageBackend, DatabaseFileStorageBackend>();
+builder.Services.AddScoped<IFileStorageBackend, S3FileStorageBackend>();
+builder.Services.AddScoped<IFileStorageBackend, AzureBlobFileStorageBackend>();
+builder.Services.AddScoped<IFileStorageService, FileStorageService>();
 builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserService, UserService>();

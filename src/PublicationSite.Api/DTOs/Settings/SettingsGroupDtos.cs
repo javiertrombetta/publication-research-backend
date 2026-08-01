@@ -108,6 +108,49 @@ public record UploadSettingsDto(int MaxMegabytes, string AllowedExtensions);
 public record UpdateUploadSettingsRequest(int MaxMegabytes, string AllowedExtensions);
 
 /// <summary>
+/// Where uploaded files are kept: ethics documents, research paper versions and profile photos.
+///
+/// Changing it points new uploads somewhere else and nothing more. Every stored file records the
+/// destination that wrote it, so what is already there keeps opening from where it is and there is
+/// no migration to run or window to time.
+/// </summary>
+/// <param name="Provider">"local", "database", "s3" or "azure-blob".</param>
+/// <param name="LocalPath">The directory the local option writes under, absolute or relative to the application. A network share is this pointed at a mounted path or a UNC path, which is the whole of the difference.</param>
+/// <param name="S3ServiceUrl">Empty for Amazon's own S3. Set for anything else that speaks S3, which is most object storage.</param>
+/// <param name="S3SecretKeySet">Whether a secret key is stored. The key itself is never returned.</param>
+/// <param name="AzureConnectionStringSet">Whether a connection string is stored. It is never returned, because it carries its own key.</param>
+public record StorageSettingsDto(
+    string Provider,
+    string LocalPath,
+    string? S3Bucket,
+    string? S3Region,
+    string? S3ServiceUrl,
+    string? S3AccessKeyId,
+    bool S3SecretKeySet,
+    bool S3ForcePathStyle,
+    string AzureContainer,
+    bool AzureConnectionStringSet);
+
+/// <summary>
+/// The secrets are optional on update: left null the stored one is kept, so an administrator can
+/// change a bucket name without being made to retype a key they are not allowed to read back.
+/// </summary>
+public record UpdateStorageSettingsRequest(
+    string Provider,
+    string? LocalPath,
+    string? S3Bucket,
+    string? S3Region,
+    string? S3ServiceUrl,
+    string? S3AccessKeyId,
+    string? S3SecretKey,
+    bool S3ForcePathStyle,
+    string? AzureContainer,
+    string? AzureConnectionString);
+
+/// <summary>What testing a destination found. Never throws at the caller: a failure is the answer.</summary>
+public record StorageCheckResultDto(bool Reachable, string Message);
+
+/// <summary>
 /// The institution itself: its name, the address suffixes that decide what someone is, where people
 /// write for help or to ask for a paper, and the intake currently running.
 /// </summary>

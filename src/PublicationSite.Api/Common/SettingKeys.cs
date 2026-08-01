@@ -217,12 +217,61 @@ public static class SettingKeys
     public const int DefaultEthicsReviewDays = 21;
     public const int DefaultCommitteeReviewDays = 30;
 
+    // ---------- Where uploaded files are kept ----------
+
+    /// <summary>
+    /// Which backend new uploads are written to, by name: "local", "database", "s3" or
+    /// "azure-blob". Files already stored keep being read from wherever they were written, so
+    /// changing this is safe at any time and never has to be timed around anything.
+    /// </summary>
+    public const string StorageProvider = "storage.provider";
+
+    /// <summary>
+    /// The directory the local backend writes under. Absolute, or relative to the application's
+    /// content root. A network share is this same backend pointed at a mounted path or a UNC path,
+    /// which is why there is no separate provider for one: to the application it is a directory,
+    /// and whether it is on this machine is a question for whoever mounted it.
+    /// </summary>
+    public const string StorageLocalPath = "storage.local.path";
+
+    public const string StorageS3Bucket = "storage.s3.bucket";
+    public const string StorageS3Region = "storage.s3.region";
+
+    /// <summary>
+    /// Left empty for Amazon's own S3. Set it to reach anything else that speaks S3, which is most
+    /// object storage: MinIO, Wasabi, Backblaze, DigitalOcean Spaces.
+    /// </summary>
+    public const string StorageS3ServiceUrl = "storage.s3.service-url";
+
+    public const string StorageS3AccessKeyId = "storage.s3.access-key-id";
+
+    /// <summary>Write-only over the API, like the mail password.</summary>
+    public const string StorageS3SecretKey = "storage.s3.secret-key";
+
+    /// <summary>
+    /// Needed by most S3-compatible services that are not Amazon, where the bucket cannot be part
+    /// of the hostname. Harmless on Amazon.
+    /// </summary>
+    public const string StorageS3ForcePathStyle = "storage.s3.force-path-style";
+
+    public const string StorageAzureContainer = "storage.azure.container";
+
+    /// <summary>Write-only over the API: a Blob Storage connection string carries its own key.</summary>
+    public const string StorageAzureConnectionString = "storage.azure.connection-string";
+
+    public const string DefaultStorageProvider = "local";
+    public const string DefaultStorageLocalPath = "App_Data/uploads";
+    public const string DefaultStorageAzureContainer = "uploads";
+    public const bool DefaultStorageS3ForcePathStyle = false;
+
     /// <summary>
     /// Keys whose values must never leave the server. Read endpoints report whether one is set
     /// rather than what it is.
     /// </summary>
     public static readonly IReadOnlySet<string> Secret = new HashSet<string>(StringComparer.Ordinal)
     {
-        SmtpPassword
+        SmtpPassword,
+        StorageS3SecretKey,
+        StorageAzureConnectionString
     };
 }
