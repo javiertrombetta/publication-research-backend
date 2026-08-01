@@ -159,6 +159,7 @@ builder.Services.AddScoped<IFileStorageBackend, DatabaseFileStorageBackend>();
 builder.Services.AddScoped<IFileStorageBackend, S3FileStorageBackend>();
 builder.Services.AddScoped<IFileStorageBackend, AzureBlobFileStorageBackend>();
 builder.Services.AddScoped<IFileStorageService, FileStorageService>();
+builder.Services.AddScoped<IStorageMigrationService, StorageMigrationService>();
 builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserService, UserService>();

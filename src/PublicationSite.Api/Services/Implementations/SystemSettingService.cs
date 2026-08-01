@@ -15,7 +15,8 @@ public class SystemSettingService(
     IAuditService auditService,
     IHostEnvironment environment,
     IConfiguration configuration,
-    IFileStorageService fileStorage) : ISystemSettingService
+    IFileStorageService fileStorage,
+    IStorageMigrationService storageMigration) : ISystemSettingService
 {
     /// <summary>
     /// What registration falls back to when nobody has chosen. Development is open so the team
@@ -475,7 +476,10 @@ public class SystemSettingService(
                 SettingKeys.DefaultStorageS3ForcePathStyle, cancellationToken),
             await settings.GetStringAsync(SettingKeys.StorageAzureContainer, cancellationToken)
                 is { Length: > 0 } container ? container : SettingKeys.DefaultStorageAzureContainer,
-            await settings.GetStringAsync(SettingKeys.StorageAzureConnectionString, cancellationToken) is not null);
+            await settings.GetStringAsync(SettingKeys.StorageAzureConnectionString, cancellationToken) is not null,
+            // So the screen can offer the copy only when there is something to copy, and say how
+            // much rather than asking the administrator to guess.
+            await storageMigration.CountElsewhereAsync(cancellationToken));
     }
 
     public async Task<StorageSettingsDto> UpdateStorageSettingsAsync(

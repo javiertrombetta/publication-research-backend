@@ -17,6 +17,7 @@ namespace PublicationSite.Api.Controllers;
 public class SettingsController(
     ISystemSettingService systemSettingService,
     IEthicsDocumentRequirementService ethicsRequirementService,
+    IStorageMigrationService storageMigration,
     ICurrentUserService currentUser) : ControllerBase
 {
     /// <summary>
@@ -419,6 +420,34 @@ public class SettingsController(
     {
         var result = await systemSettingService.CheckStorageAsync(provider, cancellationToken);
         return Ok(ApiResponse<StorageCheckResultDto>.Ok(result));
+    }
+
+    /// <summary>
+    /// Copies files stored elsewhere to the destination in force, and repoints their records.
+    ///
+    /// Optional, and never a side effect of changing the destination: files record where they were
+    /// written and keep opening from there, so an installation that never runs this works exactly
+    /// as well. This is for wanting everything in one place.
+    ///
+    /// Copy, repoint, leave the original. In that order an interruption leaves every record
+    /// pointing at a file that exists, which is what makes it safe to stop and run again. One run
+    /// is bounded so the request answers; if anything is left, run it again.
+    /// </summary>
+    /// <response code="200">How many moved, how many are left, and anything that could not be copied.</response>
+    /// <response code="401">No access token was sent, or the one sent has expired.</response>
+    /// <response code="403">Signed in, but this is not something your role may do.</response>
+    [HttpPost("storage/migrate")]
+    [ProducesResponseType(typeof(ApiResponse<StorageMigrationResultDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> MigrateStorage(CancellationToken cancellationToken)
+    {
+        var result = await storageMigration.MigrateToActiveAsync(currentUser.UserId, cancellationToken);
+
+        return Ok(ApiResponse<StorageMigrationResultDto>.Ok(result,
+            result.Remaining > 0
+                ? $"{result.Moved} copied. {result.Remaining} still to go: run it again to continue."
+                : $"{result.Moved} copied. Everything is now at the destination in force."));
     }
 
     // ---------- Deadlines ----------

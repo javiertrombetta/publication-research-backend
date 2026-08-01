@@ -129,7 +129,8 @@ public record StorageSettingsDto(
     bool S3SecretKeySet,
     bool S3ForcePathStyle,
     string AzureContainer,
-    bool AzureConnectionStringSet);
+    bool AzureConnectionStringSet,
+    int FilesElsewhere = 0);
 
 /// <summary>
 /// The secrets are optional on update: left null the stored one is kept, so an administrator can
@@ -149,6 +150,14 @@ public record UpdateStorageSettingsRequest(
 
 /// <summary>What testing a destination found. Never throws at the caller: a failure is the answer.</summary>
 public record StorageCheckResultDto(bool Reachable, string Message);
+
+/// <summary>
+/// What one run of the copy did.
+/// </summary>
+/// <param name="Moved">Files copied to the destination in force, with their records repointed.</param>
+/// <param name="Remaining">Still elsewhere. Runs are bounded so a request answers, so more than zero here means run it again.</param>
+/// <param name="Problems">The files that could not be copied, and why. One unreadable file does not stop the rest.</param>
+public record StorageMigrationResultDto(int Moved, int Remaining, IReadOnlyList<string> Problems);
 
 /// <summary>
 /// The institution itself: its name, the address suffixes that decide what someone is, where people
