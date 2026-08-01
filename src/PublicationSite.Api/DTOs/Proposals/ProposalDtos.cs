@@ -1,16 +1,23 @@
 namespace PublicationSite.Api.DTOs.Proposals;
 
+/// <param name="RespondBy">When the supervisor reading this has to have answered by. Only filled in on the listing of proposals sent to a supervisor, because that is the only place anybody is being held to it; null everywhere else, and null there too where the coordinator set no date.</param>
 public record ProposalDto(
     Guid Id,
     Guid PublicationContainerId,
     string Title,
     string Abstract,
     string Status,
-    DateTime? SubmittedAt);
+    DateTime? SubmittedAt,
+    DateTime? RespondBy = null);
 
 public record SaveProposalRequest(string Title, string Abstract);
 
-public record SendToSupervisorsRequest(IReadOnlyList<Guid> ProposalIds, IReadOnlyList<Guid> SupervisorIds, string Comments);
+/// <param name="RespondBy">When the supervisors have to answer by, or null for no date. Once it passes, students with no proposal anybody offered to take on go back to the dispatch queue on their own.</param>
+public record SendToSupervisorsRequest(
+    IReadOnlyList<Guid> ProposalIds,
+    IReadOnlyList<Guid> SupervisorIds,
+    string Comments,
+    DateTime? RespondBy = null);
 
 public record SupervisorSelectionRequest(string? Comments);
 
@@ -23,7 +30,8 @@ public record SupervisorInvitationDto(
     bool IsSelected,
     string? Comments,
     DateTime InvitedAt,
-    DateTime? SelectedAt);
+    DateTime? SelectedAt,
+    DateTime? RespondBy = null);
 
 /// <summary>
 /// A research proposal together with the Supervisors it was sent to and what they said.
@@ -46,10 +54,10 @@ public record ProposalWithInvitationsDto(
     DateTime? ReturnedToDispatchAt = null);
 
 /// <summary>
-/// What discarding a set of offers actually did. The coordinator refused the offers on one
-/// proposal, and whether that took the whole student back to the dispatch queue depends on what
-/// else they had, so the answer comes back rather than being guessed at by the caller.
+/// What discarding a set of offers actually did. Whether it emptied the student's round depends on
+/// what else they had, so the answer comes back rather than being guessed at by the caller.
 /// </summary>
+/// <param name="ProposalsReturned">How many went back to the dispatch queue. Zero unless the round came to nothing, because a proposal turned down while others are still live goes nowhere.</param>
 /// <param name="StudentHasNothingLeft">True when no proposal of theirs still has a supervisor willing to take it on, so every one of them went back.</param>
 public record DiscardSelectionsResultDto(
     string StudentName,

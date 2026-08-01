@@ -276,7 +276,8 @@ public class ProposalService(
                         s.IsSelected,
                         s.Comments,
                         s.InvitedAt,
-                        s.SelectedAt))
+                        s.SelectedAt,
+                        s.RespondBy))
                     .ToList(),
                 p.ReturnedToDispatchAt));
 
@@ -314,7 +315,8 @@ public class ProposalService(
                     db.ProposalSupervisorSelections.Add(new ProposalSupervisorSelection
                     {
                         ProposalId = proposal.Id,
-                        SupervisorId = supervisorId
+                        SupervisorId = supervisorId,
+                        RespondBy = request.RespondBy
                     });
                 }
             }
@@ -340,10 +342,17 @@ public class ProposalService(
 
     public async Task<IReadOnlyList<ProposalDto>> GetInvitedProposalsForSupervisorAsync(Guid supervisorId, CancellationToken cancellationToken = default)
     {
+        // Carries the date this supervisor has to answer by. A deadline the person being held to
+        // it cannot see is not a deadline, and it is on their own invitation, so it costs nothing.
         return await db.ResearchProposals
             .Where(p => p.Status == ProposalStatus.Submitted
                         && p.SupervisorSelections.Any(s => s.SupervisorId == supervisorId))
-            .Select(p => ToDto(p))
+            .Select(p => new ProposalDto(
+                p.Id, p.PublicationContainerId, p.Title, p.Abstract, p.Status.ToString(), p.SubmittedAt,
+                p.SupervisorSelections
+                    .Where(s => s.SupervisorId == supervisorId)
+                    .Select(s => s.RespondBy)
+                    .FirstOrDefault()))
             .ToListAsync(cancellationToken);
     }
 
@@ -380,7 +389,7 @@ public class ProposalService(
             .Where(s => s.ProposalId == proposalId)
             .Select(s => new SupervisorInvitationDto(
                 s.ProposalId, s.SupervisorId, s.Supervisor.FirstName + " " + s.Supervisor.LastName,
-                s.IsSelected, s.Comments, s.InvitedAt, s.SelectedAt))
+                s.IsSelected, s.Comments, s.InvitedAt, s.SelectedAt, s.RespondBy))
             .ToListAsync(cancellationToken);
     }
 
@@ -500,48 +509,65 @@ public class ProposalService(
             throw new BusinessRuleException("No supervisor has offered to take this proposal on.");
         }
 
-        // Read before anything is changed: whether the rest of this student's work still has
-        // somebody willing decides how much goes back, and asking afterwards would be asking
-        // about a state this method has already altered.
-        var offerElsewhere = await db.ProposalSupervisorSelections.AnyAsync(
+        var now = DateTime.UtcNow;
+
+        // The offers on this one are refused. The invitations stay: the record of who was asked is
+        // worth keeping, and a proposal that was sent out and has nobody willing is exactly what a
+        // sent invitation with no offer against it says.
+        var refused = await db.ProposalSupervisorSelections
+            .Where(s => s.ProposalId == proposalId)
+            .ToListAsync(cancellationToken);
+
+        foreach (var invitation in refused)
+        {
+            invitation.IsSelected = false;
+            invitation.SelectedAt = null;
+        }
+
+        proposal.Status = ProposalStatus.Submitted;
+        proposal.UpdatedAt = now;
+
+        // Whether anything of this student's is still wanted. One proposal of three being turned
+        // down is not a student who has to start again: the other two are still live, and the
+        // coordinator is choosing between them. Only when nothing at all has a supervisor willing
+        // to take it on has the round come to nothing.
+        var stillWanted = await db.ProposalSupervisorSelections.AnyAsync(
             s => s.ProposalId != proposalId
                  && s.Proposal.PublicationContainerId == container.Id
                  && s.Proposal.Status != ProposalStatus.Rejected
+                 && s.Proposal.Status != ProposalStatus.Assigned
                  && s.IsSelected,
             cancellationToken);
 
-        var returning = new List<ResearchProposal> { proposal };
+        var returned = 0;
 
-        if (!offerElsewhere)
+        if (!stillWanted)
         {
-            // Nobody wants any of it. Half a student in the dispatch queue and half in the
-            // selection queue is a state neither screen reads properly, so the round is void and
-            // all of it goes back together, including proposals whose supervisors never replied.
-            returning.AddRange(await db.ResearchProposals
+            // Nobody wants any of it, so the round is void and all of it goes back together:
+            // the ones just refused, and the ones whose supervisors never replied.
+            var goingBack = await db.ResearchProposals
                 .Where(p => p.PublicationContainerId == container.Id
-                            && p.Id != proposalId
                             && p.Status != ProposalStatus.Assigned
                             && p.Status != ProposalStatus.Rejected)
+                .ToListAsync(cancellationToken);
+
+            var goingBackIds = goingBack.Select(p => p.Id).ToList();
+
+            // Here the invitations do go. A proposal is in the dispatch queue when nobody has been
+            // asked about it, so leaving the rows behind would take it off the selection screen
+            // without putting it on any other.
+            db.ProposalSupervisorSelections.RemoveRange(await db.ProposalSupervisorSelections
+                .Where(s => goingBackIds.Contains(s.ProposalId))
                 .ToListAsync(cancellationToken));
-        }
 
-        var returningIds = returning.Select(p => p.Id).ToList();
+            foreach (var back in goingBack)
+            {
+                back.Status = ProposalStatus.Submitted;
+                back.ReturnedToDispatchAt = now;
+                back.UpdatedAt = now;
+            }
 
-        // The invitations go, not just the offers. A proposal is back in the dispatch queue when
-        // nobody has been asked about it, so leaving the rows behind would take it off the
-        // selection screen without putting it on any other.
-        var invitations = await db.ProposalSupervisorSelections
-            .Where(s => returningIds.Contains(s.ProposalId))
-            .ToListAsync(cancellationToken);
-
-        db.ProposalSupervisorSelections.RemoveRange(invitations);
-
-        var now = DateTime.UtcNow;
-        foreach (var returned in returning)
-        {
-            returned.Status = ProposalStatus.Submitted;
-            returned.ReturnedToDispatchAt = now;
-            returned.UpdatedAt = now;
+            returned = goingBack.Count;
         }
 
         await db.SaveChangesAsync(cancellationToken);
@@ -551,8 +577,8 @@ public class ProposalService(
 
         return new DiscardSelectionsResultDto(
             $"{container.Student.FirstName} {container.Student.LastName}",
-            returning.Count,
-            !offerElsewhere);
+            returned,
+            !stillWanted);
     }
 
     private async Task<PublicationContainer> GetOwnedContainerAsync(Guid containerId, Guid studentId, CancellationToken cancellationToken)

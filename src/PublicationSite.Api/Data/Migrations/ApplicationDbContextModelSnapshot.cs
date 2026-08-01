@@ -879,6 +879,9 @@ namespace PublicationSite.Api.Data.Migrations
                     b.Property<Guid>("ProposalId")
                         .HasColumnType("char(36)");
 
+                    b.Property<DateTime?>("RespondBy")
+                        .HasColumnType("datetime(6)");
+
                     b.Property<DateTime?>("SelectedAt")
                         .HasColumnType("datetime(6)");
 
