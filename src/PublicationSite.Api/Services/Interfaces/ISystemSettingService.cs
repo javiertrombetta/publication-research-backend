@@ -42,6 +42,15 @@ public interface ISystemSettingService
     Task<InstitutionSettingsDto> UpdateInstitutionSettingsAsync(
         UpdateInstitutionSettingsRequest request, Guid actingAdminId, CancellationToken cancellationToken = default);
 
+    /// <summary>Where uploaded files are kept, and the details of each destination.</summary>
+    Task<StorageSettingsDto> GetStorageSettingsAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>Points new uploads at a destination. Files already stored are unaffected.</summary>
+    Task<StorageSettingsDto> UpdateStorageSettingsAsync(UpdateStorageSettingsRequest request, Guid actingAdminId, CancellationToken cancellationToken = default);
+
+    /// <summary>Tries the destination and reports what happened, rather than throwing.</summary>
+    Task<StorageCheckResultDto> CheckStorageAsync(string? provider = null, CancellationToken cancellationToken = default);
+
     Task<DeadlineSettingsDto> GetDeadlineSettingsAsync(CancellationToken cancellationToken = default);
 
     Task<DeadlineSettingsDto> UpdateDeadlineSettingsAsync(

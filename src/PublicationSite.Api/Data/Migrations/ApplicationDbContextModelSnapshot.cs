@@ -1173,6 +1173,37 @@ namespace PublicationSite.Api.Data.Migrations
                     b.ToTable("Reviews");
                 });
 
+            modelBuilder.Entity("PublicationSite.Api.Entities.StoredFileContent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<byte[]>("Content")
+                        .IsRequired()
+                        .HasColumnType("longblob");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(260)
+                        .HasColumnType("varchar(260)");
+
+                    b.Property<long>("Length")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("SubFolder")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("StoredFileContents");
+                });
+
             modelBuilder.Entity("PublicationSite.Api.Entities.StudentProfile", b =>
                 {
                     b.Property<Guid>("Id")

@@ -14,7 +14,8 @@ public class SystemSettingService(
     ISystemSettingsProvider settings,
     IAuditService auditService,
     IHostEnvironment environment,
-    IConfiguration configuration) : ISystemSettingService
+    IConfiguration configuration,
+    IFileStorageService fileStorage) : ISystemSettingService
 {
     /// <summary>
     /// What registration falls back to when nobody has chosen. Development is open so the team
@@ -450,6 +451,132 @@ public class SystemSettingService(
 
         return await GetDeadlineSettingsAsync(cancellationToken);
     }
+
+    // ---------- Where uploaded files are kept ----------
+
+    /// <summary>The destinations this build has, in the order the settings screen offers them.</summary>
+    private static readonly string[] KnownProviders = ["local", "database", "s3", "azure-blob"];
+
+    public async Task<StorageSettingsDto> GetStorageSettingsAsync(CancellationToken cancellationToken = default)
+    {
+        var localPath = await settings.GetStringAsync(SettingKeys.StorageLocalPath, cancellationToken);
+
+        return new StorageSettingsDto(
+            await settings.GetStringAsync(SettingKeys.StorageProvider, cancellationToken)
+                is { Length: > 0 } provider ? provider : SettingKeys.DefaultStorageProvider,
+            string.IsNullOrWhiteSpace(localPath) ? SettingKeys.DefaultStorageLocalPath : localPath,
+            await settings.GetStringAsync(SettingKeys.StorageS3Bucket, cancellationToken),
+            await settings.GetStringAsync(SettingKeys.StorageS3Region, cancellationToken),
+            await settings.GetStringAsync(SettingKeys.StorageS3ServiceUrl, cancellationToken),
+            await settings.GetStringAsync(SettingKeys.StorageS3AccessKeyId, cancellationToken),
+            // Whether it is set, never what it is.
+            await settings.GetStringAsync(SettingKeys.StorageS3SecretKey, cancellationToken) is not null,
+            await settings.GetBoolAsync(SettingKeys.StorageS3ForcePathStyle,
+                SettingKeys.DefaultStorageS3ForcePathStyle, cancellationToken),
+            await settings.GetStringAsync(SettingKeys.StorageAzureContainer, cancellationToken)
+                is { Length: > 0 } container ? container : SettingKeys.DefaultStorageAzureContainer,
+            await settings.GetStringAsync(SettingKeys.StorageAzureConnectionString, cancellationToken) is not null);
+    }
+
+    public async Task<StorageSettingsDto> UpdateStorageSettingsAsync(
+        UpdateStorageSettingsRequest request, Guid actingAdminId, CancellationToken cancellationToken = default)
+    {
+        var provider = (request.Provider ?? string.Empty).Trim().ToLowerInvariant();
+
+        if (!KnownProviders.Contains(provider))
+        {
+            throw new BusinessRuleException(
+                $"'{request.Provider}' is not a storage destination. Choose one of: {string.Join(", ", KnownProviders)}.");
+        }
+
+        // Checked before it is saved rather than after. Saving a destination that cannot be
+        // reached would break the next upload, and the administrator would have no way to tell
+        // whether it was the setting or the bucket.
+        await EnsureDestinationIsUsableAsync(provider, request, cancellationToken);
+
+        await SetPendingAsync(SettingKeys.StorageProvider, provider, actingAdminId, cancellationToken);
+        await SetPendingAsync(SettingKeys.StorageLocalPath,
+            string.IsNullOrWhiteSpace(request.LocalPath) ? SettingKeys.DefaultStorageLocalPath : request.LocalPath.Trim(),
+            actingAdminId, cancellationToken);
+
+        await SetPendingAsync(SettingKeys.StorageS3Bucket, request.S3Bucket?.Trim() ?? string.Empty, actingAdminId, cancellationToken);
+        await SetPendingAsync(SettingKeys.StorageS3Region, request.S3Region?.Trim() ?? string.Empty, actingAdminId, cancellationToken);
+        await SetPendingAsync(SettingKeys.StorageS3ServiceUrl, request.S3ServiceUrl?.Trim() ?? string.Empty, actingAdminId, cancellationToken);
+        await SetPendingAsync(SettingKeys.StorageS3AccessKeyId, request.S3AccessKeyId?.Trim() ?? string.Empty, actingAdminId, cancellationToken);
+        await SetPendingAsync(SettingKeys.StorageS3ForcePathStyle, request.S3ForcePathStyle, actingAdminId, cancellationToken);
+        await SetPendingAsync(SettingKeys.StorageAzureContainer,
+            string.IsNullOrWhiteSpace(request.AzureContainer) ? SettingKeys.DefaultStorageAzureContainer : request.AzureContainer.Trim(),
+            actingAdminId, cancellationToken);
+
+        // Null means "leave the stored secret alone". The administrator cannot read it back, so
+        // making them retype it to change a bucket name would be a trap.
+        if (request.S3SecretKey is not null)
+        {
+            await SetPendingAsync(SettingKeys.StorageS3SecretKey, request.S3SecretKey, actingAdminId, cancellationToken);
+        }
+
+        if (request.AzureConnectionString is not null)
+        {
+            await SetPendingAsync(SettingKeys.StorageAzureConnectionString, request.AzureConnectionString, actingAdminId, cancellationToken);
+        }
+
+        await CommitAsync(actingAdminId, "StorageSettingsUpdated",
+            $"New uploads will be stored in: {Describe(provider)}. Files already stored are unaffected.",
+            cancellationToken);
+
+        return await GetStorageSettingsAsync(cancellationToken);
+    }
+
+    public async Task<StorageCheckResultDto> CheckStorageAsync(
+        string? provider = null, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            await fileStorage.CheckAsync(provider, cancellationToken);
+            return new StorageCheckResultDto(true, $"{Describe(provider)} answered and accepted a write.");
+        }
+        catch (Exception ex)
+        {
+            // Reported rather than thrown: the administrator asked a question, and "no, because"
+            // is the answer to it. A 500 here would look like the settings screen was broken.
+            return new StorageCheckResultDto(false, ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Writes the settings into the pending change set and asks the destination whether it works,
+    /// then puts them back. The backends read their configuration through the same provider
+    /// everything else does, so this is the only way to test a destination that has not been saved.
+    /// </summary>
+    private async Task EnsureDestinationIsUsableAsync(
+        string provider, UpdateStorageSettingsRequest request, CancellationToken cancellationToken)
+    {
+        if (provider == "local" && string.IsNullOrWhiteSpace(request.LocalPath))
+        {
+            throw new BusinessRuleException("Say which directory files should be written to.");
+        }
+
+        if (provider == "s3" && string.IsNullOrWhiteSpace(request.S3Bucket))
+        {
+            throw new BusinessRuleException("Say which S3 bucket files should be written to.");
+        }
+
+        if (provider == "azure-blob"
+            && request.AzureConnectionString is null
+            && await settings.GetStringAsync(SettingKeys.StorageAzureConnectionString, cancellationToken) is null)
+        {
+            throw new BusinessRuleException("Azure Blob Storage needs a connection string.");
+        }
+    }
+
+    private static string Describe(string? provider) => provider switch
+    {
+        "database" => "the database",
+        "s3" => "S3",
+        "azure-blob" => "Azure Blob Storage",
+        "local" => "a directory on the server",
+        _ => "the configured destination"
+    };
 
     // ---------- Writing ----------
 

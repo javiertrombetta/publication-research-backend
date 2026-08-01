@@ -421,23 +421,23 @@ public static class DemoDataSeeder
     /// at a file that is gone, and the first reviewer to open one meets a 404 in a system that is
     /// otherwise working. Replacing them costs nothing and keeps that environment usable.
     ///
-    /// Only for local storage, which is the only backend that can lose a file this way. The path
-    /// is composed the same way <c>LocalFileStorageService</c> composes it, deliberately: it is
-    /// recovering that service's own files, and reaching for them is the one thing the storage
-    /// interface has no business exposing.
+    /// Only files kept on local disk, which is the only destination that can lose one this way: a
+    /// bucket and a database row both outlive the container. The path is composed the way the local
+    /// backend composes it, deliberately, because this is recovering that backend's own files and
+    /// reaching for them is the one thing the storage interface has no business exposing.
     /// </summary>
     private static async Task RestoreMissingFilesAsync(IServiceProvider services, CancellationToken cancellationToken)
     {
-        if (services.GetRequiredService<IFileStorageService>() is not Services.Implementations.LocalFileStorageService)
-        {
-            return;
-        }
-
         var db = services.GetRequiredService<ApplicationDbContext>();
         var environment = services.GetRequiredService<IWebHostEnvironment>();
-        var storageRoot = Path.Combine(
-            environment.ContentRootPath,
-            services.GetRequiredService<IOptions<FileStorageSettings>>().Value.RootPath);
+
+        var settings = services.GetRequiredService<ISystemSettingsProvider>();
+        var configuredRoot = await settings.GetStringAsync(SettingKeys.StorageLocalPath, cancellationToken);
+        var root = string.IsNullOrWhiteSpace(configuredRoot)
+            ? services.GetRequiredService<IOptions<FileStorageSettings>>().Value.RootPath
+            : configuredRoot.Trim();
+
+        var storageRoot = Path.IsPathRooted(root) ? root : Path.Combine(environment.ContentRootPath, root);
 
         var files = await db.EthicsDocuments
             .Select(d => new { d.FilePath, Title = d.EthicsDocumentRequirement.Name })
@@ -447,7 +447,16 @@ public static class DemoDataSeeder
         var restored = 0;
         foreach (var file in files)
         {
-            var fullPath = Path.Combine(storageRoot, file.FilePath);
+            // Stored keys name the destination that wrote them. Anything not on local disk is
+            // somebody else's to keep, and a key with no prefix predates configurable storage,
+            // which means it is local.
+            var separator = file.FilePath.IndexOf(':');
+            var isLocal = separator < 0 || file.FilePath[..separator] == "local";
+            if (!isLocal) continue;
+
+            var path = separator < 0 ? file.FilePath : file.FilePath[(separator + 1)..];
+
+            var fullPath = Path.Combine(storageRoot, path);
             if (File.Exists(fullPath)) continue;
 
             Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
