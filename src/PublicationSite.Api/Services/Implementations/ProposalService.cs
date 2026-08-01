@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using PublicationSite.Api.Common;
 using PublicationSite.Api.Common.Exceptions;
@@ -121,20 +122,36 @@ public class ProposalService(
             nameof(PublicationContainer), container.Id, cancellationToken);
     }
 
-    public async Task<PagedResult<ProposalDto>> GetPendingForCoordinatorAsync(
-        Guid coordinatorId, PageRequest page, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// The columns a proposal listing can be ordered by, named as a client sends them. Sorting is
+    /// done here rather than on the page the client received, because the oldest proposal in a
+    /// department is on the last page and ordering ten rows would never bring it into view.
+    /// </summary>
+    private static readonly Dictionary<string, Expression<Func<ResearchProposal, object?>>> SortColumns = new()
     {
-        var query = db.ResearchProposals
-            .Where(p => p.PublicationContainer.CoordinatorId == coordinatorId
-                        && p.Status == ProposalStatus.Submitted
-                        && !p.SupervisorSelections.Any())
-            .OrderBy(p => p.PublicationContainerId).ThenBy(p => p.CreatedAt);
+        ["student"] = p => p.PublicationContainer.Student.LastName,
+        ["title"] = p => p.Title,
+        ["status"] = p => p.Status,
+        ["submitted"] = p => p.SubmittedAt ?? p.CreatedAt
+    };
 
-        return await query.ToPageAsync(p => ToDto(p), page, cancellationToken);
+    public async Task<PagedResult<ProposalWithInvitationsDto>> GetPendingForCoordinatorAsync(
+        Guid coordinatorId, PageRequest page, string? search = null, CancellationToken cancellationToken = default)
+    {
+        // Carries the student's name, like the other listings. The dispatch screen groups proposals
+        // by student, and was naming them from a separate page of containers: any student whose
+        // publication fell past the first page of that lookup was headed "Unknown student".
+        var query = ApplySearch(
+            db.ResearchProposals.Where(p => p.PublicationContainer.CoordinatorId == coordinatorId
+                                            && p.Status == ProposalStatus.Submitted
+                                            && !p.SupervisorSelections.Any()),
+            search);
+
+        return await ProjectWithInvitations(query, page).ToPageAsync(page, cancellationToken);
     }
 
     public async Task<PagedResult<ProposalWithInvitationsDto>> GetForCoordinatorAsync(
-        Guid coordinatorId, PageRequest page, bool awaitingAllocation = false,
+        Guid coordinatorId, PageRequest page, bool awaitingAllocation = false, string? search = null,
         CancellationToken cancellationToken = default)
     {
         var query = db.ResearchProposals.Where(p => p.PublicationContainer.CoordinatorId == coordinatorId);
@@ -148,11 +165,14 @@ public class ProposalService(
                                      && p.SupervisorSelections.Any(s => s.IsSelected));
         }
 
-        return await ProjectWithInvitations(query).ToPageAsync(page, cancellationToken);
+        query = ApplySearch(query, search);
+
+        return await ProjectWithInvitations(query, page).ToPageAsync(page, cancellationToken);
     }
 
     public async Task<PagedResult<ProposalWithInvitationsDto>> GetInDepartmentAsync(
-        Guid headOfDepartmentUserId, PageRequest page, CancellationToken cancellationToken = default)
+        Guid headOfDepartmentUserId, PageRequest page, string? search = null,
+        CancellationToken cancellationToken = default)
     {
         // Exactly one Head of Department per department, so a single id is all there is to match.
         var departmentId = await db.HeadOfDepartmentProfiles
@@ -165,10 +185,30 @@ public class ProposalService(
             return new PagedResult<ProposalWithInvitationsDto>([], page.SafePage, page.SafePageSize, 0);
         }
 
-        return await ProjectWithInvitations(db.ResearchProposals
-                .Where(p => p.PublicationContainer.Student.StudentProfile != null
-                            && p.PublicationContainer.Student.StudentProfile.DepartmentId == departmentId))
-            .ToPageAsync(page, cancellationToken);
+        var query = ApplySearch(db.ResearchProposals
+            .Where(p => p.PublicationContainer.Student.StudentProfile != null
+                        && p.PublicationContainer.Student.StudentProfile.DepartmentId == departmentId), search);
+
+        return await ProjectWithInvitations(query, page).ToPageAsync(page, cancellationToken);
+    }
+
+    /// <summary>
+    /// One term across the three names a reader has in mind when looking for a row: the student
+    /// whose proposal it is, the proposal itself, and any supervisor who was asked about it. Three
+    /// separate boxes would make somebody choose which of them they were remembering.
+    /// </summary>
+    private static IQueryable<ResearchProposal> ApplySearch(IQueryable<ResearchProposal> query, string? search)
+    {
+        if (string.IsNullOrWhiteSpace(search)) return query;
+
+        var term = search.Trim();
+
+        return query.Where(p =>
+            p.Title.Contains(term)
+            || p.PublicationContainer.Student.FirstName.Contains(term)
+            || p.PublicationContainer.Student.LastName.Contains(term)
+            || p.SupervisorSelections.Any(s => s.Supervisor.FirstName.Contains(term)
+                                               || s.Supervisor.LastName.Contains(term)));
     }
 
     /// <summary>
@@ -176,9 +216,11 @@ public class ProposalService(
     /// collection rather than a request each, which is what the screens built from the per-proposal
     /// endpoint were doing, once per row.
     /// </summary>
-    private static IQueryable<ProposalWithInvitationsDto> ProjectWithInvitations(IQueryable<ResearchProposal> query) =>
+    private static IQueryable<ProposalWithInvitationsDto> ProjectWithInvitations(
+        IQueryable<ResearchProposal> query, PageRequest page) =>
         query
-            .OrderBy(p => p.PublicationContainerId).ThenBy(p => p.CreatedAt)
+            .SortBy(page, p => p.CreatedAt, SortColumns, fallbackDescending: false)
+            .ThenBy(p => p.PublicationContainerId)
             .Select(p => new ProposalWithInvitationsDto(
                 p.Id,
                 p.PublicationContainerId,

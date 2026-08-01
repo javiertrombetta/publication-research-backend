@@ -28,6 +28,22 @@ public class PageRequest
     public int PageSize { get; set; } = DefaultPageSize;
 
     /// <summary>
+    /// Which column to order by, and whether to reverse it.
+    ///
+    /// It belongs here, on the request, rather than in the client. Sorting the ten rows a page
+    /// happens to hold is not sorting the list: the oldest proposal in the department is on the
+    /// last page, and a reader clicking "oldest first" expects to see it, not the oldest of
+    /// whatever ten they were already looking at. Ordering has to happen before the page is cut.
+    ///
+    /// The name is whatever the endpoint documents; an unknown one falls back to that endpoint's
+    /// own default rather than failing, because a sort key is a view preference and not worth
+    /// refusing a page over.
+    /// </summary>
+    public string? SortBy { get; set; }
+
+    public bool SortDescending { get; set; }
+
+    /// <summary>
     /// Clamped rather than rejected. These numbers arrive from stale links and typed addresses as
     /// often as from a working client, and the nearest sensible page is a better answer than an
     /// error for something nobody meant to get wrong.

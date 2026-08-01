@@ -133,9 +133,9 @@ public class ProposalsController(IProposalService proposalService, ICurrentUserS
     [ProducesResponseType(typeof(ApiResponse<PagedResult<ProposalWithInvitationsDto>>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    public async Task<IActionResult> GetForCoordinator([FromQuery] PageRequest paging, [FromQuery] bool awaitingAllocation = false)
+    public async Task<IActionResult> GetForCoordinator([FromQuery] PageRequest paging, [FromQuery] bool awaitingAllocation = false, [FromQuery] string? search = null)
     {
-        var result = await proposalService.GetForCoordinatorAsync(currentUser.UserId, paging, awaitingAllocation);
+        var result = await proposalService.GetForCoordinatorAsync(currentUser.UserId, paging, awaitingAllocation, search);
         return Ok(ApiResponse<PagedResult<ProposalWithInvitationsDto>>.Ok(result));
     }
 
@@ -152,9 +152,9 @@ public class ProposalsController(IProposalService proposalService, ICurrentUserS
     [ProducesResponseType(typeof(ApiResponse<PagedResult<ProposalWithInvitationsDto>>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    public async Task<IActionResult> GetInMyDepartment([FromQuery] PageRequest paging)
+    public async Task<IActionResult> GetInMyDepartment([FromQuery] PageRequest paging, [FromQuery] string? search = null)
     {
-        var result = await proposalService.GetInDepartmentAsync(currentUser.UserId, paging);
+        var result = await proposalService.GetInDepartmentAsync(currentUser.UserId, paging, search);
         return Ok(ApiResponse<PagedResult<ProposalWithInvitationsDto>>.Ok(result));
     }
 
@@ -168,13 +168,13 @@ public class ProposalsController(IProposalService proposalService, ICurrentUserS
     /// <response code="403">Signed in, but this is not something your role may do.</response>
     [HttpGet("api/proposals/pending")]
     [Authorize(Roles = RoleNames.Coordinator)]
-    [ProducesResponseType(typeof(ApiResponse<PagedResult<ProposalDto>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<PagedResult<ProposalWithInvitationsDto>>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    public async Task<IActionResult> GetPendingForCoordinator([FromQuery] PageRequest paging)
+    public async Task<IActionResult> GetPendingForCoordinator([FromQuery] PageRequest paging, [FromQuery] string? search = null)
     {
-        var result = await proposalService.GetPendingForCoordinatorAsync(currentUser.UserId, paging);
-        return Ok(ApiResponse<PagedResult<ProposalDto>>.Ok(result));
+        var result = await proposalService.GetPendingForCoordinatorAsync(currentUser.UserId, paging, search);
+        return Ok(ApiResponse<PagedResult<ProposalWithInvitationsDto>>.Ok(result));
     }
     /// <summary>
     /// Asks a chosen set of supervisors whether they could supervise these proposals. Sending

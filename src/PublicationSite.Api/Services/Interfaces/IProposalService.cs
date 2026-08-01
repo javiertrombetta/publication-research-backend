@@ -11,13 +11,13 @@ public interface IProposalService
     Task FinishSubmissionAsync(Guid publicationContainerId, Guid studentId, CancellationToken cancellationToken = default);
     Task RequestNewSubmissionAsync(Guid publicationContainerId, string comments, Guid actingUserId, CancellationToken cancellationToken = default);
 
-    Task<PagedResult<ProposalDto>> GetPendingForCoordinatorAsync(Guid coordinatorId, PageRequest page, CancellationToken cancellationToken = default);
+    Task<PagedResult<ProposalWithInvitationsDto>> GetPendingForCoordinatorAsync(Guid coordinatorId, PageRequest page, string? search = null, CancellationToken cancellationToken = default);
 
     /// <summary>Every proposal in this Coordinator's publications, with what each Supervisor said.</summary>
-    Task<PagedResult<ProposalWithInvitationsDto>> GetForCoordinatorAsync(Guid coordinatorId, PageRequest page, bool awaitingAllocation = false, CancellationToken cancellationToken = default);
+    Task<PagedResult<ProposalWithInvitationsDto>> GetForCoordinatorAsync(Guid coordinatorId, PageRequest page, bool awaitingAllocation = false, string? search = null, CancellationToken cancellationToken = default);
 
     /// <summary>Every proposal from the students of the department this person heads.</summary>
-    Task<PagedResult<ProposalWithInvitationsDto>> GetInDepartmentAsync(Guid headOfDepartmentUserId, PageRequest page, CancellationToken cancellationToken = default);
+    Task<PagedResult<ProposalWithInvitationsDto>> GetInDepartmentAsync(Guid headOfDepartmentUserId, PageRequest page, string? search = null, CancellationToken cancellationToken = default);
     Task SendToSupervisorsAsync(SendToSupervisorsRequest request, Guid coordinatorId, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<ProposalDto>> GetInvitedProposalsForSupervisorAsync(Guid supervisorId, CancellationToken cancellationToken = default);
