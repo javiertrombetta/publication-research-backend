@@ -77,6 +77,18 @@ public class CommitteeService(
             throw new BusinessRuleException("Everyone on a committee must have an enabled account.");
         }
 
+        // Refused rather than filtered out silently: the administrator chose these people, and a
+        // committee quietly built one member short is worse than being told why. Not the same as
+        // a disabled account either, so the message says which it is.
+        var unavailable = members.Where(m => !m.User.IsAvailable).ToList();
+        if (unavailable.Count > 0)
+        {
+            var names = string.Join(", ", unavailable.Select(m => $"{m.User.FirstName} {m.User.LastName}"));
+            throw new BusinessRuleException(
+                $"Not taking new work on at the moment: {names}. Choose somebody else, or ask them to mark "
+                + "themselves available.");
+        }
+
         // A member id the request named but the database does not have would otherwise vanish
         // silently, producing a committee smaller than the administrator believes they built.
         if (members.Count != request.MemberUserIds.Distinct().Count())

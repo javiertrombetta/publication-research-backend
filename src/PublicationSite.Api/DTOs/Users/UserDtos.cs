@@ -1,5 +1,10 @@
 namespace PublicationSite.Api.DTOs.Users;
 
+/// <param name="IsAvailable">
+/// Whether this person is taking work on. Set by them, and not the same as Status, which is set by
+/// an administrator: disabled is an account that may not be used, unavailable is a person who is
+/// working but should not be offered anything new.
+/// </param>
 public record UserListItemDto(
     Guid Id,
     string Email,
@@ -7,7 +12,8 @@ public record UserListItemDto(
     string LastName,
     string Status,
     IReadOnlyList<string> Roles,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    bool IsAvailable = true);
 
 public record UserDetailDto(
     Guid Id,
@@ -20,7 +26,8 @@ public record UserDetailDto(
     IReadOnlyList<string> Roles,
     DateTime CreatedAt,
     object? Profile,
-    bool HasProfilePhoto);
+    bool HasProfilePhoto,
+    bool IsAvailable = true);
 
 public class CreateUserRequest
 {
@@ -76,3 +83,9 @@ public record UpdateMyProfileRequest(
     IReadOnlyList<Guid>? ResearchAreaIds,
     string? AreasOfExpertise,
     string? ResearchInterests);
+
+/// <summary>Whether this person is currently taking work on.</summary>
+public class SetAvailabilityRequest
+{
+    public bool IsAvailable { get; set; } = true;
+}
