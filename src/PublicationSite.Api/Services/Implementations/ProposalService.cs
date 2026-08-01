@@ -193,9 +193,11 @@ public class ProposalService(
     }
 
     /// <summary>
-    /// One term across the three names a reader has in mind when looking for a row: the student
-    /// whose proposal it is, the proposal itself, and any supervisor who was asked about it. Three
-    /// separate boxes would make somebody choose which of them they were remembering.
+    /// One term across everything a reader might have in mind when looking for a row: the student
+    /// whose proposal it is, its title, its abstract, and any supervisor who was asked about it.
+    /// The abstract is in there because a coordinator often remembers what a proposal was about
+    /// rather than what it was called. Separate boxes would make somebody choose which of those
+    /// they were remembering before they could start typing.
     /// </summary>
     private static IQueryable<ResearchProposal> ApplySearch(IQueryable<ResearchProposal> query, string? search)
     {
@@ -205,6 +207,7 @@ public class ProposalService(
 
         return query.Where(p =>
             p.Title.Contains(term)
+            || p.Abstract.Contains(term)
             || p.PublicationContainer.Student.FirstName.Contains(term)
             || p.PublicationContainer.Student.LastName.Contains(term)
             || p.SupervisorSelections.Any(s => s.Supervisor.FirstName.Contains(term)
