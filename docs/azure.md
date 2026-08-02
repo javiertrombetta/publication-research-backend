@@ -148,20 +148,16 @@ Sign in with `admin.test@ais.ac.nz` and `DevTest123!` once the sample dataset ha
 Two ways, and they do different things.
 
 **A new image**, which is what happens on every push to `main`: GitHub Actions builds it, pushes it
-to Docker Hub and updates the container app, with no manual step. Set these once per repository,
-under Settings:
-
-| Where | Name | Value |
-|---|---|---|
-| Secrets | `AZURE_CREDENTIALS` | the JSON from the command below |
-| Variables | `AZURE_RESOURCE_GROUP` | `publication-research` |
-| Variables | `AZURE_APP_NAME` | `publication-research-backend` or `-frontend` |
+to Docker Hub and updates the container app, with no manual step and nothing to type. What turns
+that on is the three variables in the next section.
 
 The job deploys the commit's own image tag, `sha-<short>`, rather than `latest`. Container Apps
 creates a revision when the template changes, and `...:latest` is the same string on every push, so
 deploying it can leave the revision already running in place and the push looks as though it did
-nothing. Without `AZURE_RESOURCE_GROUP` set, the deploy job is skipped and the workflow behaves
-exactly as it did before.
+nothing.
+
+The resource group and the application name have sensible defaults and only need saying when they
+differ: set `AZURE_RESOURCE_GROUP` and `AZURE_APP_NAME` as variables to deploy somewhere else.
 
 ### How GitHub signs in to Azure, and why it is not a service principal
 
