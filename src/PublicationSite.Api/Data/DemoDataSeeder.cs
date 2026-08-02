@@ -96,18 +96,18 @@ public static class DemoDataSeeder
         ILogger logger,
         CancellationToken cancellationToken)
     {
-        var computing = await EnsureDepartmentAsync(db, "Computing and Information Technology", "CIT", cancellationToken);
-        var business = await EnsureDepartmentAsync(db, "Business and Management", "BUS", cancellationToken);
+        var infoTech = await EnsureDepartmentAsync(db, "Information Technology", "IT", cancellationToken);
+        var business = await EnsureDepartmentAsync(db, "Business", "BUS", cancellationToken);
         await EnsureResearchAreasAsync(db, cancellationToken);
 
         // ---------- People ----------
 
         var admin = await CreateAsync(userManager, "admin.test@ais.ac.nz", "Miriam", "Ashworth", RoleNames.Admin);
 
-        var computingHead = await CreateAsync(userManager, "hod.test@ais.ac.nz", "Rangi", "Patel", RoleNames.HeadOfDepartment);
-        var computingCoordinator = await CreateAsync(userManager, "coordinator.test@ais.ac.nz", "Elena", "Vasquez", RoleNames.Coordinator);
-        var computingSupervisor = await CreateAsync(userManager, "supervisor.test@ais.ac.nz", "Thomas", "Okoro", RoleNames.Supervisor);
-        var computingSupervisorTwo = await CreateAsync(userManager, "supervisor.second@ais.ac.nz", "Priya", "Raman", RoleNames.Supervisor);
+        var infoTechHead = await CreateAsync(userManager, "hod.test@ais.ac.nz", "Rangi", "Patel", RoleNames.HeadOfDepartment);
+        var infoTechCoordinator = await CreateAsync(userManager, "coordinator.test@ais.ac.nz", "Elena", "Vasquez", RoleNames.Coordinator);
+        var infoTechSupervisor = await CreateAsync(userManager, "supervisor.test@ais.ac.nz", "Thomas", "Okoro", RoleNames.Supervisor);
+        var infoTechSupervisorTwo = await CreateAsync(userManager, "supervisor.second@ais.ac.nz", "Priya", "Raman", RoleNames.Supervisor);
 
         var businessHead = await CreateAsync(userManager, "hod.business@ais.ac.nz", "Grace", "Lindqvist", RoleNames.HeadOfDepartment);
         var businessCoordinator = await CreateAsync(userManager, "coordinator.business@ais.ac.nz", "Daniel", "Kaur", RoleNames.Coordinator);
@@ -133,25 +133,25 @@ public static class DemoDataSeeder
         var studentBusiness = await CreateAsync(userManager, "student.business@aisstudent.ac.nz", "Lucas", "Ferreira", RoleNames.Student);
 
         db.HeadOfDepartmentProfiles.AddRange(
-            new HeadOfDepartmentProfile { UserId = computingHead.Id, DepartmentId = computing.Id },
+            new HeadOfDepartmentProfile { UserId = infoTechHead.Id, DepartmentId = infoTech.Id },
             new HeadOfDepartmentProfile { UserId = businessHead.Id, DepartmentId = business.Id });
 
         // One Coordinator per department, so the automatic allocation a student triggers by
         // starting a publication has exactly one answer and stays predictable to test against.
         db.CoordinatorProfiles.AddRange(
-            new CoordinatorProfile { UserId = computingCoordinator.Id, DepartmentId = computing.Id },
+            new CoordinatorProfile { UserId = infoTechCoordinator.Id, DepartmentId = infoTech.Id },
             new CoordinatorProfile { UserId = businessCoordinator.Id, DepartmentId = business.Id });
 
         db.SupervisorProfiles.AddRange(
             new SupervisorProfile
             {
-                UserId = computingSupervisor.Id, DepartmentId = computing.Id,
+                UserId = infoTechSupervisor.Id, DepartmentId = infoTech.Id,
                 AreasOfExpertise = "Software engineering, human-computer interaction",
                 ResearchInterests = "How teams adopt development practices, and why they abandon them"
             },
             new SupervisorProfile
             {
-                UserId = computingSupervisorTwo.Id, DepartmentId = computing.Id,
+                UserId = infoTechSupervisorTwo.Id, DepartmentId = infoTech.Id,
                 AreasOfExpertise = "Data science, applied machine learning",
                 ResearchInterests = "Fairness and interpretability in models used on people"
             },
@@ -175,11 +175,15 @@ public static class DemoDataSeeder
             new CommitteeMemberProfile { UserId = externalTwo.Id, Type = CommitteeMemberRoleType.External, Affiliation = "Massey University" });
 
         db.StudentProfiles.AddRange(
-            StudentProfileFor(studentOne, computing, "AIS-2026-0184", "MSc Information Technology", "2026 Semester 1"),
-            StudentProfileFor(studentTwo, computing, "AIS-2026-0207", "MSc Information Technology", "2026 Semester 1"),
-            StudentProfileFor(studentThree, computing, "AIS-2025-0912", "MSc Information Technology", "2025 Semester 2"),
-            StudentProfileFor(studentFour, computing, "AIS-2025-0877", "MSc Information Technology", "2025 Semester 2"),
-            StudentProfileFor(studentBusiness, business, "AIS-2026-0341", "Master of Business Administration", "2026 Semester 1"));
+            // Student IDs are AAAAMMXX: year of admission, month of admission, then the order that
+            // student arrived in within that month. They are made to agree with the cohort beside
+            // them, so a reader checking one against the other finds the same intake rather than
+            // two facts that contradict each other.
+            StudentProfileFor(studentOne, infoTech, "20260204", "MSc Information Technology", "2026 Semester 1"),
+            StudentProfileFor(studentTwo, infoTech, "20260217", "MSc Information Technology", "2026 Semester 1"),
+            StudentProfileFor(studentThree, infoTech, "20250731", "MSc Information Technology", "2025 Semester 2"),
+            StudentProfileFor(studentFour, infoTech, "20250742", "MSc Information Technology", "2025 Semester 2"),
+            StudentProfileFor(studentBusiness, business, "20260209", "Master of Business Administration", "2026 Semester 1"));
 
         // admin.test holds no profile, matching a real Admin: the role is an administrative
         // capability rather than a place in a department.
@@ -195,16 +199,16 @@ public static class DemoDataSeeder
             services.GetRequiredService<IPublicationService>(),
             services.GetRequiredService<ICommitteeService>());
 
-        var computingCast = new DemoCast(
+        var infoTechCast = new DemoCast(
             StudentId: Guid.Empty,
-            CoordinatorId: computingCoordinator.Id,
-            PrimarySupervisorId: computingSupervisor.Id,
-            AlternateSupervisorId: computingSupervisorTwo.Id,
-            HeadOfDepartmentId: computingHead.Id,
+            CoordinatorId: infoTechCoordinator.Id,
+            PrimarySupervisorId: infoTechSupervisor.Id,
+            AlternateSupervisorId: infoTechSupervisorTwo.Id,
+            HeadOfDepartmentId: infoTechHead.Id,
             AdminId: admin.Id,
             CommitteeMemberIds: [internalOne.Id, internalTwo.Id, externalOne.Id]);
 
-        var businessCast = computingCast with
+        var businessCast = infoTechCast with
         {
             CoordinatorId = businessCoordinator.Id,
             PrimarySupervisorId = businessSupervisor.Id,
@@ -215,7 +219,7 @@ public static class DemoDataSeeder
 
         foreach (var (student, plans) in PlansByStudent(studentOne, studentTwo, studentThree, studentFour, studentBusiness))
         {
-            var cast = (student == studentBusiness ? businessCast : computingCast) with { StudentId = student.Id };
+            var cast = (student == studentBusiness ? businessCast : infoTechCast) with { StudentId = student.Id };
 
             foreach (var plan in plans)
             {
@@ -227,14 +231,14 @@ public static class DemoDataSeeder
         // sets of supervisors, and somebody who has marked themselves unavailable. Both are small
         // and both are invisible until they exist.
         await SeedSupervisorGroupsAsync(db,
-            computingCoordinator, [computingSupervisor, computingSupervisorTwo],
+            infoTechCoordinator, [infoTechSupervisor, infoTechSupervisorTwo],
             businessCoordinator, [businessSupervisor, businessSupervisorTwo], cancellationToken);
 
         // One supervisor is not taking work on. The chooser on Send proposals leaves them out and
         // the administrator's screens still show them, which is the difference between this and an
         // account an administrator has disabled.
-        computingSupervisorTwo.IsAvailable = false;
-        await userManager.UpdateAsync(computingSupervisorTwo);
+        infoTechSupervisorTwo.IsAvailable = false;
+        await userManager.UpdateAsync(infoTechSupervisorTwo);
 
         logger.LogWarning(
             "Demonstration dataset created: {Accounts} accounts across {Publications} publications, every " +
@@ -298,7 +302,7 @@ public static class DemoDataSeeder
 
             new("Retrieval practice in introductory programming courses",
                 "A controlled comparison of retrieval practice against re-reading in a first programming paper.",
-                DemoStage.Published, Keywords: ["computing education", "retrieval practice", "assessment"], Year: 2025)
+                DemoStage.Published, Keywords: ["infoTech education", "retrieval practice", "assessment"], Year: 2025)
         ]);
 
         yield return (three,
@@ -364,15 +368,15 @@ public static class DemoDataSeeder
     /// </summary>
     private static async Task SeedSupervisorGroupsAsync(
         ApplicationDbContext db,
-        ApplicationUser computingCoordinator, ApplicationUser[] computingSupervisors,
+        ApplicationUser infoTechCoordinator, ApplicationUser[] infoTechSupervisors,
         ApplicationUser businessCoordinator, ApplicationUser[] businessSupervisors,
         CancellationToken cancellationToken)
     {
         if (await db.SupervisorGroups.AnyAsync(cancellationToken)) return;
 
         db.SupervisorGroups.AddRange(
-            Group(computingCoordinator, "Software engineering", computingSupervisors),
-            Group(computingCoordinator, "Everyone in Computing", computingSupervisors),
+            Group(infoTechCoordinator, "Software engineering", infoTechSupervisors),
+            Group(infoTechCoordinator, "Everyone in Information Technology", infoTechSupervisors),
             Group(businessCoordinator, "Business research", businessSupervisors));
 
         await db.SaveChangesAsync(cancellationToken);
