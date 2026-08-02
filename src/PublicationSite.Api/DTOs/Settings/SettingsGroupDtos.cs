@@ -83,6 +83,10 @@ public record SaveEthicsDocumentRequirementRequest(string Name, string? Descript
 /// <paramref name="AzureSsoConfigured"/> is not a setting: it reports whether a tenant is actually
 /// configured on the server, so the screen can say that switching single sign-on on would currently
 /// do nothing.
+/// <paramref name="CanOpenRegistration"/> is not a setting either: it says whether this deployment
+/// will accept open registration at all. Stated by the API rather than worked out by whoever is
+/// drawing the screen, because the rule turns on the API's own configuration, and a client guessing
+/// at it from its own environment gets it wrong the moment the two are deployed separately.
 /// </summary>
 public record AccessSettingsDto(
     string RegistrationMode,
@@ -92,7 +96,8 @@ public record AccessSettingsDto(
     int InvitationValidDays,
     int AccessTokenMinutes,
     int RefreshTokenDays,
-    bool PublicCatalogueEnabled = true);
+    bool PublicCatalogueEnabled = true,
+    bool CanOpenRegistration = false);
 
 public record UpdateAccessSettingsRequest(
     string RegistrationMode,

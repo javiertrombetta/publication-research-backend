@@ -29,13 +29,22 @@ public class SystemSettingServiceTests : IDisposable
 
     public SystemSettingServiceTests() => _admin = TestDataBuilder.User(_fixture.Context).Id;
 
-    private SystemSettingService CreateService(string environmentName, string? azureTenantId = null)
+    /// <param name="demoData">
+    /// Whether this deployment seeds the demonstration dataset, which is how it says its data is
+    /// disposable. Null leaves it unset, so the environment name decides as it always did.
+    /// </param>
+    private SystemSettingService CreateService(
+        string environmentName, string? azureTenantId = null, bool? demoData = null)
     {
         var environment = new Mock<IHostEnvironment>();
         environment.SetupGet(e => e.EnvironmentName).Returns(environmentName);
 
         var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?> { ["AzureAd:TenantId"] = azureTenantId })
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["AzureAd:TenantId"] = azureTenantId,
+                ["Seed:DemoData"] = demoData?.ToString()
+            })
             .Build();
 
         // A fresh cache per service, so one test's writes never leak into another's reads.
@@ -65,7 +74,7 @@ public class SystemSettingServiceTests : IDisposable
     /// accounts to anyone who guesses the email domain.
     /// </summary>
     [Fact]
-    public async Task Registration_defaults_to_invite_only_outside_development()
+    public async Task Registration_defaults_to_invite_only_where_the_data_is_real()
     {
         var result = await CreateService(Environments.Production).GetAccessSettingsAsync();
 
@@ -74,7 +83,7 @@ public class SystemSettingServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Open_registration_cannot_be_chosen_outside_development()
+    public async Task Open_registration_cannot_be_chosen_where_the_data_is_real()
     {
         var service = CreateService(Environments.Production);
 
@@ -82,7 +91,38 @@ public class SystemSettingServiceTests : IDisposable
             new UpdateAccessSettingsRequest(SettingKeys.RegistrationModeOpen, false, 14, 30, 14), _admin);
 
         (await act.Should().ThrowAsync<BusinessRuleException>())
-            .Which.Message.Should().Contain("development environment");
+            .Which.Message.Should().Contain("disposable");
+    }
+
+    /// <summary>
+    /// A hosted testing deployment runs with the environment set to Production, because it is a
+    /// real server rather than somebody's laptop. What makes it safe to open is that its data is
+    /// disposable, which is what seeding the demonstration dataset says.
+    /// </summary>
+    [Fact]
+    public async Task Open_registration_can_be_chosen_where_the_data_is_disposable()
+    {
+        var service = CreateService(Environments.Production, demoData: true);
+
+        var result = await service.UpdateAccessSettingsAsync(
+            new UpdateAccessSettingsRequest(SettingKeys.RegistrationModeOpen, false, 14, 30, 14), _admin);
+
+        result.RegistrationMode.Should().Be(SettingKeys.RegistrationModeOpen);
+        result.CanOpenRegistration.Should().BeTrue();
+    }
+
+    /// <summary>
+    /// And a production deployment that does not seed sample data says so, so the screen greys the
+    /// choice out rather than offering something the API would refuse.
+    /// </summary>
+    [Fact]
+    public async Task Access_settings_say_whether_open_registration_is_available()
+    {
+        (await CreateService(Environments.Production).GetAccessSettingsAsync())
+            .CanOpenRegistration.Should().BeFalse();
+
+        (await CreateService(Environments.Production, demoData: true).GetAccessSettingsAsync())
+            .CanOpenRegistration.Should().BeTrue();
     }
 
     [Fact]

@@ -19,11 +19,28 @@ public class SystemSettingService(
     IStorageMigrationService storageMigration) : ISystemSettingService
 {
     /// <summary>
-    /// What registration falls back to when nobody has chosen. Development is open so the team
-    /// can make accounts freely; anything else is invite-only, because a deployment that hands
-    /// out accounts to whoever guesses the email domain is not a deployment anyone intended.
+    /// Whether the data on this deployment is disposable, which is what decides whether anybody
+    /// may sign themselves up.
+    ///
+    /// The test used to be "is this a development environment", which was wrong in a way that only
+    /// showed up once there was a hosted testing deployment: it runs with ASPNETCORE_ENVIRONMENT
+    /// set to Production, because it is a real server rather than somebody's laptop, and that made
+    /// open registration unreachable on the one deployment where it is harmless and wanted.
+    ///
+    /// The honest question is not what the environment is called. It is whether there is anything
+    /// here worth protecting, and Seed:DemoData already answers it: a deployment carrying the
+    /// demonstration dataset holds no real research, and one without it holds either real work or
+    /// nothing worth having. That is the same test the database reset endpoint turns on, for the
+    /// same reason.
     /// </summary>
-    private string EnvironmentRegistrationDefault => environment.IsDevelopment()
+    private bool DataIsDisposable => DemoDataSeeder.IsEnabled(configuration, environment);
+
+    /// <summary>
+    /// What registration falls back to when nobody has chosen. Open where the data is disposable so
+    /// the team can make accounts freely; anything else is invite-only, because a deployment that
+    /// hands out accounts to whoever guesses the email domain is not a deployment anyone intended.
+    /// </summary>
+    private string EnvironmentRegistrationDefault => DataIsDisposable
         ? SettingKeys.RegistrationModeOpen
         : SettingKeys.RegistrationModeInviteOnly;
 
@@ -235,7 +252,8 @@ public class SystemSettingService(
             await settings.GetIntAsync(SettingKeys.InvitationValidDays, SettingKeys.DefaultInvitationValidDays, cancellationToken),
             await settings.GetIntAsync(SettingKeys.AccessTokenMinutes, SettingKeys.DefaultAccessTokenMinutes, cancellationToken),
             await settings.GetIntAsync(SettingKeys.RefreshTokenDays, SettingKeys.DefaultRefreshTokenDays, cancellationToken),
-            await settings.GetBoolAsync(SettingKeys.PublicCatalogueEnabled, SettingKeys.DefaultPublicCatalogueEnabled, cancellationToken));
+            await settings.GetBoolAsync(SettingKeys.PublicCatalogueEnabled, SettingKeys.DefaultPublicCatalogueEnabled, cancellationToken),
+            DataIsDisposable);
     }
 
     public async Task<AccessSettingsDto> UpdateAccessSettingsAsync(
@@ -246,14 +264,15 @@ public class SystemSettingService(
             throw new BusinessRuleException("Registration must be either open or by invitation only.");
         }
 
-        // Refused rather than merely discouraged. Open registration in production means anyone
-        // who knows the email domain can create an account and see unpublished research; there
-        // is no configuration in which that is what someone meant to do.
-        if (request.RegistrationMode == SettingKeys.RegistrationModeOpen && !environment.IsDevelopment())
+        // Refused rather than merely discouraged. Open registration on a deployment holding real
+        // work means anyone who knows the email domain can create an account and read unpublished
+        // research; there is no configuration in which that is what somebody meant to do.
+        if (request.RegistrationMode == SettingKeys.RegistrationModeOpen && !DataIsDisposable)
         {
             throw new BusinessRuleException(
-                "Open registration is only available in a development environment. " +
-                "Invite people instead, and you choose their role as you send the invitation.");
+                "Open registration is only available where the data is disposable, which is what "
+                + "seeding the demonstration dataset marks. Invite people instead, and you choose "
+                + "their role as you send the invitation.");
         }
 
         if (request.InvitationValidDays is < 1 or > 90)
