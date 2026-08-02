@@ -35,6 +35,23 @@ public static class RoleNames
     ];
 
     /// <summary>
+    /// The roles that mean a job here: everyone the system can choose for something.
+    ///
+    /// Two are missing and for different reasons. A student is the subject of the work rather than
+    /// somebody it is handed to. And Staff is the placeholder an institutional address is given on
+    /// the way in, before an administrator says what the person actually is: it is not a job, so
+    /// there is nothing to offer whoever holds it and nothing about them worth asking.
+    ///
+    /// Named once because several questions turn on it, and answering them separately is how a
+    /// placeholder account ends up being offered work in one place and not another.
+    /// </summary>
+    public static readonly string[] Operational =
+    [
+        Admin, HeadOfDepartment, Coordinator, Supervisor,
+        InternalCommitteeMember, ExternalCommitteeMember
+    ];
+
+    /// <summary>
     /// Everyone who may sit on an evaluation committee, and therefore everyone the committee
     /// screens have to let in.
     ///
@@ -48,11 +65,7 @@ public static class RoleNames
     /// evaluators from, and a committee they could be appointed to but never open or vote on was a
     /// committee that could never reach its required number of approvals.
     /// </summary>
-    public static readonly string[] CommitteeEligible =
-    [
-        Admin, HeadOfDepartment, Coordinator, Supervisor,
-        InternalCommitteeMember, ExternalCommitteeMember
-    ];
+    public static readonly string[] CommitteeEligible = Operational;
 
     /// <summary>The same list, for [Authorize(Roles = ...)], which takes one comma-separated string.</summary>
     public const string CommitteeEligibleRoles =

@@ -1652,7 +1652,7 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/api/containers/:id/activity-history",
+              "raw": "{{base_url}}/api/containers/:id/activity-history?Page=&PageSize=&SortBy=&SortDescending=",
               "host": [
                 "{{base_url}}"
               ],
@@ -1661,6 +1661,32 @@
                 "containers",
                 ":id",
                 "activity-history"
+              ],
+              "query": [
+                {
+                  "key": "Page",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "PageSize",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "SortBy",
+                  "value": "",
+                  "description": "Which column to order by, and whether to reverse it.\r\n            \r\nIt belongs here, on the request, rather than in the client. Sorting the ten rows a page\r\nhappens to hold is not sorting the list: the oldest proposal in the department is on the\r\nlast page, and a reader clicking \"oldest first\" expects to see it, not the oldest of\r\nwhatever ten they were already looking at. Ordering has to happen before the page is cut.\r\n            \r\nThe name is whatever the endpoint documents; an unknown one falls back to that endpoint's\r\nown default rather than failing, because a sort key is a view preference and not worth\r\nrefusing a page over.",
+                  "disabled": true
+                },
+                {
+                  "key": "SortDescending",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                }
               ],
               "variable": [
                 {
