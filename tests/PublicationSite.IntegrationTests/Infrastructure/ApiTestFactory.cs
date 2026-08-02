@@ -43,6 +43,7 @@ public class ApiTestFactory : WebApplicationFactory<Program>, IAsyncLifetime
         Environment.SetEnvironmentVariable("Mail__Host", "smtp.invalid"); // deliberately unreachable; SmtpEmailSender fails closed and logs, never throws
         Environment.SetEnvironmentVariable("Cors__AllowedOrigins__0", "http://localhost:3000");
 
+
         // Migrate via a standalone DbContext BEFORE the host is built. Program.cs seeds roles as
         // part of its own startup (before app.Run()), and accessing `Services` below is what
         // triggers that startup, so the schema must already exist by then, not after.
@@ -56,6 +57,20 @@ public class ApiTestFactory : WebApplicationFactory<Program>, IAsyncLifetime
 
         // Force the host to build now (WebApplicationFactory builds lazily on first use).
         _ = Services;
+
+        // Then wait for the demonstration dataset before letting a test run.
+        //
+        // The host builds it in the background, which is right for a real deployment and wrong
+        // here: these tests change system settings, and a build still under way against the old
+        // ones assigns a committee that no longer matches the rules and gives up half finished.
+        // The failure was only ever a line in the log, so it looked like flakiness in whichever
+        // test happened to read that data next.
+        //
+        // Leaving the dataset switched on rather than skipping it: what decides whether anybody may
+        // register is whether this deployment's data is disposable, and seeding the sample data is
+        // what marks it so. Turned off, registration becomes invite-only and the auth tests have
+        // nothing to register with.
+        await Services.GetRequiredService<DemoDataSeedRunner>().Current;
     }
 
     public new async Task DisposeAsync()

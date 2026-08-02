@@ -19,6 +19,15 @@ public class DemoDataSeedRunner(
     private readonly SemaphoreSlim _oneAtATime = new(1, 1);
     private CancellationTokenSource? _shutdown;
 
+    /// <summary>
+    /// The run in progress, for the one caller that has to wait for it: the integration tests.
+    ///
+    /// They change system settings, and a dataset still being built against the old ones assigns a
+    /// committee that no longer matches and gives up half way. Nothing in the application waits on
+    /// this, which is the whole point of building it in the background.
+    /// </summary>
+    public Task Current { get; private set; } = Task.CompletedTask;
+
     public Task StartAsync(CancellationToken cancellationToken)
     {
         // Tied to the application's lifetime rather than to this call's token, which is only the
@@ -42,7 +51,7 @@ public class DemoDataSeedRunner(
     {
         var token = _shutdown?.Token ?? CancellationToken.None;
 
-        _ = Task.Run(async () =>
+        Current = Task.Run(async () =>
         {
             await _oneAtATime.WaitAsync(token);
             try

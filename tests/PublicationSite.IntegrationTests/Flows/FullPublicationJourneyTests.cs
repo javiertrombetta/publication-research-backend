@@ -100,8 +100,8 @@ public class FullPublicationJourneyTests(ApiTestFactory factory)
         });
         undatedStatus.Should().Be(HttpStatusCode.BadRequest);
 
-        var (_, invitedBody) = await supervisorClient.GetAsync<IReadOnlyList<ProposalDto>>("/api/proposals/invited");
-        invitedBody!.Data.Should().ContainSingle(p => p.Id == proposal.Id);
+        var (_, invitedBody) = await supervisorClient.GetAsync<PagedResult<ProposalDto>>("/api/proposals/invited");
+        invitedBody!.Data!.Items.Should().ContainSingle(p => p.Id == proposal.Id);
 
         var (selectStatus, _) = await supervisorClient.PostAsync<object>(
             $"/api/proposals/{proposal.Id}/supervisor-selection", new { comments = "Happy to supervise" });
