@@ -287,6 +287,10 @@ using (var scope = app.Services.CreateScope())
     await DbSeeder.SeedRolesAsync(scope.ServiceProvider);
     await DbSeeder.SeedAdminAsync(scope.ServiceProvider, app.Configuration);
 
+    // Where uploads go, if this deployment says and the database has not been told yet. A host with
+    // no durable disk needs an answer before the first upload rather than after somebody notices.
+    await StorageSettingsBootstrapper.ApplyAsync(scope.ServiceProvider, app.Configuration);
+
     // The demonstration dataset is not seeded here. It is slow enough against a hosted database to
     // hold up the health check, so DemoDataSeedRunner starts it once the server is listening, and
     // it is registered only where it is wanted (see DemoDataSeeder.IsEnabled).

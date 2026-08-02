@@ -98,3 +98,33 @@ jobs:
           provenance: false
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  deploy-azure:
+    name: Deploy to Azure Container Apps
+    needs: build-and-push
+    # Skipped entirely where the secret is absent, so a fork or a clone of this repository still
+    # builds and pushes without needing an Azure subscription to do it.
+    if: needs.build-and-push.result == 'success' && vars.AZURE_RESOURCE_GROUP != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Sign in to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Point the container app at the image just pushed
+        # Only the image. Everything else about the app was set by azure/deploy.sh and is left
+        # alone here: a deployment should not be able to quietly rewrite a connection string.
+        run: |
+          az containerapp update \
+            --name "${{ vars.AZURE_APP_NAME || 'publication-research-backend' }}" \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --image "${{ env.DOCKERHUB_IMAGE }}:latest" \
+            --output none
+
+          echo "Deployed. Live at: https://$(az containerapp show \
+            --name "${{ vars.AZURE_APP_NAME || 'publication-research-backend' }}" \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --query properties.configuration.ingress.fqdn -o tsv)" >> "$GITHUB_STEP_SUMMARY"
