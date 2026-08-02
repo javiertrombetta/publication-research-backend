@@ -131,13 +131,31 @@ public class CommitteeServiceTests : IDisposable
     {
         var (publication, _, coordinator) = SeedApprovedPublication();
 
-        // No committee-member role and no profile: an ordinary member of staff. Anyone who works
-        // here can be asked to evaluate a paper, so holding an extra role is not the entry ticket.
-        var staff = TestDataBuilder.User(_fixture.Context);
+        // A supervisor, with no committee-member role of any kind. Holding one is not the entry
+        // ticket: an institution draws its evaluators from the people who already work there.
+        var supervisor = TestDataBuilder.User(_fixture.Context);
+        TestDataBuilder.GrantRole(_fixture.Context, supervisor, RoleNames.Supervisor);
 
-        var act = () => _sut.AssignAsync(publication.Id, new AssignCommitteeRequest([staff.Id], 1, "Assign"), coordinator.Id);
+        var act = () => _sut.AssignAsync(publication.Id, new AssignCommitteeRequest([supervisor.Id], 1, "Assign"), coordinator.Id);
 
         await act.Should().NotThrowAsync();
+    }
+
+    [Fact]
+    public async Task AssignAsync_refuses_somebody_who_has_no_role_yet()
+    {
+        var (publication, _, coordinator) = SeedApprovedPublication();
+
+        // Staff is the placeholder an institutional account holds until an administrator says what
+        // it is. It is not a job, so there is nobody there to ask yet, and appointing them would
+        // create a committee seat whose holder cannot open the screen where the decision is made.
+        var unassigned = TestDataBuilder.User(_fixture.Context);
+        TestDataBuilder.GrantRole(_fixture.Context, unassigned, RoleNames.Staff);
+
+        var act = () => _sut.AssignAsync(publication.Id, new AssignCommitteeRequest([unassigned.Id], 1, "Assign"), coordinator.Id);
+
+        (await act.Should().ThrowAsync<BusinessRuleException>())
+            .Which.Message.Should().Contain("no role here yet");
     }
 
     [Fact]
@@ -145,6 +163,7 @@ public class CommitteeServiceTests : IDisposable
     {
         var (publication, _, coordinator) = SeedApprovedPublication();
         var staff = TestDataBuilder.User(_fixture.Context);
+        TestDataBuilder.GrantRole(_fixture.Context, staff, RoleNames.Supervisor);
 
         await _sut.AssignAsync(publication.Id, new AssignCommitteeRequest([staff.Id], 1, "Assign"), coordinator.Id);
 
@@ -304,10 +323,12 @@ public class CommitteeServiceTests : IDisposable
     {
         var (publication, _, coordinator) = SeedApprovedPublication();
 
-        // Profile but no role: what a demotion leaves behind, since profiles are never deleted.
-        // It used to disqualify them; they are still a member of staff, so it no longer does.
+        // The committee-member profile a demotion leaves behind, since profiles are never deleted,
+        // on somebody who now holds a different role. The stale profile used to disqualify them.
+        // What matters is the role they hold now, and a supervisor can sit on a committee.
         var formerMember = TestDataBuilder.User(_fixture.Context);
         TestDataBuilder.CommitteeMemberProfile(_fixture.Context, formerMember);
+        TestDataBuilder.GrantRole(_fixture.Context, formerMember, RoleNames.Supervisor);
 
         var act = () => _sut.AssignAsync(
             publication.Id, new AssignCommitteeRequest([formerMember.Id], 1, "Assign"), coordinator.Id);

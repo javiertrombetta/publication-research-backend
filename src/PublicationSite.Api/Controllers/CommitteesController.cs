@@ -77,7 +77,7 @@ public class CommitteesController(ICommitteeService committeeService, ICurrentUs
     /// <response code="401">No access token was sent, or the one sent has expired.</response>
     /// <response code="403">Signed in, but this is not something your role may do.</response>
     [HttpGet("api/committees/my-assignments")]
-    [Authorize(Roles = $"{RoleNames.InternalCommitteeMember},{RoleNames.ExternalCommitteeMember}")]
+    [Authorize(Roles = RoleNames.CommitteeEligibleRoles)]
     [ProducesResponseType(typeof(ApiResponse<PagedResult<CommitteeDto>>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -98,7 +98,7 @@ public class CommitteesController(ICommitteeService committeeService, ICurrentUs
     /// <response code="404">No committee with that id.</response>
     /// <response code="409">It is already recorded. This has been done, or created, before.</response>
     [HttpPost("api/committees/{committeeId:guid}/review")]
-    [Authorize(Roles = $"{RoleNames.InternalCommitteeMember},{RoleNames.ExternalCommitteeMember}")]
+    [Authorize(Roles = RoleNames.CommitteeEligibleRoles)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]

@@ -33,4 +33,28 @@ public static class RoleNames
     [
         InternalCommitteeMember, ExternalCommitteeMember
     ];
+
+    /// <summary>
+    /// Everyone who may sit on an evaluation committee, and therefore everyone the committee
+    /// screens have to let in.
+    ///
+    /// Two exclusions, for two different reasons. A committee judges a student's work, so its
+    /// members cannot be drawn from the people whose work is being judged. And Staff is the
+    /// placeholder an institutional account holds before an administrator says what it is: it is
+    /// not a job, so there is nobody there to ask yet.
+    ///
+    /// Anyone else can be appointed. Holding a committee-member role is not the entry ticket:
+    /// supervisors, coordinators and heads of department are exactly who an institution draws its
+    /// evaluators from, and a committee they could be appointed to but never open or vote on was a
+    /// committee that could never reach its required number of approvals.
+    /// </summary>
+    public static readonly string[] CommitteeEligible =
+    [
+        Admin, HeadOfDepartment, Coordinator, Supervisor,
+        InternalCommitteeMember, ExternalCommitteeMember
+    ];
+
+    /// <summary>The same list, for [Authorize(Roles = ...)], which takes one comma-separated string.</summary>
+    public const string CommitteeEligibleRoles =
+        $"{Admin},{HeadOfDepartment},{Coordinator},{Supervisor},{InternalCommitteeMember},{ExternalCommitteeMember}";
 }
