@@ -442,6 +442,41 @@
       "name": "Users",
       "item": [
         {
+          "name": "Records whether this person wants the site light or dark",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/users/me/theme",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "users",
+                "me",
+                "theme"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"theme\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Records whether this person wants the site light or dark.\r\n            \r\nTheir own, like their password: no role is involved, and there is nothing here another\r\naccount could be made to change."
+          },
+          "response": []
+        },
+        {
           "name": "The signed-in user's own account and whichever profile their role carries",
           "request": {
             "method": "GET",
@@ -616,7 +651,7 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/api/users?role=&status=&search=",
+              "raw": "{{base_url}}/api/users?role=&status=&search=&Page=&PageSize=&SortBy=&SortDescending=",
               "host": [
                 "{{base_url}}"
               ],
@@ -642,10 +677,34 @@
                   "value": "",
                   "description": "",
                   "disabled": true
+                },
+                {
+                  "key": "Page",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "PageSize",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "SortBy",
+                  "value": "",
+                  "description": "Which column to order by, and whether to reverse it.\r\n            \r\nIt belongs here, on the request, rather than in the client. Sorting the ten rows a page\r\nhappens to hold is not sorting the list: the oldest proposal in the department is on the\r\nlast page, and a reader clicking \"oldest first\" expects to see it, not the oldest of\r\nwhatever ten they were already looking at. Ordering has to happen before the page is cut.\r\n            \r\nThe name is whatever the endpoint documents; an unknown one falls back to that endpoint's\r\nown default rather than failing, because a sort key is a view preference and not worth\r\nrefusing a page over.",
+                  "disabled": true
+                },
+                {
+                  "key": "SortDescending",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
                 }
               ]
             },
-            "description": "The user directory, filtered by role, status and a search over name and address."
+            "description": "The user directory, filtered by role, status and a search over name and address.\n\nOrders by `name`, `email`, `status` or `created`. Surname by default."
           },
           "response": []
         },
@@ -688,7 +747,7 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/api/users/supervisors?search=",
+              "raw": "{{base_url}}/api/users/supervisors?search=&Page=&PageSize=&SortBy=&SortDescending=",
               "host": [
                 "{{base_url}}"
               ],
@@ -700,6 +759,30 @@
               "query": [
                 {
                   "key": "search",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "Page",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "PageSize",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "SortBy",
+                  "value": "",
+                  "description": "Which column to order by, and whether to reverse it.\r\n            \r\nIt belongs here, on the request, rather than in the client. Sorting the ten rows a page\r\nhappens to hold is not sorting the list: the oldest proposal in the department is on the\r\nlast page, and a reader clicking \"oldest first\" expects to see it, not the oldest of\r\nwhatever ten they were already looking at. Ordering has to happen before the page is cut.\r\n            \r\nThe name is whatever the endpoint documents; an unknown one falls back to that endpoint's\r\nown default rather than failing, because a sort key is a view preference and not worth\r\nrefusing a page over.",
+                  "disabled": true
+                },
+                {
+                  "key": "SortDescending",
                   "value": "",
                   "description": "",
                   "disabled": true
@@ -3434,7 +3517,7 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/api/committees/my-assignments?Page=&PageSize=&SortBy=&SortDescending=",
+              "raw": "{{base_url}}/api/committees/my-assignments?Page=&PageSize=&SortBy=&SortDescending=&search=",
               "host": [
                 "{{base_url}}"
               ],
@@ -3464,6 +3547,12 @@
                 },
                 {
                   "key": "SortDescending",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "search",
                   "value": "",
                   "description": "",
                   "disabled": true
