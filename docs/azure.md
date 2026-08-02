@@ -18,25 +18,38 @@ price but how long the grant lasts.
 Container Apps is the only one of the three where an idle testing deployment costs nothing, which
 is what a testing deployment mostly is.
 
-The trade is a cold start. The first request after a quiet period waits ten to thirty seconds while
-a replica starts. Two consequences worth knowing:
+Scaling to zero costs almost nothing and makes the first request after a quiet period wait ten to
+thirty seconds. The scripts therefore keep one replica awake by default (`MIN_REPLICAS=1`), because
+a testing deployment somebody is being shown is the wrong place for that wait.
 
-- The background sweep that closes expired proposal rounds only runs while a replica is awake. On a
-  testing deployment that is fine; the sweep catches up the next time somebody visits.
-- The sample dataset is built on startup, so the first request after a database reset can be slow.
+A replica that is running but not answering anything is billed at Azure's reduced idle rate, which
+is what makes this affordable: measured on a live deployment, an idle request stays at about 100 ms
+whether or not it follows a quiet spell, and there is no cold start at all.
 
-If you would rather they were always awake, set `--min-replicas 1` in both scripts and expect
-roughly US$30 a month per app.
+To go back to paying nearly nothing, export `MIN_REPLICAS=0` and run the script again. Two things
+follow from scaling to zero: the background sweep that closes expired proposal rounds only runs
+while a replica is awake, and the first request after a database reset is slow because the sample
+dataset is built on startup.
 
 ## What it will cost
 
 | Resource | Plan | Roughly |
 |---|---|---|
 | Container Apps environment | Consumption | Nothing while idle |
-| Two container apps | 0.5 vCPU, 1 GiB, scale to zero | Within the free monthly allowance at testing volumes |
+| Two container apps | 0.5 vCPU, 1 GiB, one replica always awake | About US$24 a month at the idle rate, less the free monthly allowance |
 | Storage account for uploads | Standard LRS, hot | Cents per month at this size |
 | Log Analytics workspace | Pay as you go | First 5 GB of ingestion each month is free |
 | MySQL | **Stays on Aiven** | Unchanged |
+
+Those are estimates from the published rates and the free monthly allowance, not a quote. Watch the
+real figure in Cost Management for the first week.
+
+On a US$100 grant, two always-awake apps at that size last roughly four months. Halve it by dropping
+to the smallest size Container Apps offers, which is plenty for testing:
+
+```bash
+CPU=0.25 MEMORY=0.5Gi ./azure/deploy.sh
+```
 
 Set a budget alert anyway: Azure portal, Cost Management, Budgets. On a student subscription
 Azure stops the resources when the grant runs out rather than charging you, but knowing beforehand
