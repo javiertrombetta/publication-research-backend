@@ -51,7 +51,12 @@ is better than finding out.
    az extension add --name containerapp --upgrade
    az provider register --namespace Microsoft.App --wait
    az provider register --namespace Microsoft.OperationalInsights --wait
+   az provider register --namespace Microsoft.Storage --wait
    ```
+
+   The deploy scripts do this too, so you can skip it. It is here because a subscription that has
+   never used one of these reports the failure as `SubscriptionNotFound`, which sends you looking
+   at the subscription when the subscription is fine.
 
 2. **Sign in** with the account that holds the student subscription.
 
