@@ -444,7 +444,10 @@ public class SystemSettingService(
              ?? EnvironmentRegistrationDefault) == SettingKeys.RegistrationModeOpen,
             // Carried on the anonymous response because the landing page has to be decided before
             // anyone has signed in, which is exactly when no other settings are readable.
-            await settings.GetBoolAsync(SettingKeys.PublicCatalogueEnabled, SettingKeys.DefaultPublicCatalogueEnabled, cancellationToken));
+            await settings.GetBoolAsync(SettingKeys.PublicCatalogueEnabled, SettingKeys.DefaultPublicCatalogueEnabled, cancellationToken),
+            // Carried here because the site reads this response on every page anyway, and how long
+            // a page is has to be known before the first listing is drawn.
+            await settings.GetIntAsync(SettingKeys.RowsPerPage, SettingKeys.DefaultRowsPerPage, cancellationToken));
 
     public async Task<InstitutionSettingsDto> UpdateInstitutionSettingsAsync(
         UpdateInstitutionSettingsRequest request, Guid actingAdminId, CancellationToken cancellationToken = default)
@@ -465,6 +468,16 @@ public class SystemSettingService(
                 "Students and staff need different email domains. Otherwise an address cannot say which someone is.");
         }
 
+        // Refused rather than clamped. A number outside the range is somebody meaning something
+        // the system cannot do, and silently saving a different one leaves them believing it did.
+        if (request.RowsPerPage < SettingKeys.MinimumRowsPerPage || request.RowsPerPage > SettingKeys.MaximumRowsPerPage)
+        {
+            throw new BusinessRuleException(
+                $"Rows per page has to be between {SettingKeys.MinimumRowsPerPage} and {SettingKeys.MaximumRowsPerPage}.");
+        }
+
+        var rowsPerPage = request.RowsPerPage;
+
         await SetPendingAsync(SettingKeys.InstitutionName, request.Name.Trim(), actingAdminId, cancellationToken);
         await SetPendingAsync(SettingKeys.StudentEmailDomain, studentDomain, actingAdminId, cancellationToken);
         await SetPendingAsync(SettingKeys.StaffEmailDomain, staffDomain, actingAdminId, cancellationToken);
@@ -473,6 +486,7 @@ public class SystemSettingService(
         await SetPendingAsync(SettingKeys.PrivacyPolicyUrl, request.PrivacyPolicyUrl?.Trim() ?? string.Empty, actingAdminId, cancellationToken);
         await SetPendingAsync(SettingKeys.CurrentAcademicCycle, request.CurrentAcademicCycle?.Trim() ?? string.Empty, actingAdminId, cancellationToken);
         await SetPendingAsync(SettingKeys.WebsiteUrl, request.WebsiteUrl?.Trim() ?? string.Empty, actingAdminId, cancellationToken);
+        await SetPendingAsync(SettingKeys.RowsPerPage, rowsPerPage.ToString(), actingAdminId, cancellationToken);
 
         await CommitAsync(actingAdminId, "InstitutionSettingsUpdated",
             $"Student addresses end in {studentDomain} and staff addresses in {staffDomain}." +

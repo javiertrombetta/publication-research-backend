@@ -14,7 +14,7 @@ public record CatalogueEntryDto(
     string? Department,
     IReadOnlyList<string> ResearchAreas);
 
-public class CatalogueSearchRequest
+public class CatalogueSearchRequest : Common.PageRequest
 {
     public string? Query { get; set; }
     public string? Author { get; set; }
@@ -24,8 +24,6 @@ public class CatalogueSearchRequest
     public string? PublicationType { get; set; }
     public string? Department { get; set; }
     public string? ResearchArea { get; set; }
-    public int Page { get; set; } = 1;
-    public int PageSize { get; set; } = 20;
 }
 
 

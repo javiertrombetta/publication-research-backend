@@ -18,12 +18,12 @@ public class AuditLogQueryService(ApplicationDbContext db) : IAuditLogQueryServi
 
         var items = await filtered
             .OrderByDescending(a => a.Timestamp)
-            .Skip((query.Page - 1) * query.PageSize)
-            .Take(query.PageSize)
+            .Skip((query.SafePage - 1) * query.SafePageSize)
+            .Take(query.SafePageSize)
             .Select(ToDto)
             .ToListAsync(cancellationToken);
 
-        return new PagedResult<AuditLogEntryDto>(items, query.Page, query.PageSize, totalCount);
+        return new PagedResult<AuditLogEntryDto>(items, query.SafePage, query.SafePageSize, totalCount);
     }
 
     public async Task<byte[]> ExportCsvAsync(AuditLogQuery query, CancellationToken cancellationToken = default)

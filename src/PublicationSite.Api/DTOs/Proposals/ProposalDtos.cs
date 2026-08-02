@@ -42,6 +42,8 @@ public record SupervisorInvitationDto(
 /// while showing the same handful of rows anyone could act on.
 /// </summary>
 /// <param name="ReturnedToDispatchAt">When this proposal was last put back in the dispatch queue after a round that found nobody, and null if it has never been. Lets a dispatch screen tell a proposal waiting its first turn from one that has already had one, which are different things to decide about.</param>
+/// <param name="StudentIdNumber">The student's institutional id, or null on an account with no student profile. A name does not identify anybody: a coordinator's queue groups by student, and two people with the same name, or one person with two publications open, are told apart by this and not by the heading.</param>
+/// <param name="StudentEmail">The address on the student's account, which at this institution is their id at the student domain. Carried rather than composed from the id, because it is the address that actually reaches them.</param>
 public record ProposalWithInvitationsDto(
     Guid Id,
     Guid PublicationContainerId,
@@ -51,7 +53,9 @@ public record ProposalWithInvitationsDto(
     string Status,
     DateTime? SubmittedAt,
     IReadOnlyList<SupervisorInvitationDto> Invitations,
-    DateTime? ReturnedToDispatchAt = null);
+    DateTime? ReturnedToDispatchAt = null,
+    string? StudentIdNumber = null,
+    string? StudentEmail = null);
 
 /// <summary>
 /// What discarding a set of offers actually did. Whether it emptied the student's round depends on

@@ -212,6 +212,28 @@ public static class SettingKeys
     /// </summary>
     public const string CurrentAcademicCycle = "institution.academic-cycle";
 
+    /// <summary>
+    /// How many rows a listing shows before it pages.
+    ///
+    /// A number the institution chooses rather than one the code decides. Ten suits a queue of
+    /// cards on a laptop and wastes a wide screen a coordinator works at all day; the people who
+    /// know which of those this is are the ones running the place.
+    ///
+    /// Applies to every listing, so it is one figure and not one per screen: a reader who has
+    /// learned that a page here is twenty rows should not have to relearn it on the next screen.
+    /// </summary>
+    public const string RowsPerPage = "display.rows-per-page";
+
+    public const int DefaultRowsPerPage = 10;
+
+    /// <summary>
+    /// The range an administrator may choose from. Below five a pager appears on almost every
+    /// list; above the page ceiling the API would clamp the number and the screen would quietly
+    /// disagree with the setting.
+    /// </summary>
+    public const int MinimumRowsPerPage = 5;
+    public const int MaximumRowsPerPage = 100;
+
     public const string DefaultInstitutionName = "Auckland Institute of Studies";
     public const string DefaultStudentEmailDomain = "@aisstudent.ac.nz";
     public const string DefaultStaffEmailDomain = "@ais.ac.nz";

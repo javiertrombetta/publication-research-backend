@@ -85,10 +85,16 @@ public class ProposalService(
             throw new BusinessRuleException("At least one research proposal is required before finishing submission.");
         }
 
+        // One instant for the whole round. Read inside the loop, DateTime.UtcNow gives each
+        // proposal a slightly different value, and a coordinator's queue groups these by student
+        // and orders them by date: proposals a student sent together would spread by fractions of
+        // a second and, between two students submitting at once, interleave and split a group.
+        var submittedAt = DateTime.UtcNow;
+
         foreach (var proposal in drafts)
         {
             proposal.Status = ProposalStatus.Submitted;
-            proposal.SubmittedAt = DateTime.UtcNow;
+            proposal.SubmittedAt = submittedAt;
         }
 
         await db.SaveChangesAsync(cancellationToken);
@@ -290,7 +296,14 @@ public class ProposalService(
                         s.SelectedAt,
                         s.RespondBy))
                     .ToList(),
-                p.ReturnedToDispatchAt));
+                p.ReturnedToDispatchAt,
+                // Who the student is, rather than only what they are called. A queue grouped by
+                // student shows one heading per publication, so the same name appears twice for
+                // anybody with two open, and two people can share a name outright.
+                p.PublicationContainer.Student.StudentProfile == null
+                    ? null
+                    : p.PublicationContainer.Student.StudentProfile.StudentIdNumber,
+                p.PublicationContainer.Student.Email));
 
     public async Task SendToSupervisorsAsync(SendToSupervisorsRequest request, Guid coordinatorId, CancellationToken cancellationToken = default)
     {
