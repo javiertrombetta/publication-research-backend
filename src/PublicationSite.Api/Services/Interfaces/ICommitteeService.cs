@@ -5,6 +5,12 @@ namespace PublicationSite.Api.Services.Interfaces;
 
 public interface ICommitteeService
 {
+    /// <summary>
+    /// Everybody who could be put on a committee right now, by surname. The same rule
+    /// <see cref="AssignAsync"/> applies, so the list offered and the list accepted agree.
+    /// </summary>
+    Task<IReadOnlyList<CommitteeCandidateDto>> GetCandidatesAsync(CancellationToken cancellationToken = default);
+
     Task<CommitteeDto> AssignAsync(Guid publicationId, AssignCommitteeRequest request, Guid adminId, CancellationToken cancellationToken = default);
     Task<CommitteeDto> GetByPublicationAsync(Guid publicationId, Guid requestingUserId, CancellationToken cancellationToken = default);
     Task<PagedResult<CommitteeDto>> GetAssignmentsForMemberAsync(Guid memberUserId, PageRequest page, CancellationToken cancellationToken = default);

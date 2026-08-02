@@ -72,7 +72,43 @@ public class SystemSettingService(
         new(
             await settings.GetIntAsync(SettingKeys.CommitteeInternalMembers, SettingKeys.DefaultCommitteeInternalMembers, cancellationToken),
             await settings.GetIntAsync(SettingKeys.CommitteeExternalMembers, SettingKeys.DefaultCommitteeExternalMembers, cancellationToken),
-            await settings.GetIntAsync(SettingKeys.CommitteeMinApprovals, SettingKeys.DefaultCommitteeMinApprovals, cancellationToken));
+            await settings.GetIntAsync(SettingKeys.CommitteeMinApprovals, SettingKeys.DefaultCommitteeMinApprovals, cancellationToken),
+            await GetCandidateRolesAsync(cancellationToken),
+            await GetExcludedCommitteeUsersAsync(cancellationToken),
+            RoleNames.CommitteeEligible);
+
+    /// <summary>
+    /// The roles an administrator has chosen to draw committees from. Nothing chosen means everyone
+    /// eligible, because a setting nobody has touched should not make forming a committee
+    /// impossible. Anything no longer eligible is dropped on the way out, so a role removed from
+    /// the system cannot linger in a stored list and quietly widen the rule.
+    /// </summary>
+    public async Task<IReadOnlyList<string>> GetCandidateRolesAsync(CancellationToken cancellationToken = default)
+    {
+        var stored = await settings.GetStringAsync(SettingKeys.CommitteeCandidateRoles, cancellationToken) ?? string.Empty;
+
+        var chosen = stored
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(RoleNames.CommitteeEligible.Contains)
+            .Distinct()
+            .ToList();
+
+        return chosen.Count > 0 ? chosen : RoleNames.CommitteeEligible;
+    }
+
+    /// <summary>People an administrator has taken out of consideration, whatever role they hold.</summary>
+    public async Task<IReadOnlyList<Guid>> GetExcludedCommitteeUsersAsync(CancellationToken cancellationToken = default)
+    {
+        var stored = await settings.GetStringAsync(SettingKeys.CommitteeExcludedUserIds, cancellationToken) ?? string.Empty;
+
+        return stored
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(value => Guid.TryParse(value, out var id) ? id : (Guid?)null)
+            .Where(id => id is not null)
+            .Select(id => id!.Value)
+            .Distinct()
+            .ToList();
+    }
 
     public async Task<CommitteeSettingsDto> UpdateCommitteeSettingsAsync(
         UpdateCommitteeSettingsRequest request, Guid actingAdminId, CancellationToken cancellationToken = default)
@@ -101,9 +137,44 @@ public class SystemSettingService(
                 $"A committee of {total} cannot be asked for {request.MinimumApprovals} approvals.");
         }
 
+        // Only ever a narrowing of who is eligible. A name that is not on that list is refused
+        // rather than ignored, because silently dropping it would leave the screen showing a choice
+        // that was never saved.
+        var candidateRoles = (request.CandidateRoles ?? [])
+            .Select(role => role.Trim())
+            .Where(role => role.Length > 0)
+            .Distinct()
+            .ToList();
+
+        var unknown = candidateRoles.Where(role => !RoleNames.CommitteeEligible.Contains(role)).ToList();
+        if (unknown.Count > 0)
+        {
+            throw new BusinessRuleException(
+                $"These cannot sit on a committee: {string.Join(", ", unknown)}. Students are excluded because a "
+                + "committee judges their work, and an account with no role yet has no job to be asked about.");
+        }
+
+        if (request.CandidateRoles is not null && candidateRoles.Count == 0)
+        {
+            throw new BusinessRuleException(
+                "Choose at least one role for committees to draw on, or no committee could ever be formed.");
+        }
+
         await SetPendingAsync(SettingKeys.CommitteeInternalMembers, request.InternalMembers, actingAdminId, cancellationToken);
         await SetPendingAsync(SettingKeys.CommitteeExternalMembers, request.ExternalMembers, actingAdminId, cancellationToken);
         await SetPendingAsync(SettingKeys.CommitteeMinApprovals, request.MinimumApprovals, actingAdminId, cancellationToken);
+
+        if (request.CandidateRoles is not null)
+        {
+            await SetPendingAsync(SettingKeys.CommitteeCandidateRoles,
+                string.Join(",", candidateRoles), actingAdminId, cancellationToken);
+        }
+
+        if (request.ExcludedUserIds is not null)
+        {
+            await SetPendingAsync(SettingKeys.CommitteeExcludedUserIds,
+                string.Join(",", request.ExcludedUserIds.Distinct()), actingAdminId, cancellationToken);
+        }
 
         await CommitAsync(actingAdminId, "CommitteeSettingsUpdated",
             $"Committees now require {request.InternalMembers} internal and {request.ExternalMembers} external " +

@@ -25,6 +25,22 @@ public static class SettingKeys
     /// <summary>How many committee members must approve for a paper to pass.</summary>
     public const string CommitteeMinApprovals = "committee.min-approvals";
 
+    /// <summary>
+    /// Which roles an administrator wants drawn on for committees, as a comma-separated list, and
+    /// which individual people to leave out of it whatever role they hold.
+    ///
+    /// The roles here can only ever narrow <see cref="RoleNames.CommitteeEligible"/>, never widen
+    /// it: students are excluded because a committee judges their work, and an account still
+    /// holding the placeholder role has no job to be asked about yet. Those two are the rule rather
+    /// than a preference, so they are not on offer here.
+    ///
+    /// An empty list of roles means the default, everyone eligible. It is read that way rather than
+    /// as "nobody", because a setting that has never been touched should not quietly make it
+    /// impossible to form a committee.
+    /// </summary>
+    public const string CommitteeCandidateRoles = "committee.candidate-roles";
+    public const string CommitteeExcludedUserIds = "committee.excluded-user-ids";
+
     public const int DefaultCommitteeInternalMembers = 2;
     public const int DefaultCommitteeExternalMembers = 1;
     public const int DefaultCommitteeMinApprovals = 2;
