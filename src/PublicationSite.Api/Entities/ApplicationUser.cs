@@ -25,6 +25,18 @@ public class ApplicationUser : IdentityUser<Guid>
     /// system chooses a student.
     /// </summary>
     public bool IsAvailable { get; set; } = true;
+
+    /// <summary>
+    /// Light or dark, as this person last chose it. Null until they choose, which is what lets the
+    /// site follow the machine's own preference for somebody who has never said.
+    ///
+    /// On the account rather than only in a cookie, because it is a fact about the person: signing
+    /// in on a different machine should not hand them back a theme they had already rejected. The
+    /// cookie is still what the page is drawn from, since it is readable before anything is
+    /// fetched, and this is what refills it at sign-in.
+    /// </summary>
+    public string? ThemePreference { get; set; }
+
     public AuthProvider AuthProvider { get; set; } = AuthProvider.Local;
     public string? AzureObjectId { get; set; }
 

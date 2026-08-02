@@ -94,6 +94,24 @@ public class UserService(
         return new PagedResult<UserListItemDto>(items, paging.SafePage, paging.SafePageSize, total);
     }
 
+    /// <summary>
+    /// Records which theme this person prefers. Refuses anything but the two that exist, so a
+    /// stored value is always one the site can actually draw.
+    /// </summary>
+    public async Task SetThemeAsync(Guid userId, string theme, CancellationToken cancellationToken = default)
+    {
+        if (theme is not ("light" or "dark"))
+        {
+            throw new BusinessRuleException("A theme is either light or dark.");
+        }
+
+        var user = await db.Users.FirstOrDefaultAsync(u => u.Id == userId, cancellationToken)
+            ?? throw new NotFoundException(nameof(ApplicationUser), userId);
+
+        user.ThemePreference = theme;
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
     public async Task<UserDetailDto> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var user = await FindUserOrThrowAsync(id, cancellationToken);
@@ -458,7 +476,7 @@ public class UserService(
 
         return new UserDetailDto(user.Id, user.Email!, user.FirstName, user.LastName, user.InstitutionalId,
             user.Status.ToString(), user.AuthProvider.ToString(), roles.ToList(), user.CreatedAt, profile,
-            user.ProfilePhotoPath is not null, user.IsAvailable);
+            user.ProfilePhotoPath is not null, user.IsAvailable, user.ThemePreference);
     }
 
 }
