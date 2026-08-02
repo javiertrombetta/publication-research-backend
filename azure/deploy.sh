@@ -47,6 +47,19 @@ need SEED_ADMIN_PASSWORD
 echo "==> Subscription"
 az account show --query "{name:name, id:id}" -o tsv
 
+echo "==> Resource providers"
+# Registered here rather than left to the reader. A subscription that has never used one of these
+# reports the failure as "SubscriptionNotFound", which sends you looking at the wrong thing: the
+# subscription is fine, Azure simply does not know it for that provider yet. Registering is
+# idempotent and returns immediately once it has been done.
+for provider in Microsoft.App Microsoft.OperationalInsights Microsoft.Storage; do
+  state="$(az provider show --namespace "$provider" --query registrationState -o tsv 2>/dev/null || echo Unknown)"
+  if [ "$state" != "Registered" ]; then
+    echo "    registering $provider (first time on this subscription, takes a minute)"
+    az provider register --namespace "$provider" --wait
+  fi
+done
+
 echo "==> Resource group: $RESOURCE_GROUP ($LOCATION)"
 az group create --name "$RESOURCE_GROUP" --location "$LOCATION" --output none
 
