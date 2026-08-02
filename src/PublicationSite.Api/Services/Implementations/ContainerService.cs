@@ -73,7 +73,22 @@ public class ContainerService(
         ["coordinator"] = c => c.Coordinator!.LastName,
         ["supervisor"] = c => c.AssignedSupervisor!.LastName,
         ["stage"] = c => c.CurrentPipeline,
-        ["status"] = c => c.Status,
+        // Ordered by the status the listing shows, which is the paper's once there is a paper and
+        // the container's only until then. Ordering by the container's own status sorted by a value
+        // that is not on screen: almost every row on a working queue is InProgress, so every row
+        // tied and the column appeared to do nothing at all.
+        //
+        // Ranked in workflow order rather than alphabetically. These are stages, and a reader
+        // clicking this column is asking how far along things are, not for Accepted before Draft.
+        ["status"] = c =>
+            c.Status == ContainerStatus.Completed ? 7
+            : c.Publication == null ? 0
+            : c.Publication.Status == PublicationStatus.Draft ? 1
+            : c.Publication.Status == PublicationStatus.RevisionsRequested ? 2
+            : c.Publication.Status == PublicationStatus.Resubmitted ? 3
+            : c.Publication.Status == PublicationStatus.UnderReview ? 4
+            : c.Publication.Status == PublicationStatus.Accepted ? 5
+            : 6,
         ["started"] = c => c.CreatedAt,
         // What the Coordinator has to do next, ordered so that ascending puts the work first and
         // the publications waiting on somebody else last. It restates the two conditions the
@@ -104,6 +119,40 @@ public class ContainerService(
             : 2
     };
 
+    /// <summary>
+    /// The same columns, with "waiting on you" answered for a supervisor instead of a coordinator.
+    ///
+    /// It has to be a different expression, not a shared one. Whose turn it is depends on who is
+    /// asking: the coordinator's version ranks the two decisions that are theirs, so a supervisor
+    /// ordering by it was ordering their own screen by somebody else's workload and the column
+    /// looked broken. Ascending puts their work first, ethics before papers, matching how the
+    /// screen groups it.
+    /// </summary>
+    private static readonly Dictionary<string, Expression<Func<PublicationContainer, object?>>> SupervisorSortColumns =
+        new(SortColumns)
+        {
+            // The two conditions restate what the projection reads out as EthicsAwaitingRole and
+            // PaperAwaitingRole for a supervisor. Restated rather than reused because ordering
+            // happens on the entity, before those fields are computed.
+            ["waiting"] = c =>
+                c.EthicsApproval != null
+                && (c.EthicsApproval.Status == EthicsStatus.PendingSupervisorDecision
+                    || (c.EthicsApproval.Status == EthicsStatus.PendingVerification
+                        && c.EthicsApproval.Documents.Any(d => d.Status == EthicsDocumentStatus.PendingReview)))
+                    ? 0
+                : c.Publication != null
+                  && (c.Publication.Status == PublicationStatus.Resubmitted
+                      || (c.Publication.Status == PublicationStatus.UnderReview
+                          && !c.Publication.Versions
+                                .OrderByDescending(v => v.VersionNumber)
+                                .Take(1)
+                                .SelectMany(v => v.Reviews)
+                                .Any(r => r.ReviewerType == ReviewerType.Supervisor
+                                          && r.Decision == ReviewDecision.Approve)))
+                    ? 1
+                : 2
+        };
+
     public async Task<PagedResult<PublicationContainerDto>> GetMineAsync(
         Guid studentUserId, PageRequest page, CancellationToken cancellationToken = default) =>
         // Order before projecting: the DTO carries a correlated sub-query for Title, and EF Core
@@ -124,7 +173,7 @@ public class ContainerService(
                         db.PublicationContainers.Where(c => c.AssignedSupervisorId == supervisorUserId),
                         query.EthicsStep),
                     query.Search)
-                .SortBy(query, c => c.CreatedAt, SortColumns))
+                .SortBy(query, c => c.CreatedAt, SupervisorSortColumns))
             .ToPageAsync(query, cancellationToken);
 
     public async Task<PagedResult<PublicationContainerDto>> GetInMyDepartmentAsync(
