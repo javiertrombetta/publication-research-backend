@@ -117,11 +117,20 @@ jobs:
       - name: Point the container app at the image just pushed
         # Only the image. Everything else about the app was set by azure/deploy.sh and is left
         # alone here: a deployment should not be able to quietly rewrite a connection string.
+        #
+        # The commit's own tag, not :latest. Container Apps creates a revision when the template
+        # changes, and "...:latest" is the same string on every push, so deploying it can leave the
+        # revision that is already running in place and the push appears to have done nothing. The
+        # sha tag differs every time, which is what makes this land. It is the tag the build job
+        # pushed alongside latest, so the image is the one just built.
         run: |
+          IMAGE="${{ env.DOCKERHUB_IMAGE }}:sha-$(echo "${{ github.sha }}" | cut -c1-7)"
+          echo "Deploying $IMAGE"
+
           az containerapp update \
             --name "${{ vars.AZURE_APP_NAME || 'publication-research-backend' }}" \
             --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
-            --image "${{ env.DOCKERHUB_IMAGE }}:latest" \
+            --image "$IMAGE" \
             --output none
 
           echo "Deployed. Live at: https://$(az containerapp show \
