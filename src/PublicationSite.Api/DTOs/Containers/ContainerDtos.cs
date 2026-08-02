@@ -83,16 +83,6 @@ public class ContainerQuery : PageRequest
     public string? PaperAwaiting { get; set; }
 
     /// <summary>
-    /// Whose turn it is on the publication as a whole, as a role name, or <c>Nobody</c> for the
-    /// ones nobody owes anything on.
-    ///
-    /// Narrower than <see cref="PaperAwaiting"/>, which only speaks for the paper stage. A head of
-    /// department oversees all three stages at once, so the question their screen asks is "who is
-    /// this department waiting on", whichever stage the answer happens to come from.
-    /// </summary>
-    public string? WaitingOn { get; set; }
-
-    /// <summary>
     /// A word to look for in the student's name, the publication's title or its abstract. One term
     /// across all three, because somebody hunting for a row remembers whichever of them stuck.
     /// </summary>

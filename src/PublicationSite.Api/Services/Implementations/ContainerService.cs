@@ -160,6 +160,67 @@ public class ContainerService(
                 : 2
         };
 
+    /// <summary>
+    /// The same columns again, with "waiting on" answered for a whole department rather than for
+    /// one person.
+    ///
+    /// The other two dashboards ask "is this mine", and rank the decisions that belong to whoever
+    /// is reading. A head of department is not in most of these queues; their screen names whoever
+    /// the next move belongs to, so ordering by that column has to rank the same answer the column
+    /// prints. Sharing the coordinator's version would order this screen by somebody else's
+    /// workload, which is exactly how that column looked broken on the supervisor's.
+    ///
+    /// Ranked in the order the filter beside it lists the roles, so the sorted listing and the
+    /// dropdown agree, and with nobody's turn last: a row nobody owes anything on is the one a
+    /// reader scanning for hold-ups wants furthest away.
+    /// </summary>
+    private static readonly Dictionary<string, Expression<Func<PublicationContainer, object?>>> DepartmentSortColumns =
+        new(SortColumns)
+        {
+            // The same chain the projection uses to name the role, as a rank instead. Restated
+            // rather than shared because ordering happens on the entity, before the projection
+            // those two fields are computed in.
+            ["waiting"] = c =>
+                c.Status == ContainerStatus.Completed
+                    ? 6
+                : c.EthicsApproval != null && c.EthicsApproval.Status == EthicsStatus.PendingSupervisorDecision
+                    ? 1
+                : c.EthicsApproval != null && c.EthicsApproval.Status == EthicsStatus.NotRequired
+                  && c.EthicsApproval.FinalDecisionAt == null
+                    ? 2
+                : c.EthicsApproval != null && c.EthicsApproval.Status == EthicsStatus.PendingUpload
+                    ? 0
+                : c.EthicsApproval != null && c.EthicsApproval.Status == EthicsStatus.PendingVerification
+                    ? (c.EthicsApproval.Documents.Any(d => d.Status == EthicsDocumentStatus.PendingReview)
+                        ? 1
+                        : c.EthicsApproval.CoordinatorDecisionAt == null
+                            ? 2
+                            : c.EthicsApproval.HeadOfDepartmentReviewedAt == null
+                                ? 3
+                                : 2)
+                : c.Publication == null
+                    ? 6
+                : c.Publication.Status == PublicationStatus.Draft
+                  || c.Publication.Status == PublicationStatus.RevisionsRequested
+                  || c.Publication.Status == PublicationStatus.Accepted
+                    ? 0
+                : c.Publication.Status == PublicationStatus.Resubmitted
+                    ? 1
+                : c.Publication.Status == PublicationStatus.UnderReview
+                    ? (!c.Publication.Versions
+                            .OrderByDescending(v => v.VersionNumber)
+                            .Take(1)
+                            .SelectMany(v => v.Reviews)
+                            .Any(r => r.ReviewerType == ReviewerType.Supervisor && r.Decision == ReviewDecision.Approve)
+                        ? 1
+                        : c.Publication.Committee == null
+                            ? 4
+                            : c.Publication.Committee.Status != CommitteeStatus.Completed
+                                ? 5
+                                : 2)
+                : 6
+        };
+
     public async Task<PagedResult<PublicationContainerDto>> GetMineAsync(
         Guid studentUserId, PageRequest page, CancellationToken cancellationToken = default) =>
         // Order before projecting: the DTO carries a correlated sub-query for Title, and EF Core
@@ -200,18 +261,18 @@ public class ContainerService(
         // Searchable and filterable by the paper's turn, like the coordinator's listing. A head of
         // department oversees every stage in their department, so the screens that show it need the
         // same handles: narrow to a student, or to the papers waiting on somebody in particular.
-        var department = WhereWaitingOn(
-            WherePaperAwaiting(
-                WhereMatches(
-                    WhereEthicsStep(
-                        db.PublicationContainers.Where(c => c.Student.StudentProfile != null
-                                    && c.Student.StudentProfile.DepartmentId == departmentId),
-                        query.EthicsStep),
-                    query.Search),
-                query.PaperAwaiting),
-            query.WaitingOn);
+        // Ordered by DepartmentSortColumns, which answers "waiting on" for the department rather
+        // than for whoever is reading.
+        var department = WherePaperAwaiting(
+            WhereMatches(
+                WhereEthicsStep(
+                    db.PublicationContainers.Where(c => c.Student.StudentProfile != null
+                                && c.Student.StudentProfile.DepartmentId == departmentId),
+                    query.EthicsStep),
+                query.Search),
+            query.PaperAwaiting);
 
-        return await ProjectToDto(department.SortBy(query, c => c.CreatedAt, SortColumns))
+        return await ProjectToDto(department.SortBy(query, c => c.CreatedAt, DepartmentSortColumns))
             .ToPageAsync(query, cancellationToken);
     }
 
@@ -355,69 +416,6 @@ public class ContainerService(
                     .Any(r => r.ReviewerType == ReviewerType.Supervisor && r.Decision == ReviewDecision.Approve)
                 && c.Publication.Committee != null
                 && c.Publication.Committee.Status == CommitteeStatus.Completed);
-    }
-
-    /// <summary>
-    /// Narrows to the publications the department is waiting on a particular role for, or to the
-    /// ones nobody owes anything on.
-    ///
-    /// This is the whole publication rather than one stage of it, which is what makes it a separate
-    /// filter from <see cref="WherePaperAwaiting"/>: the answer comes from the ethics stage while
-    /// there is one to answer for and from the paper afterwards, exactly as the screen reads it off
-    /// EthicsAwaitingRole and PaperAwaitingRole.
-    ///
-    /// Restated against the entity, like the ordering above and for the same reason: both of those
-    /// fields are CASE expressions built during projection, and EF Core cannot filter on top of
-    /// them. Written as one flat chain rather than two, because the ethics branch running out of
-    /// conditions is precisely when the paper branch takes over.
-    /// </summary>
-    private static IQueryable<PublicationContainer> WhereWaitingOn(
-        IQueryable<PublicationContainer> query, string? role)
-    {
-        if (string.IsNullOrWhiteSpace(role)) return query;
-
-        var wanted = role.Trim();
-
-        return query.Where(c => (
-            c.Status == ContainerStatus.Completed
-                ? RoleNames.Nobody
-            : c.EthicsApproval != null && c.EthicsApproval.Status == EthicsStatus.PendingSupervisorDecision
-                ? RoleNames.Supervisor
-            : c.EthicsApproval != null && c.EthicsApproval.Status == EthicsStatus.NotRequired
-              && c.EthicsApproval.FinalDecisionAt == null
-                ? RoleNames.Coordinator
-            : c.EthicsApproval != null && c.EthicsApproval.Status == EthicsStatus.PendingUpload
-                ? RoleNames.Student
-            : c.EthicsApproval != null && c.EthicsApproval.Status == EthicsStatus.PendingVerification
-                ? (c.EthicsApproval.Documents.Any(d => d.Status == EthicsDocumentStatus.PendingReview)
-                    ? RoleNames.Supervisor
-                    : c.EthicsApproval.CoordinatorDecisionAt == null
-                        ? RoleNames.Coordinator
-                        : c.EthicsApproval.HeadOfDepartmentReviewedAt == null
-                            ? RoleNames.HeadOfDepartment
-                            : RoleNames.Coordinator)
-            // Ethics has nothing outstanding, so whose turn it is now belongs to the paper.
-            : c.Publication == null
-                ? RoleNames.Nobody
-            : c.Publication.Status == PublicationStatus.Draft
-              || c.Publication.Status == PublicationStatus.RevisionsRequested
-              || c.Publication.Status == PublicationStatus.Accepted
-                ? RoleNames.Student
-            : c.Publication.Status == PublicationStatus.Resubmitted
-                ? RoleNames.Supervisor
-            : c.Publication.Status == PublicationStatus.UnderReview
-                ? (!c.Publication.Versions
-                        .OrderByDescending(v => v.VersionNumber)
-                        .Take(1)
-                        .SelectMany(v => v.Reviews)
-                        .Any(r => r.ReviewerType == ReviewerType.Supervisor && r.Decision == ReviewDecision.Approve)
-                    ? RoleNames.Supervisor
-                    : c.Publication.Committee == null
-                        ? RoleNames.Admin
-                        : c.Publication.Committee.Status != CommitteeStatus.Completed
-                            ? RoleNames.EvaluationCommittee
-                            : RoleNames.Coordinator)
-            : RoleNames.Nobody) == wanted);
     }
 
     /// <summary>
