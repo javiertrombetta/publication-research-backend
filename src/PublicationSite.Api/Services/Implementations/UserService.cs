@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -9,6 +10,7 @@ using PublicationSite.Api.DTOs.Users;
 using PublicationSite.Api.Entities;
 using PublicationSite.Api.Enums;
 using PublicationSite.Api.Services.Interfaces;
+using PublicationSite.Api.DTOs.Common;
 
 namespace PublicationSite.Api.Services.Implementations;
 
@@ -25,8 +27,18 @@ public class UserService(
     private readonly FrontendSettings _frontend = frontendOptions.Value;
     private readonly FileStorageSettings _fileStorage = fileStorageOptions.Value;
 
-    public async Task<IReadOnlyList<UserListItemDto>> GetAllAsync(
-        string? role, string? status, string? search, bool availableOnly = false,
+    /// <summary>What the directory can be ordered by. Surname first, as it is displayed.</summary>
+    private static readonly Dictionary<string, Expression<Func<ApplicationUser, object?>>> DirectorySorts =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["name"] = u => u.LastName,
+            ["email"] = u => u.Email,
+            ["status"] = u => u.Status,
+            ["created"] = u => u.CreatedAt
+        };
+
+    public async Task<PagedResult<UserListItemDto>> GetAllAsync(
+        string? role, string? status, string? search, PageRequest paging, bool availableOnly = false,
         CancellationToken cancellationToken = default)
     {
         var query = db.Users.AsQueryable();
@@ -60,8 +72,15 @@ public class UserService(
                 .Any(name => name == role));
         }
 
-        return await query
-            .OrderBy(u => u.LastName)
+        var total = await query.CountAsync(cancellationToken);
+
+        var ordered = paging.SortBy is not null && DirectorySorts.TryGetValue(paging.SortBy, out var key)
+            ? paging.SortDescending ? query.OrderByDescending(key) : query.OrderBy(key)
+            : query.OrderBy(u => u.LastName).ThenBy(u => u.FirstName);
+
+        var items = await ordered
+            .Skip((paging.SafePage - 1) * paging.SafePageSize)
+            .Take(paging.SafePageSize)
             .Select(u => new UserListItemDto(
                 u.Id, u.Email!, u.FirstName, u.LastName, u.Status.ToString(),
                 db.UserRoles
@@ -71,6 +90,8 @@ public class UserService(
                 u.CreatedAt,
                 u.IsAvailable))
             .ToListAsync(cancellationToken);
+
+        return new PagedResult<UserListItemDto>(items, paging.SafePage, paging.SafePageSize, total);
     }
 
     public async Task<UserDetailDto> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)

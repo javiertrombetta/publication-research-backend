@@ -1,10 +1,17 @@
 using PublicationSite.Api.DTOs.Users;
+using PublicationSite.Api.DTOs.Common;
 
 namespace PublicationSite.Api.Services.Interfaces;
 
 public interface IUserService
 {
-    Task<IReadOnlyList<UserListItemDto>> GetAllAsync(string? role, string? status, string? search, bool availableOnly = false, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// The directory, one page at a time. Paged like every other listing: an institution's whole
+    /// user table is not a screenful, and it was the last list here still returned entire.
+    /// </summary>
+    Task<PagedResult<UserListItemDto>> GetAllAsync(
+        string? role, string? status, string? search, PageRequest paging, bool availableOnly = false,
+        CancellationToken cancellationToken = default);
 
     /// <summary>Sets whether this person is currently taking work on. Theirs alone to change.</summary>
     Task SetAvailabilityAsync(Guid userId, bool isAvailable, CancellationToken cancellationToken = default);
