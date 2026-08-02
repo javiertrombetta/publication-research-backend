@@ -20,7 +20,8 @@ public interface IPublicationService
 
     Task SubmitAsync(Guid publicationId, Guid studentId, CancellationToken cancellationToken = default);
 
-    Task<PagedResult<PublicationDto>> GetPendingForSupervisorAsync(Guid supervisorId, PageRequest page, CancellationToken cancellationToken = default);
+    Task<PagedResult<PublicationDto>> GetPendingForSupervisorAsync(
+        Guid supervisorId, PageRequest page, string? search = null, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// The file of one version of a research paper, for anyone with access to its publication.

@@ -119,9 +119,11 @@ public class ContainerService(
         // Ordered before projecting, as in GetMineAsync: the DTO carries correlated sub-queries
         // that EF Core cannot order on top of.
         await ProjectToDto(
-                WhereEthicsStep(
-                    db.PublicationContainers.Where(c => c.AssignedSupervisorId == supervisorUserId),
-                    query.EthicsStep)
+                WhereMatches(
+                    WhereEthicsStep(
+                        db.PublicationContainers.Where(c => c.AssignedSupervisorId == supervisorUserId),
+                        query.EthicsStep),
+                    query.Search)
                 .SortBy(query, c => c.CreatedAt, SortColumns))
             .ToPageAsync(query, cancellationToken);
 

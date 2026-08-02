@@ -193,9 +193,9 @@ public class PublicationsController(IPublicationService publicationService, ICur
     [ProducesResponseType(typeof(ApiResponse<PagedResult<PublicationDto>>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    public async Task<IActionResult> GetPendingForSupervisor([FromQuery] PageRequest paging)
+    public async Task<IActionResult> GetPendingForSupervisor([FromQuery] PageRequest paging, [FromQuery] string? search = null)
     {
-        var result = await publicationService.GetPendingForSupervisorAsync(currentUser.UserId, paging);
+        var result = await publicationService.GetPendingForSupervisorAsync(currentUser.UserId, paging, search);
         return Ok(ApiResponse<PagedResult<PublicationDto>>.Ok(result));
     }
 

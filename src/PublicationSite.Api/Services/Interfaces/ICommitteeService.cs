@@ -11,6 +11,13 @@ public interface ICommitteeService
     /// </summary>
     Task<IReadOnlyList<CommitteeCandidateDto>> GetCandidatesAsync(CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Whether this one person could be put on a committee as the rules stand, so a client can
+    /// decide whether to offer committee work at all. Somebody already on one always can, whatever
+    /// the rules say now.
+    /// </summary>
+    Task<bool> IsCandidateAsync(Guid userId, CancellationToken cancellationToken = default);
+
     Task<CommitteeDto> AssignAsync(Guid publicationId, AssignCommitteeRequest request, Guid adminId, CancellationToken cancellationToken = default);
     Task<CommitteeDto> GetByPublicationAsync(Guid publicationId, Guid requestingUserId, CancellationToken cancellationToken = default);
     Task<PagedResult<CommitteeDto>> GetAssignmentsForMemberAsync(Guid memberUserId, PageRequest page, CancellationToken cancellationToken = default);
