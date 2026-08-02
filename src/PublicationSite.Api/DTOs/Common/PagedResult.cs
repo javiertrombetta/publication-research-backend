@@ -17,15 +17,26 @@ public record PagedResult<T>(IReadOnlyList<T> Items, int Page, int PageSize, int
 public class PageRequest
 {
     /// <summary>
-    /// Ten rows, matching what the screens show. A caller can ask for more, up to a ceiling.
-    /// Without one, a single request could be made to load the whole institution and undo the point
-    /// of paging altogether.
+    /// The last resort, for when nothing has said otherwise: how long a page is belongs to the
+    /// institution, and is read from settings by ConfiguredPageSizeFilter before an action runs.
+    /// This is what stands in if that setting has never been written.
     /// </summary>
     public const int DefaultPageSize = 10;
+
+    /// <summary>
+    /// A ceiling, whatever anybody asks for. Without one, a single request could be made to load
+    /// the whole institution and undo the point of paging altogether.
+    /// </summary>
     public const int MaximumPageSize = 100;
 
     public int Page { get; set; } = 1;
-    public int PageSize { get; set; } = DefaultPageSize;
+
+    /// <summary>
+    /// Zero means "however long the institution says", which is the usual case: the site sends no
+    /// page size at all and takes the configured one. A caller that names a number gets it, up to
+    /// the ceiling above.
+    /// </summary>
+    public int PageSize { get; set; }
 
     /// <summary>
     /// Which column to order by, and whether to reverse it.

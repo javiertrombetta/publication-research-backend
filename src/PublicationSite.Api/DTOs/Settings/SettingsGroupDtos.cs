@@ -1,3 +1,5 @@
+using PublicationSite.Api.Common;
+
 namespace PublicationSite.Api.DTOs.Settings;
 
 /// <summary>
@@ -197,7 +199,8 @@ public record InstitutionSettingsDto(
     string? CurrentAcademicCycle,
     string? WebsiteUrl = null,
     bool SelfRegistrationOpen = false,
-    bool PublicCatalogueEnabled = true);
+    bool PublicCatalogueEnabled = true,
+    int RowsPerPage = SettingKeys.DefaultRowsPerPage);
 
 public record UpdateInstitutionSettingsRequest(
     string Name,
@@ -207,7 +210,8 @@ public record UpdateInstitutionSettingsRequest(
     string? ResearchEnquiriesEmail,
     string? PrivacyPolicyUrl,
     string? CurrentAcademicCycle,
-    string? WebsiteUrl = null);
+    string? WebsiteUrl = null,
+    int RowsPerPage = SettingKeys.DefaultRowsPerPage);
 
 /// <summary>
 /// How long each stage is expected to take. Zero means nothing is ever reported late for it.

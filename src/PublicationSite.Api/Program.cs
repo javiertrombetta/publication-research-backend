@@ -235,7 +235,11 @@ builder.Services.AddFluentValidationAutoValidation();
 builder.Services.AddValidatorsFromAssembly(Assembly.GetExecutingAssembly());
 
 // ---------- Controllers ----------
-builder.Services.AddControllers()
+builder.Services.AddControllers(options =>
+    {
+        // How long a page is comes from settings, for every paged endpoint at once.
+        options.Filters.Add<ConfiguredPageSizeFilter>();
+    })
     .AddJsonOptions(options =>
     {
         // Safety net: DTOs should never carry EF navigation cycles, but this prevents a

@@ -59,12 +59,12 @@ public class CatalogueService(ApplicationDbContext db, IFileStorageService fileS
 
         var items = await query
             .OrderByDescending(p => p.PublishedAt)
-            .Skip((request.Page - 1) * request.PageSize)
-            .Take(request.PageSize)
+            .Skip((request.SafePage - 1) * request.SafePageSize)
+            .Take(request.SafePageSize)
             .Select(p => ToDto(p))
             .ToListAsync(cancellationToken);
 
-        return new PagedResult<CatalogueEntryDto>(items, request.Page, request.PageSize, totalCount);
+        return new PagedResult<CatalogueEntryDto>(items, request.SafePage, request.SafePageSize, totalCount);
     }
 
     public async Task<CatalogueEntryDto> GetByIdAsync(Guid publicationId, CancellationToken cancellationToken = default)
