@@ -17,6 +17,12 @@ public interface ISystemSettingService
     Task<CommitteeSettingsDto> UpdateCommitteeSettingsAsync(
         UpdateCommitteeSettingsRequest request, Guid actingAdminId, CancellationToken cancellationToken = default);
 
+    /// <summary>Which roles committees may be drawn from. Empty means everyone eligible.</summary>
+    Task<IReadOnlyList<string>> GetCandidateRolesAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>People an administrator has taken out of consideration, whatever role they hold.</summary>
+    Task<IReadOnlyList<Guid>> GetExcludedCommitteeUsersAsync(CancellationToken cancellationToken = default);
+
     Task<PasswordSettingsDto> GetPasswordSettingsAsync(CancellationToken cancellationToken = default);
 
     Task<PasswordSettingsDto> UpdatePasswordSettingsAsync(

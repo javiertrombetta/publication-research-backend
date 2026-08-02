@@ -17,6 +17,39 @@ public class CommitteeService(
     INotificationService notificationService,
     ISystemSettingService settingService) : ICommitteeService
 {
+    public async Task<IReadOnlyList<CommitteeCandidateDto>> GetCandidatesAsync(CancellationToken cancellationToken = default)
+    {
+        // Built from the same two settings AssignAsync enforces, so the people offered here are
+        // exactly the people it will accept. Availability and account status are checked too, for
+        // the same reason: an administrator should not be able to pick somebody the save refuses.
+        var candidateRoles = await settingService.GetCandidateRolesAsync(cancellationToken);
+        var excluded = await settingService.GetExcludedCommitteeUsersAsync(cancellationToken);
+
+        var people = await db.Users
+            .AsNoTracking()
+            .Where(u => u.Status == UserStatus.Enabled && u.IsAvailable && !excluded.Contains(u.Id))
+            .Select(u => new
+            {
+                u.Id,
+                u.FirstName,
+                u.LastName,
+                u.Email,
+                Roles = db.UserRoles
+                    .Where(ur => ur.UserId == u.Id)
+                    .Join(db.Roles, ur => ur.RoleId, r => r.Id, (ur, r) => r.Name!)
+                    .ToList()
+            })
+            .ToListAsync(cancellationToken);
+
+        return people
+            .Where(p => p.Roles.Any(candidateRoles.Contains))
+            .OrderBy(p => p.LastName).ThenBy(p => p.FirstName)
+            .Select(p => new CommitteeCandidateDto(
+                p.Id, p.FirstName, p.LastName, p.Email ?? string.Empty, p.Roles,
+                p.Roles.Contains(RoleNames.ExternalCommitteeMember)))
+            .ToList();
+    }
+
     public async Task<CommitteeDto> AssignAsync(Guid publicationId, AssignCommitteeRequest request, Guid adminId, CancellationToken cancellationToken = default)
     {
         var publication = await db.Publications.Include(p => p.PublicationContainer)
@@ -63,11 +96,10 @@ public class CommitteeService(
             })
             .ToListAsync(cancellationToken);
 
-        // Two exclusions. A committee judges a student's work, so its members cannot be drawn from
-        // the people whose work is being judged. And Staff is the placeholder an institutional
-        // account holds until an administrator says what it is: it is not a job, so there is nobody
-        // there to ask yet. Everyone else can be appointed, and every one of them can open the
-        // committee screens, which is what makes an appointment worth making.
+        // Two exclusions are the rule. A committee judges a student's work, so its members cannot be
+        // drawn from the people whose work is being judged. And Staff is the placeholder an
+        // institutional account holds until an administrator says what it is: it is not a job, so
+        // there is nobody there to ask yet.
         var ineligible = members
             .Where(m => !m.Roles.Any(RoleNames.CommitteeEligible.Contains))
             .ToList();
@@ -79,6 +111,26 @@ public class CommitteeService(
                 : "Somebody chosen has no role here yet. Give them one first, and they can be appointed.";
 
             throw new BusinessRuleException(reason);
+        }
+
+        // Within that, an administrator says which roles this institution draws on and who to leave
+        // out. Checked here rather than only on the screen that lists candidates: the screen is a
+        // convenience, and a rule that lives only in a list is not a rule.
+        var candidateRoles = await settingService.GetCandidateRolesAsync(cancellationToken);
+        var notCandidates = members.Where(m => !m.Roles.Any(candidateRoles.Contains)).ToList();
+
+        if (notCandidates.Count > 0)
+        {
+            throw new BusinessRuleException(
+                "Somebody chosen holds a role that this institution does not draw committees from. "
+                + "An administrator sets which roles those are in System settings.");
+        }
+
+        var excluded = await settingService.GetExcludedCommitteeUsersAsync(cancellationToken);
+        if (members.Any(m => excluded.Contains(m.User.Id)))
+        {
+            throw new BusinessRuleException(
+                "Somebody chosen has been left out of committee work by an administrator.");
         }
 
         if (members.Any(m => m.User.Status != UserStatus.Enabled))

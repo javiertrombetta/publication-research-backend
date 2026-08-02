@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Moq;
+using PublicationSite.Api.Common;
 using PublicationSite.Api.Common.Exceptions;
 using PublicationSite.Api.DTOs.Containers;
 using PublicationSite.Api.Enums;
@@ -27,7 +28,7 @@ public class ContainerServiceTests : IDisposable
 
         // Creating a container snapshots the committee rules onto it, so they have to answer.
         _settingService.Setup(s => s.GetCommitteeSettingsAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new CommitteeSettingsDto(2, 1, 2));
+            .ReturnsAsync(new CommitteeSettingsDto(2, 1, 2, RoleNames.CommitteeEligible, [], RoleNames.CommitteeEligible));
 
         _sut = new ContainerService(_fixture.Context, _departmentService.Object, _accessService.Object,
             _auditService.Object, _settingService.Object);

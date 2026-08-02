@@ -4,9 +4,27 @@ namespace PublicationSite.Api.DTOs.Settings;
 /// Committee composition. Changing these affects publications opened afterwards: each
 /// Publication Container keeps the figures that were in force when it was created.
 /// </summary>
-public record CommitteeSettingsDto(int InternalMembers, int ExternalMembers, int MinimumApprovals);
+/// <summary>
+/// How a committee is composed, and who it may be composed of.
+/// <paramref name="CandidateRoles"/> is the administrator's choice of which roles to draw on, and
+/// <paramref name="ExcludedUserIds"/> the people to leave out whatever role they hold.
+/// <paramref name="SelectableRoles"/> is not a setting: it is every role that could be chosen, so
+/// the screen offers the real list rather than one written out again in a view.
+/// </summary>
+public record CommitteeSettingsDto(
+    int InternalMembers,
+    int ExternalMembers,
+    int MinimumApprovals,
+    IReadOnlyList<string> CandidateRoles,
+    IReadOnlyList<Guid> ExcludedUserIds,
+    IReadOnlyList<string> SelectableRoles);
 
-public record UpdateCommitteeSettingsRequest(int InternalMembers, int ExternalMembers, int MinimumApprovals);
+public record UpdateCommitteeSettingsRequest(
+    int InternalMembers,
+    int ExternalMembers,
+    int MinimumApprovals,
+    IReadOnlyList<string>? CandidateRoles = null,
+    IReadOnlyList<Guid>? ExcludedUserIds = null);
 
 /// <summary>
 /// What the system will accept as a password, and how long one lasts.

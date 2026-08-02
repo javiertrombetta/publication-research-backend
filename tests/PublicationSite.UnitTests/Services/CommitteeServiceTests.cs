@@ -31,7 +31,14 @@ public class CommitteeServiceTests : IDisposable
         // committee that exists: one internal member. The composition rule is exercised by its
         // own test below.
         _settingService.Setup(s => s.GetCommitteeSettingsAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new CommitteeSettingsDto(1, 0, 1));
+            .ReturnsAsync(new CommitteeSettingsDto(1, 0, 1, RoleNames.CommitteeEligible, [], RoleNames.CommitteeEligible));
+
+        // Who committees may be drawn from. The class default is everyone eligible, which is what
+        // an installation that has never touched the setting gets.
+        _settingService.Setup(s => s.GetCandidateRolesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(RoleNames.CommitteeEligible);
+        _settingService.Setup(s => s.GetExcludedCommitteeUsersAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
 
         _sut = new CommitteeService(_fixture.Context, _accessService.Object, _auditService.Object,
             _notificationService.Object, _settingService.Object);
@@ -79,7 +86,7 @@ public class CommitteeServiceTests : IDisposable
     /// </summary>
     private void RequireCommitteeOf(int internalMembers, int externalMembers, int approvals) =>
         _settingService.Setup(s => s.GetCommitteeSettingsAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new CommitteeSettingsDto(internalMembers, externalMembers, approvals));
+            .ReturnsAsync(new CommitteeSettingsDto(internalMembers, externalMembers, approvals, RoleNames.CommitteeEligible, [], RoleNames.CommitteeEligible));
 
     private ApplicationUser SeedCommitteeMember(CommitteeMemberRoleType type = CommitteeMemberRoleType.Internal)
     {
@@ -189,6 +196,40 @@ public class CommitteeServiceTests : IDisposable
 
         var member = _fixture.Context.CommitteeMembers.Single(m => m.UserId == outsider.Id);
         member.RoleType.Should().Be(CommitteeMemberRoleType.External);
+    }
+
+    [Fact]
+    public async Task AssignAsync_refuses_a_role_the_institution_does_not_draw_on()
+    {
+        var (publication, _, coordinator) = SeedApprovedPublication();
+
+        // The administrator has narrowed committees to the two roles named after them. A supervisor
+        // is still eligible in principle, and is still refused, because this institution says so.
+        _settingService.Setup(s => s.GetCandidateRolesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([RoleNames.InternalCommitteeMember, RoleNames.ExternalCommitteeMember]);
+
+        var supervisor = TestDataBuilder.User(_fixture.Context);
+        TestDataBuilder.GrantRole(_fixture.Context, supervisor, RoleNames.Supervisor);
+
+        var act = () => _sut.AssignAsync(publication.Id, new AssignCommitteeRequest([supervisor.Id], 1, "Assign"), coordinator.Id);
+
+        (await act.Should().ThrowAsync<BusinessRuleException>())
+            .Which.Message.Should().Contain("does not draw committees from");
+    }
+
+    [Fact]
+    public async Task AssignAsync_refuses_somebody_an_administrator_has_left_out()
+    {
+        var (publication, _, coordinator) = SeedApprovedPublication();
+        var member = SeedCommitteeMember();
+
+        _settingService.Setup(s => s.GetExcludedCommitteeUsersAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([member.Id]);
+
+        var act = () => _sut.AssignAsync(publication.Id, new AssignCommitteeRequest([member.Id], 1, "Assign"), coordinator.Id);
+
+        (await act.Should().ThrowAsync<BusinessRuleException>())
+            .Which.Message.Should().Contain("left out of committee work");
     }
 
     [Fact]

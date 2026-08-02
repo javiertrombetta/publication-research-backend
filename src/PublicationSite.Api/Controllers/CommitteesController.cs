@@ -69,6 +69,27 @@ public class CommitteesController(ICommitteeService committeeService, ICurrentUs
     }
 
     /// <summary>
+    /// Everybody who could be put on a committee right now: holding a role the institution draws
+    /// on, enabled, available, and not one of the people an administrator has left out.
+    ///
+    /// Served by the API rather than worked out by whichever screen is drawing the list, so what is
+    /// offered and what will be accepted are the same answer.
+    /// </summary>
+    /// <response code="200">The candidates, by surname.</response>
+    /// <response code="401">No access token was sent, or the one sent has expired.</response>
+    /// <response code="403">Signed in, but this is not something your role may do.</response>
+    [HttpGet("api/committees/candidates")]
+    [Authorize(Roles = RoleNames.Admin)]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<CommitteeCandidateDto>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetCandidates()
+    {
+        var result = await committeeService.GetCandidatesAsync();
+        return Ok(ApiResponse<IReadOnlyList<CommitteeCandidateDto>>.Ok(result));
+    }
+
+    /// <summary>
     /// The papers this member has been asked to evaluate, the ones still needing their vote
     /// first, with the paper itself carried alongside so the list needs nothing further to be
     /// readable.
