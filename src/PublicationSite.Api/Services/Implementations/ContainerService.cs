@@ -239,13 +239,21 @@ public class ContainerService(
         await db.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task<IReadOnlyList<ActivityHistoryEntryDto>> GetActivityHistoryAsync(Guid id, Guid requestingUserId, CancellationToken cancellationToken = default)
+    public async Task<PagedResult<ActivityHistoryEntryDto>> GetActivityHistoryAsync(
+        Guid id, Guid requestingUserId, PageRequest paging, CancellationToken cancellationToken = default)
     {
         await accessService.EnsureAccessAsync(id, requestingUserId);
 
-        return await db.ActivityHistoryEntries
-            .Where(a => a.PublicationContainerId == id)
+        // Paged like every other listing. A publication that has been through three stages, several
+        // revisions and a committee accumulates a long trail, and the whole of it arrived in one
+        // response and was drawn as one unbroken list.
+        var query = db.ActivityHistoryEntries.Where(a => a.PublicationContainerId == id);
+        var total = await query.CountAsync(cancellationToken);
+
+        var items = await query
             .OrderByDescending(a => a.CreatedAt)
+            .Skip((paging.SafePage - 1) * paging.SafePageSize)
+            .Take(paging.SafePageSize)
             .Select(a => new ActivityHistoryEntryDto(
                 a.Id,
                 a.ActorUser.FirstName + " " + a.ActorUser.LastName,
@@ -264,6 +272,8 @@ public class ContainerService(
                 a.NewStatus,
                 a.CreatedAt))
             .ToListAsync(cancellationToken);
+
+        return new PagedResult<ActivityHistoryEntryDto>(items, paging.SafePage, paging.SafePageSize, total);
     }
 
     public async Task<PagedResult<PublicationContainerDto>> GetAllAsync(

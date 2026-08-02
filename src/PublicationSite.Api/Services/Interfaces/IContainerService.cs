@@ -34,7 +34,11 @@ public interface IContainerService
     /// </summary>
     Task<PagedResult<PublicationContainerDto>> GetInMyDepartmentAsync(Guid headOfDepartmentUserId, ContainerQuery query, CancellationToken cancellationToken = default);
 
-    Task<IReadOnlyList<ActivityHistoryEntryDto>> GetActivityHistoryAsync(Guid id, Guid requestingUserId, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Everything that has happened to this publication, newest first, one page at a time.
+    /// </summary>
+    Task<PagedResult<ActivityHistoryEntryDto>> GetActivityHistoryAsync(
+        Guid id, Guid requestingUserId, PageRequest paging, CancellationToken cancellationToken = default);
 
     Task<PagedResult<PublicationContainerDto>> GetAllAsync(ContainerQuery query, CancellationToken cancellationToken = default);
 

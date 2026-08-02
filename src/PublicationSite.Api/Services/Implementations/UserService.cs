@@ -401,6 +401,23 @@ public class UserService(
     {
         var user = await FindUserOrThrowAsync(userId, cancellationToken);
 
+        // Only somebody with a job here can be available for it. An account still holding the
+        // placeholder role is not chosen for anything, so its availability governs nothing, and
+        // offering the setting would be a promise the system never keeps. Refused rather than
+        // ignored: a control that appears to work and does nothing is worse than one that is not
+        // there, and the screen does not show it either.
+        var roles = await db.UserRoles
+            .Where(ur => ur.UserId == userId)
+            .Join(db.Roles, ur => ur.RoleId, r => r.Id, (ur, r) => r.Name!)
+            .ToListAsync(cancellationToken);
+
+        if (!roles.Any(RoleNames.Operational.Contains))
+        {
+            throw new BusinessRuleException(
+                "This account has no role here yet, so there is nothing to be available for. "
+                + "An administrator grants a role first.");
+        }
+
         if (user.IsAvailable == isAvailable) return;
 
         user.IsAvailable = isAvailable;

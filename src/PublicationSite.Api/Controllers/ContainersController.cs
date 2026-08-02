@@ -145,17 +145,17 @@ public class ContainersController(IContainerService containerService, ICurrentUs
     /// capacity, and the comment that justified it. This is what makes a decision explicable months
     /// later.
     /// </summary>
-    /// <response code="200">The matching activity history entrys, all of them.</response>
+    /// <response code="200">One page of the trail, with the total count alongside it so a pager can be drawn without a second request.</response>
     /// <response code="401">No access token was sent, or the one sent has expired.</response>
     /// <response code="403">Signed in, but this record is not yours to see or act on.</response>
     [HttpGet("{id:guid}/activity-history")]
-    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<ActivityHistoryEntryDto>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<PagedResult<ActivityHistoryEntryDto>>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status403Forbidden)]
-    public async Task<IActionResult> GetActivityHistory(Guid id)
+    public async Task<IActionResult> GetActivityHistory(Guid id, [FromQuery] PageRequest paging)
     {
-        var result = await containerService.GetActivityHistoryAsync(id, currentUser.UserId);
-        return Ok(ApiResponse<IReadOnlyList<ActivityHistoryEntryDto>>.Ok(result));
+        var result = await containerService.GetActivityHistoryAsync(id, currentUser.UserId, paging);
+        return Ok(ApiResponse<PagedResult<ActivityHistoryEntryDto>>.Ok(result));
     }
 
     /// <summary>
