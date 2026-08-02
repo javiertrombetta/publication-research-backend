@@ -15,6 +15,9 @@ public interface IUserService
 
     /// <summary>Sets whether this person is currently taking work on. Theirs alone to change.</summary>
     Task SetAvailabilityAsync(Guid userId, bool isAvailable, CancellationToken cancellationToken = default);
+    /// <summary>Records which theme this person prefers, so it follows them to another machine.</summary>
+    Task SetThemeAsync(Guid userId, string theme, CancellationToken cancellationToken = default);
+
     Task<UserDetailDto> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
     /// <summary>
     /// Creates an account and emails its owner a link to set a password.

@@ -190,12 +190,19 @@ public class ContainerService(
             return new PagedResult<PublicationContainerDto>([], query.SafePage, query.SafePageSize, 0);
         }
 
-        return await ProjectToDto(
+        // Searchable and filterable by the paper's turn, like the coordinator's listing. A head of
+        // department oversees every stage in their department, so the screens that show it need the
+        // same handles: narrow to a student, or to the papers waiting on somebody in particular.
+        var department = WherePaperAwaiting(
+            WhereMatches(
                 WhereEthicsStep(
                     db.PublicationContainers.Where(c => c.Student.StudentProfile != null
                                 && c.Student.StudentProfile.DepartmentId == departmentId),
-                    query.EthicsStep)
-                .SortBy(query, c => c.CreatedAt, SortColumns))
+                    query.EthicsStep),
+                query.Search),
+            query.PaperAwaiting);
+
+        return await ProjectToDto(department.SortBy(query, c => c.CreatedAt, SortColumns))
             .ToPageAsync(query, cancellationToken);
     }
 

@@ -27,7 +27,11 @@ public record UserDetailDto(
     DateTime CreatedAt,
     object? Profile,
     bool HasProfilePhoto,
-    bool IsAvailable = true);
+    bool IsAvailable = true,
+    string? ThemePreference = null);
+
+/// <summary>Light or dark. Anything else is refused rather than stored and puzzled over later.</summary>
+public record UpdateThemeRequest(string Theme);
 
 public class CreateUserRequest
 {

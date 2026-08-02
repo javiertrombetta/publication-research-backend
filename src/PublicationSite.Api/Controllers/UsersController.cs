@@ -22,6 +22,27 @@ namespace PublicationSite.Api.Controllers;
 public class UsersController(IUserService userService, ICurrentUserService currentUser) : ControllerBase
 {
     /// <summary>
+    /// Records whether this person wants the site light or dark.
+    ///
+    /// Their own, like their password: no role is involved, and there is nothing here another
+    /// account could be made to change.
+    /// </summary>
+    /// <response code="200">Saved.</response>
+    /// <response code="400">The request did not pass validation. Which field, and why, comes back as a problem document rather than the usual envelope.</response>
+    /// <response code="401">No access token was sent, or the one sent has expired.</response>
+    /// <response code="422">Understood, and refused: a theme is either light or dark.</response>
+    [HttpPut("me/theme")]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status422UnprocessableEntity)]
+    public async Task<IActionResult> SetTheme([FromBody] UpdateThemeRequest request)
+    {
+        await userService.SetThemeAsync(currentUser.UserId, request.Theme);
+        return Ok(ApiResponse.Ok("Theme saved."));
+    }
+
+    /// <summary>
     /// The signed-in user's own account and whichever profile their role carries.
     /// </summary>
     /// <response code="200">The account.</response>
