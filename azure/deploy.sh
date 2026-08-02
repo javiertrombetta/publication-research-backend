@@ -22,6 +22,14 @@ set -euo pipefail
 LOCATION="${LOCATION:-australiaeast}"
 RESOURCE_GROUP="${RESOURCE_GROUP:-publication-research}"
 ENVIRONMENT_NAME="${ENVIRONMENT_NAME:-publication-research-env}"
+# Always awake, and how big. A replica that is running but not answering anything is billed at
+# Azure's reduced idle rate, so "never sleeps" costs a few dollars a month rather than the full
+# rate. Set MIN_REPLICAS=0 to go back to scaling to zero and paying almost nothing, at the price of
+# a ten to thirty second wait on the first request after a quiet spell.
+MIN_REPLICAS="${MIN_REPLICAS:-1}"
+CPU="${CPU:-0.5}"
+MEMORY="${MEMORY:-1.0Gi}"
+
 APP_NAME="${APP_NAME:-publication-research-backend}"
 IMAGE="${IMAGE:-docker.io/javiertrombetta/publication-research-backend:latest}"
 
@@ -155,6 +163,8 @@ if az containerapp show --name "$APP_NAME" --resource-group "$RESOURCE_GROUP" --
   az containerapp update \
     --name "$APP_NAME" --resource-group "$RESOURCE_GROUP" \
     --image "$IMAGE" \
+    --cpu "$CPU" --memory "$MEMORY" \
+    --min-replicas "$MIN_REPLICAS" --max-replicas 1 \
     --set-env-vars "${ENV_VARS[@]}" --output none
 else
   az containerapp create \
@@ -164,8 +174,8 @@ else
     --image "$IMAGE" \
     --target-port 8080 \
     --ingress external \
-    --cpu 0.5 --memory 1.0Gi \
-    --min-replicas 0 --max-replicas 1 \
+    --cpu "$CPU" --memory "$MEMORY" \
+    --min-replicas "$MIN_REPLICAS" --max-replicas 1 \
     --secrets "${SECRETS[@]}" \
     --env-vars "${ENV_VARS[@]}" \
     --output none
