@@ -90,6 +90,25 @@ public class CommitteesController(ICommitteeService committeeService, ICurrentUs
     }
 
     /// <summary>
+    /// Whether the person asking could be put on a committee, under the rules as they stand.
+    ///
+    /// Exists so a client can decide whether to offer committee work at all. Holding one of the
+    /// eligible roles is not the whole answer: an administrator chooses which of those roles this
+    /// institution draws on and can leave individuals out, and a menu entry that ignores both would
+    /// lead somebody to a screen that will never have anything on it.
+    /// </summary>
+    /// <response code="200">True where they are a candidate.</response>
+    /// <response code="401">No access token was sent, or the one sent has expired.</response>
+    [HttpGet("api/committees/my-eligibility")]
+    [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> GetMyEligibility()
+    {
+        var result = await committeeService.IsCandidateAsync(currentUser.UserId);
+        return Ok(ApiResponse<bool>.Ok(result));
+    }
+
+    /// <summary>
     /// The papers this member has been asked to evaluate, the ones still needing their vote
     /// first, with the paper itself carried alongside so the list needs nothing further to be
     /// readable.

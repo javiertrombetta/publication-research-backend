@@ -263,18 +263,22 @@ public class ProposalsController(IProposalService proposalService, ICurrentUserS
     /// The proposals this supervisor has been asked about, with what they need to judge
     /// feasibility.
     /// </summary>
-    /// <response code="200">The matching proposals, all of them.</response>
+    /// <response code="200">One page of proposals, with the total count alongside it so a pager can be drawn without a second request.</response>
     /// <response code="401">No access token was sent, or the one sent has expired.</response>
     /// <response code="403">Signed in, but this is not something your role may do.</response>
+    /// <remarks>
+    /// Orders by <c>title</c>, <c>student</c> or <c>submitted</c>. Left alone it puts the answer-by
+    /// date first, soonest to run out, which is the order the work is actually done in.
+    /// </remarks>
     [HttpGet("api/proposals/invited")]
     [Authorize(Roles = RoleNames.Supervisor)]
-    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<ProposalDto>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<PagedResult<ProposalDto>>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    public async Task<IActionResult> GetInvited()
+    public async Task<IActionResult> GetInvited([FromQuery] PageRequest paging, [FromQuery] string? search = null)
     {
-        var result = await proposalService.GetInvitedProposalsForSupervisorAsync(currentUser.UserId);
-        return Ok(ApiResponse<IReadOnlyList<ProposalDto>>.Ok(result));
+        var result = await proposalService.GetInvitedProposalsForSupervisorAsync(currentUser.UserId, paging, search);
+        return Ok(ApiResponse<PagedResult<ProposalDto>>.Ok(result));
     }
     /// <summary>
     /// The supervisor's answer: they could supervise this, or they could not, with their reasoning.

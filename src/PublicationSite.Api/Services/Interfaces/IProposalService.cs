@@ -25,7 +25,12 @@ public interface IProposalService
     Task<PagedResult<ProposalWithInvitationsDto>> GetInDepartmentAsync(Guid headOfDepartmentUserId, PageRequest page, string? search = null, CancellationToken cancellationToken = default);
     Task SendToSupervisorsAsync(SendToSupervisorsRequest request, Guid coordinatorId, CancellationToken cancellationToken = default);
 
-    Task<IReadOnlyList<ProposalDto>> GetInvitedProposalsForSupervisorAsync(Guid supervisorId, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// The proposals a supervisor has been asked about, one page at a time. Paged and ordered like
+    /// every other queue: a supervisor asked about forty proposals was handed all forty at once.
+    /// </summary>
+    Task<PagedResult<ProposalDto>> GetInvitedProposalsForSupervisorAsync(
+        Guid supervisorId, PageRequest paging, string? search = null, CancellationToken cancellationToken = default);
     Task SelectAsFeasibleAsync(Guid proposalId, Guid supervisorId, SupervisorSelectionRequest request, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<SupervisorInvitationDto>> GetSelectionsAsync(Guid proposalId, Guid requestingUserId, CancellationToken cancellationToken = default);

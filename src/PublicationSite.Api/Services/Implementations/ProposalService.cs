@@ -351,13 +351,57 @@ public class ProposalService(
         }
     }
 
-    public async Task<IReadOnlyList<ProposalDto>> GetInvitedProposalsForSupervisorAsync(Guid supervisorId, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// What a supervisor may order their queue by. The date they have to answer by comes first,
+    /// because it is the only one of these that decides what to read next.
+    /// </summary>
+    private static readonly Dictionary<string, Expression<Func<ResearchProposal, object?>>> InvitedSorts =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["title"] = p => p.Title,
+            ["student"] = p => p.PublicationContainer.Student.LastName,
+            ["submitted"] = p => p.SubmittedAt
+        };
+
+    public async Task<PagedResult<ProposalDto>> GetInvitedProposalsForSupervisorAsync(
+        Guid supervisorId, PageRequest paging, string? search = null, CancellationToken cancellationToken = default)
     {
+        var query = db.ResearchProposals
+            .Where(p => p.Status == ProposalStatus.Submitted
+                        && p.SupervisorSelections.Any(s => s.SupervisorId == supervisorId));
+
+        // One term against the two things a supervisor remembers a proposal by. Applied before the
+        // page is cut, so it searches the queue rather than the ten rows in hand.
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim();
+            query = query.Where(p =>
+                p.Title.Contains(term)
+                || p.PublicationContainer.Student.FirstName.Contains(term)
+                || p.PublicationContainer.Student.LastName.Contains(term));
+        }
+
+        var total = await query.CountAsync(cancellationToken);
+
+        // Answer-by first where nothing was asked for: the one they are closest to running out of
+        // time on is the one to read next. Proposals with no date sit after those that have one,
+        // which is what the ordering by "has a date" ahead of the date itself does.
+        var ordered = paging.SortBy is not null && InvitedSorts.TryGetValue(paging.SortBy, out var key)
+            ? paging.SortDescending ? query.OrderByDescending(key) : query.OrderBy(key)
+            : query
+                .OrderBy(p => p.SupervisorSelections
+                    .Where(s => s.SupervisorId == supervisorId)
+                    .Select(s => s.RespondBy).FirstOrDefault() == null)
+                .ThenBy(p => p.SupervisorSelections
+                    .Where(s => s.SupervisorId == supervisorId)
+                    .Select(s => s.RespondBy).FirstOrDefault())
+                .ThenBy(p => p.SubmittedAt);
+
         // Carries the date this supervisor has to answer by. A deadline the person being held to
         // it cannot see is not a deadline, and it is on their own invitation, so it costs nothing.
-        return await db.ResearchProposals
-            .Where(p => p.Status == ProposalStatus.Submitted
-                        && p.SupervisorSelections.Any(s => s.SupervisorId == supervisorId))
+        var items = await ordered
+            .Skip((paging.SafePage - 1) * paging.SafePageSize)
+            .Take(paging.SafePageSize)
             .Select(p => new ProposalDto(
                 p.Id, p.PublicationContainerId, p.Title, p.Abstract, p.Status.ToString(), p.SubmittedAt,
                 p.SupervisorSelections
@@ -365,6 +409,8 @@ public class ProposalService(
                     .Select(s => s.RespondBy)
                     .FirstOrDefault()))
             .ToListAsync(cancellationToken);
+
+        return new PagedResult<ProposalDto>(items, paging.SafePage, paging.SafePageSize, total);
     }
 
     public async Task SelectAsFeasibleAsync(Guid proposalId, Guid supervisorId, SupervisorSelectionRequest request, CancellationToken cancellationToken = default)

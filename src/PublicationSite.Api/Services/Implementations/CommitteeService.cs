@@ -17,6 +17,28 @@ public class CommitteeService(
     INotificationService notificationService,
     ISystemSettingService settingService) : ICommitteeService
 {
+    public async Task<bool> IsCandidateAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        // The same three questions AssignAsync asks, about one person. Someone already sitting on
+        // a committee is a candidate whatever the rules say now: they were appointed under the
+        // rules of the day and still owe a decision, and taking the screen away would strand it.
+        if (await db.CommitteeMembers.AnyAsync(m => m.UserId == userId, cancellationToken)) return true;
+
+        var excluded = await settingService.GetExcludedCommitteeUsersAsync(cancellationToken);
+        if (excluded.Contains(userId)) return false;
+
+        var user = await db.Users.FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
+        if (user is null || user.Status != UserStatus.Enabled) return false;
+
+        var roles = await db.UserRoles
+            .Where(ur => ur.UserId == userId)
+            .Join(db.Roles, ur => ur.RoleId, r => r.Id, (ur, r) => r.Name!)
+            .ToListAsync(cancellationToken);
+
+        var candidateRoles = await settingService.GetCandidateRolesAsync(cancellationToken);
+        return roles.Any(candidateRoles.Contains);
+    }
+
     public async Task<IReadOnlyList<CommitteeCandidateDto>> GetCandidatesAsync(CancellationToken cancellationToken = default)
     {
         // Built from the same two settings AssignAsync enforces, so the people offered here are

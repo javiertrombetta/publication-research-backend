@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using PublicationSite.Api.Common;
 using PublicationSite.Api.Common.Exceptions;
@@ -223,16 +224,41 @@ public class PublicationService(
         }
     }
 
+    /// <summary>What a supervisor may order their paper queue by.</summary>
+    private static readonly Dictionary<string, Expression<Func<Publication, object?>>> PendingPaperSorts =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["title"] = p => p.Title,
+            ["student"] = p => p.PublicationContainer.Student.LastName,
+            ["submitted"] = p => p.UpdatedAt
+        };
+
     public async Task<PagedResult<PublicationDto>> GetPendingForSupervisorAsync(
-        Guid supervisorId, PageRequest page, CancellationToken cancellationToken = default)
+        Guid supervisorId, PageRequest page, string? search = null, CancellationToken cancellationToken = default)
     {
         var query = db.Publications
             .Where(p => p.PublicationContainer.AssignedSupervisorId == supervisorId
                         && (p.Status == PublicationStatus.UnderReview || p.Status == PublicationStatus.Resubmitted))
             // Approving a paper leaves it UnderReview, so without this a Supervisor kept seeing
             // every paper they had already dealt with alongside the ones still waiting.
-            .WhereLatestVersionApprovedBySupervisor(false)
-            .OrderBy(p => p.UpdatedAt);
+            .WhereLatestVersionApprovedBySupervisor(false);
+
+        // One term against the title and the student's name, applied before the page is cut so it
+        // searches the queue rather than the rows already in hand.
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim();
+            query = query.Where(p =>
+                p.Title.Contains(term)
+                || p.PublicationContainer.Student.FirstName.Contains(term)
+                || p.PublicationContainer.Student.LastName.Contains(term));
+        }
+
+        // Oldest first where nothing was asked for, as on every other queue: the paper that has
+        // been waiting longest is the one somebody is waiting longest on.
+        query = page.SortBy is not null && PendingPaperSorts.TryGetValue(page.SortBy, out var key)
+            ? page.SortDescending ? query.OrderByDescending(key) : query.OrderBy(key)
+            : query.OrderBy(p => p.UpdatedAt);
 
         var total = await query.CountAsync(cancellationToken);
 
