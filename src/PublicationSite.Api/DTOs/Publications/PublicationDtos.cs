@@ -1,5 +1,6 @@
 namespace PublicationSite.Api.DTOs.Publications;
 
+/// <param name="StudentName">Whose paper it is. Null wherever the caller is the author or already knows. The queues that ask somebody else to judge a paper let them search and order by the student, so a screen that cannot name one is offering controls over something it never shows.</param>
 public record PublicationDto(
     Guid Id,
     Guid PublicationContainerId,
@@ -11,7 +12,8 @@ public record PublicationDto(
     bool IsPublished,
     DateTime? PublishedAt,
     IReadOnlyList<string> Keywords,
-    IReadOnlyList<string> ResearchAreas);
+    IReadOnlyList<string> ResearchAreas,
+    string? StudentName = null);
 
 public record UpdatePublicationMetadataRequest(
     string Title,

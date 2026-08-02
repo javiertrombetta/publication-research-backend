@@ -230,6 +230,9 @@ public class CommitteeService(
 
         var committee = await db.Committees
             .Include(c => c.Publication).ThenInclude(p => p.Keywords)
+            // The author, so the queue can name whose paper each assignment is. It already lets a
+            // member search and order by the student.
+            .Include(c => c.Publication).ThenInclude(p => p.PublicationContainer).ThenInclude(pc => pc.Student)
             .Include(c => c.Members).ThenInclude(m => m.User)
             .FirstOrDefaultAsync(c => c.PublicationId == publicationId, cancellationToken)
             ?? throw new NotFoundException(nameof(Committee), publicationId);
@@ -276,6 +279,9 @@ public class CommitteeService(
             .Skip((page.SafePage - 1) * page.SafePageSize)
             .Take(page.SafePageSize)
             .Include(c => c.Publication).ThenInclude(p => p.Keywords)
+            // The author, so the queue can name whose paper each assignment is. It already lets a
+            // member search and order by the student, and named nobody.
+            .Include(c => c.Publication).ThenInclude(p => p.PublicationContainer).ThenInclude(pc => pc.Student)
             .Include(c => c.Members).ThenInclude(m => m.User)
             .ToListAsync(cancellationToken);
 
@@ -416,7 +422,13 @@ public class CommitteeService(
                 committee.Publication.Title,
                 committee.Publication.Abstract,
                 committee.Publication.PublicationYear,
-                committee.Publication.Keywords.Select(k => k.Name).ToList()),
+                committee.Publication.Keywords.Select(k => k.Name).ToList(),
+                // Null where the author was not loaded, which is every caller that does not need
+                // it. The assignment listing does, and includes them.
+                committee.Publication.PublicationContainer?.Student is null
+                    ? null
+                    : committee.Publication.PublicationContainer.Student.FirstName
+                      + " " + committee.Publication.PublicationContainer.Student.LastName),
         committee.Status.ToString(), committee.MinApprovalsRequired,
         committee.Members.Select(m => new CommitteeMemberDto(
             m.UserId, m.User.FirstName + " " + m.User.LastName, m.RoleType.ToString(),

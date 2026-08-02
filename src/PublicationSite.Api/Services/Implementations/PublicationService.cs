@@ -268,10 +268,17 @@ public class PublicationService(
             .Skip((page.SafePage - 1) * page.SafePageSize)
             .Take(page.SafePageSize)
             .Include(p => p.Keywords).Include(p => p.ResearchAreas)
+            // The author, for the page in hand only. This screen searches and orders by the
+            // student, and named neither: a supervisor was being asked to review a paper without
+            // being told whose it was.
+            .Include(p => p.PublicationContainer).ThenInclude(c => c.Student)
             .ToListAsync(cancellationToken);
 
         return new PagedResult<PublicationDto>(
-            publications.Select(ToDto).ToList(), page.SafePage, page.SafePageSize, total);
+            publications
+                .Select(p => ToDto(p, p.PublicationContainer.Student.FirstName + " " + p.PublicationContainer.Student.LastName))
+                .ToList(),
+            page.SafePage, page.SafePageSize, total);
     }
 
     public async Task<IReadOnlyList<AwaitingCommitteeDto>> GetAwaitingCommitteeAsync(CancellationToken cancellationToken = default)
@@ -526,10 +533,16 @@ public class PublicationService(
         return publication;
     }
 
-    private static PublicationDto ToDto(Publication publication) => new(
+    /// <param name="studentName">
+    /// Passed only by the queues that ask somebody else to judge the paper. Everywhere else the
+    /// caller is the author or already knows whose it is, and a name loaded per row would be a
+    /// join nobody reads.
+    /// </param>
+    private static PublicationDto ToDto(Publication publication, string? studentName = null) => new(
         publication.Id, publication.PublicationContainerId, publication.Title, publication.Abstract,
         publication.PublicationType, publication.PublicationYear, publication.Status.ToString(),
         publication.IsPublished, publication.PublishedAt,
         publication.Keywords.Select(k => k.Name).ToList(),
-        publication.ResearchAreas.Select(r => r.Name).ToList());
+        publication.ResearchAreas.Select(r => r.Name).ToList(),
+        studentName);
 }
