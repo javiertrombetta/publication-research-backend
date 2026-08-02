@@ -1,6 +1,7 @@
 using System.Reflection;
 using FluentValidation;
 using FluentValidation.AspNetCore;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
@@ -11,6 +12,7 @@ using Microsoft.Identity.Web;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using PublicationSite.Api.Common;
+using PublicationSite.Api.Common.Authentication;
 using PublicationSite.Api.Common.Middleware;
 using PublicationSite.Api.Common.Swagger;
 using PublicationSite.Api.Common.Options;
@@ -130,17 +132,26 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
         };
     });
 
-// Second scheme, "AzureAd": validates tokens issued by Microsoft Entra ID for this API's
-// App Registration. The frontend acquires that token via MSAL and calls
-// POST /api/auth/azure-sso/exchange, which swaps it for our own app JWT. Only registered
-// when a tenant is actually configured, so local dev works without real Azure credentials.
+// Second scheme, "AzureAd": validates tokens issued by Microsoft Entra ID for this API's app
+// registration. The site acquires that token by signing the person in against the institution and
+// calls POST /api/auth/azure-sso/exchange, which swaps it for our own app JWT.
+//
+// The scheme name is registered either way. Where a tenant is configured it validates real Entra
+// tokens; where one is not, it refuses with a reason. Registering it only when configured was what
+// made that endpoint answer 500: authorising against a scheme name that does not exist throws, and
+// "not configured here" came back as "an unexpected error occurred".
 var azureAdTenantId = builder.Configuration["AzureAd:TenantId"];
 if (!string.IsNullOrWhiteSpace(azureAdTenantId))
 {
     authenticationBuilder.AddMicrosoftIdentityWebApi(
         builder.Configuration,
         configSectionName: "AzureAd",
-        jwtBearerScheme: "AzureAd");
+        jwtBearerScheme: UnconfiguredSsoHandler.SchemeName);
+}
+else
+{
+    authenticationBuilder.AddScheme<AuthenticationSchemeOptions, UnconfiguredSsoHandler>(
+        UnconfiguredSsoHandler.SchemeName, displayName: null, configureOptions: null);
 }
 
 builder.Services.AddAuthorization();

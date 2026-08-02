@@ -148,13 +148,22 @@ Sign in with `admin.test@ais.ac.nz` and `DevTest123!` once the sample dataset ha
 Two ways, and they do different things.
 
 **A new image**, which is what happens on every push to `main`: GitHub Actions builds it, pushes it
-to Docker Hub and updates the container app. Set these once per repository, under Settings:
+to Docker Hub and updates the container app, with no manual step. Set these once per repository,
+under Settings:
 
 | Where | Name | Value |
 |---|---|---|
 | Secrets | `AZURE_CREDENTIALS` | the JSON from the command below |
 | Variables | `AZURE_RESOURCE_GROUP` | `publication-research` |
 | Variables | `AZURE_APP_NAME` | `publication-research-backend` or `-frontend` |
+
+The job deploys the commit's own image tag, `sha-<short>`, rather than `latest`. Container Apps
+creates a revision when the template changes, and `...:latest` is the same string on every push, so
+deploying it can leave the revision already running in place and the push looks as though it did
+nothing. Without `AZURE_RESOURCE_GROUP` set, the deploy job is skipped and the workflow behaves
+exactly as it did before.
+
+### The credential, and who can create it
 
 ```bash
 az ad sp create-for-rbac \
@@ -165,8 +174,21 @@ az ad sp create-for-rbac \
 ```
 
 Paste the whole JSON object as `AZURE_CREDENTIALS`. The scope is that one resource group, so the
-credential cannot touch anything else in the subscription. Without `AZURE_RESOURCE_GROUP` set, the
-deploy job is skipped and the workflow behaves exactly as it did before.
+credential cannot touch anything else in the subscription.
+
+**On the AIS tenant this command fails**, with `Insufficient privileges to complete the operation`.
+Registering an application is a directory permission, and the tenant does not grant it to ordinary
+accounts:
+
+```bash
+az rest --method get --url "https://graph.microsoft.com/v1.0/policies/authorizationPolicy" \
+  --query "defaultUserRolePermissions.allowedToCreateApps" -o tsv
+# false
+```
+
+So somebody with Application Administrator in the AIS tenant has to run it once and hand back the
+JSON. Until then the workflow builds and publishes the image on every push, the deploy job skips
+itself, and `./azure/deploy.sh` is how the new image reaches Azure. Nothing else is blocked.
 
 **A changed setting**: run `./azure/deploy.sh` again. It updates what is there rather than
 recreating it.
@@ -186,6 +208,53 @@ the next restart.
 
 You can still switch destination from System settings, File storage, and copy what is already
 stored to the new one from the same screen.
+
+## Signing in with an AIS account
+
+Everything for this is in place and switched off. Nothing about it runs until a deployment is given
+a tenant, an application and a scope, and until then the site signs people in with a password
+exactly as it does now: no button, no redirect, no scheme registered.
+
+It is off because it cannot be turned on from here. Registering an application is a directory
+permission the AIS tenant does not grant to ordinary accounts, which is the same wall the deployment
+credential runs into above. Somebody with Application Administrator has to create two registrations:
+
+| | Registration | What it needs |
+|---|---|---|
+| The API | `publication-research-api` | An **Application ID URI** (`api://<its client id>`) and a scope on it, `access_as_user`. Nothing else. |
+| The site | `publication-research-site` | A **web** redirect URI of `https://<site>/signin-microsoft`, a client secret, and delegated permission to the API's `access_as_user` scope with admin consent granted. |
+
+Then set these and redeploy. On the API:
+
+```
+AzureAd__TenantId=<the AIS directory id>
+AzureAd__ClientId=<the API registration's client id>
+```
+
+On the site, with the secret held as a container app secret rather than an environment variable:
+
+```
+AzureAd__TenantId=<the AIS directory id>
+AzureAd__ClientId=<the site registration's client id>
+AzureAd__ClientSecret=secretref:azure-sso-client-secret
+AzureAd__ApiScope=api://<the API registration's client id>/access_as_user
+```
+
+The site sends the person to Microsoft, and what comes back is not a session here: it is a token
+issued by Entra, which the site trades at `POST /api/auth/azure-sso/exchange` for this
+application's own tokens. Those become the session, so somebody who signs in this way ends up
+holding exactly what somebody who typed a password holds, and the rest of the system cannot tell
+the difference. An account signing in for the first time is provisioned as Pending, so an
+administrator still decides what they are.
+
+Two things stay true whatever is configured. External committee members are outside the institution
+by definition and always sign in with a password. And the switch on the System settings screen
+records the institution's intention; it is this configuration that decides whether sign-on can
+actually happen, which is why that screen says so when no tenant is set.
+
+**This path has never been exercised.** There is no tenant to exercise it against, so what is
+written here is wiring and reasoning, not something that has been seen to work. Expect to spend an
+hour on redirect URIs and consent the first time it is switched on.
 
 ## Turning it off
 
