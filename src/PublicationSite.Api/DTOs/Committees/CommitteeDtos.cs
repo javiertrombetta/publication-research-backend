@@ -31,12 +31,14 @@ public record SetCommitteeRoleConfigRequest(string RoleType, int RequiredCount);
 /// As much of a research paper as a committee member needs to see before opening it: enough to
 /// tell their assignments apart and to judge what they are about.
 /// </summary>
+/// <param name="StudentName">Whose paper it is. The assignment queue lets a member search and order by the student, so a screen that never names one is offering controls over something it does not show. Nothing here is anonymous review: the same member can open the publication and see the author.</param>
 public record CommitteePaperDto(
     Guid Id,
     string Title,
     string Abstract,
     int? PublicationYear,
-    IReadOnlyList<string> Keywords);
+    IReadOnlyList<string> Keywords,
+    string? StudentName = null);
 
 /// <summary>
 /// Somebody who could be put on a committee. Their roles come with them so a screen can group or

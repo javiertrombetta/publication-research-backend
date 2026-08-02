@@ -1,6 +1,7 @@
 namespace PublicationSite.Api.DTOs.Proposals;
 
 /// <param name="RespondBy">When the supervisor reading this has to have answered by. Only filled in on the listing of proposals sent to a supervisor, because that is the only place anybody is being held to it; null everywhere else, and null there too where the coordinator set no date.</param>
+/// <param name="StudentName">Whose proposal it is. Null where the caller is the student themselves, who does not need telling. A supervisor deciding whether to take work on is deciding about a person as much as a topic, and their queue lets them search and order by the student, so the name has to travel with it.</param>
 public record ProposalDto(
     Guid Id,
     Guid PublicationContainerId,
@@ -8,7 +9,8 @@ public record ProposalDto(
     string Abstract,
     string Status,
     DateTime? SubmittedAt,
-    DateTime? RespondBy = null);
+    DateTime? RespondBy = null,
+    string? StudentName = null);
 
 public record SaveProposalRequest(string Title, string Abstract);
 

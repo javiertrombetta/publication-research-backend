@@ -420,7 +420,10 @@ public class ProposalService(
                 p.SupervisorSelections
                     .Where(s => s.SupervisorId == supervisorId)
                     .Select(s => s.RespondBy)
-                    .FirstOrDefault()))
+                    .FirstOrDefault(),
+                // Whose it is. The queue lets a supervisor search and order by the student, and
+                // taking a piece of work on is agreeing to supervise a person.
+                p.PublicationContainer.Student.FirstName + " " + p.PublicationContainer.Student.LastName))
             .ToListAsync(cancellationToken);
 
         return new PagedResult<ProposalDto>(items, paging.SafePage, paging.SafePageSize, total);
