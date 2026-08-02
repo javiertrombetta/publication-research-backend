@@ -47,10 +47,10 @@ public class CommitteeService(
             throw new ConflictException("A committee has already been assigned to this research paper.");
         }
 
-        // Anyone who works here may be asked to evaluate a paper. Holding a committee-member role
-        // is no longer the entry ticket: supervisors, coordinators, heads of department and staff
-        // are all people an institution draws its evaluators from, and requiring an extra role
-        // first meant an administrator had to grant one before they could ask anybody.
+        // Anyone with a job here may be asked to evaluate a paper. Holding a committee-member role
+        // is not the entry ticket: supervisors, coordinators and heads of department are exactly
+        // who an institution draws its evaluators from, and requiring an extra role first meant an
+        // administrator had to grant one before they could ask anybody.
         var members = await db.Users
             .Where(u => request.MemberUserIds.Contains(u.Id))
             .Select(u => new
@@ -63,13 +63,22 @@ public class CommitteeService(
             })
             .ToListAsync(cancellationToken);
 
-        // Students are the exception, and the only one: a committee judges a student's work, so
-        // its members cannot be drawn from the people whose work is being judged.
-        var students = members.Where(m => m.Roles.Contains(RoleNames.Student)).ToList();
-        if (students.Count > 0)
+        // Two exclusions. A committee judges a student's work, so its members cannot be drawn from
+        // the people whose work is being judged. And Staff is the placeholder an institutional
+        // account holds until an administrator says what it is: it is not a job, so there is nobody
+        // there to ask yet. Everyone else can be appointed, and every one of them can open the
+        // committee screens, which is what makes an appointment worth making.
+        var ineligible = members
+            .Where(m => !m.Roles.Any(RoleNames.CommitteeEligible.Contains))
+            .ToList();
+
+        if (ineligible.Count > 0)
         {
-            throw new BusinessRuleException(
-                "A committee cannot include students. Everyone else at the institution can be appointed to one.");
+            var reason = ineligible.Any(m => m.Roles.Contains(RoleNames.Student))
+                ? "A committee cannot include students: it judges their work."
+                : "Somebody chosen has no role here yet. Give them one first, and they can be appointed.";
+
+            throw new BusinessRuleException(reason);
         }
 
         if (members.Any(m => m.User.Status != UserStatus.Enabled))
