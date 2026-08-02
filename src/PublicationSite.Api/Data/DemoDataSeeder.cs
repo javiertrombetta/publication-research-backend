@@ -410,6 +410,15 @@ public static class DemoDataSeeder
             db.Departments.Add(department);
             await db.SaveChangesAsync(cancellationToken);
         }
+        else if (department.Name != name)
+        {
+            // Renamed in place rather than left as it was found. Seeding an existing database
+            // otherwise kept whatever name it was first given, so a department renamed here stayed
+            // wrong everywhere it was read. A code that changed as well leaves the old row behind,
+            // which a database reset is what clears.
+            department.Name = name;
+            await db.SaveChangesAsync(cancellationToken);
+        }
 
         return department;
     }
