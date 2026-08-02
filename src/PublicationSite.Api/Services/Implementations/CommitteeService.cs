@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using PublicationSite.Api.Common;
 using PublicationSite.Api.Common.Exceptions;
@@ -236,14 +237,38 @@ public class CommitteeService(
         return ToDto(committee);
     }
 
+    /// <summary>What a committee member may order their queue by.</summary>
+    private static readonly Dictionary<string, Expression<Func<Committee, object?>>> AssignmentSorts =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["title"] = c => c.Publication.Title,
+            ["student"] = c => c.Publication.PublicationContainer.Student.LastName,
+            ["submitted"] = c => c.CreatedAt
+        };
+
     public async Task<PagedResult<CommitteeDto>> GetAssignmentsForMemberAsync(
-        Guid memberUserId, PageRequest page, CancellationToken cancellationToken = default)
+        Guid memberUserId, PageRequest page, string? search = null, CancellationToken cancellationToken = default)
     {
-        var query = db.Committees
-            .Where(c => c.Members.Any(m => m.UserId == memberUserId))
-            // The ones still needing this person's vote first: that is what they came for.
-            .OrderBy(c => c.Members.Any(m => m.UserId == memberUserId && m.Decision == CommitteeMemberDecision.Pending) ? 0 : 1)
-            .ThenByDescending(c => c.CreatedAt);
+        var filtered = db.Committees.Where(c => c.Members.Any(m => m.UserId == memberUserId));
+
+        // One term across the paper and its author, applied before the page is cut so it searches
+        // everything this person has been asked to evaluate rather than the rows in hand.
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim();
+            filtered = filtered.Where(c =>
+                c.Publication.Title.Contains(term)
+                || c.Publication.PublicationContainer.Student.FirstName.Contains(term)
+                || c.Publication.PublicationContainer.Student.LastName.Contains(term));
+        }
+
+        // The ones still needing this person's vote first: that is what they came for. An explicit
+        // ordering replaces that, since somebody who asks for a column has said what they want.
+        var query = page.SortBy is not null && AssignmentSorts.TryGetValue(page.SortBy, out var key)
+            ? page.SortDescending ? filtered.OrderByDescending(key) : filtered.OrderBy(key)
+            : filtered
+                .OrderBy(c => c.Members.Any(m => m.UserId == memberUserId && m.Decision == CommitteeMemberDecision.Pending) ? 0 : 1)
+                .ThenByDescending(c => c.CreatedAt);
 
         var total = await query.CountAsync(cancellationToken);
 

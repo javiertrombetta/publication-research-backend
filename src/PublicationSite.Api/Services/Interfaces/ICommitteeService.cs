@@ -20,7 +20,8 @@ public interface ICommitteeService
 
     Task<CommitteeDto> AssignAsync(Guid publicationId, AssignCommitteeRequest request, Guid adminId, CancellationToken cancellationToken = default);
     Task<CommitteeDto> GetByPublicationAsync(Guid publicationId, Guid requestingUserId, CancellationToken cancellationToken = default);
-    Task<PagedResult<CommitteeDto>> GetAssignmentsForMemberAsync(Guid memberUserId, PageRequest page, CancellationToken cancellationToken = default);
+    Task<PagedResult<CommitteeDto>> GetAssignmentsForMemberAsync(
+        Guid memberUserId, PageRequest page, string? search = null, CancellationToken cancellationToken = default);
     Task MemberReviewAsync(Guid committeeId, Guid memberUserId, CommitteeMemberReviewRequest request, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<CommitteeRoleConfigDto>> GetDefaultConfigAsync(CancellationToken cancellationToken = default);

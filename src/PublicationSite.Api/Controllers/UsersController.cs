@@ -135,18 +135,21 @@ public class UsersController(IUserService userService, ICurrentUserService curre
     /// <summary>
     /// The user directory, filtered by role, status and a search over name and address.
     /// </summary>
-    /// <response code="200">The matching accounts, all of them.</response>
+    /// <response code="200">One page of accounts, with the total count alongside it so a pager can be drawn without a second request.</response>
     /// <response code="401">No access token was sent, or the one sent has expired.</response>
     /// <response code="403">Signed in, but this is not something your role may do.</response>
+    /// <remarks>Orders by <c>name</c>, <c>email</c>, <c>status</c> or <c>created</c>. Surname by default.</remarks>
     [HttpGet]
     [Authorize(Roles = RoleNames.Admin)]
-    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<UserListItemDto>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<PagedResult<UserListItemDto>>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    public async Task<IActionResult> GetAll([FromQuery] string? role, [FromQuery] string? status, [FromQuery] string? search)
+    public async Task<IActionResult> GetAll(
+        [FromQuery] string? role, [FromQuery] string? status, [FromQuery] string? search,
+        [FromQuery] PageRequest paging)
     {
-        var result = await userService.GetAllAsync(role, status, search);
-        return Ok(ApiResponse<IReadOnlyList<UserListItemDto>>.Ok(result));
+        var result = await userService.GetAllAsync(role, status, search, paging);
+        return Ok(ApiResponse<PagedResult<UserListItemDto>>.Ok(result));
     }
 
     /// <summary>
@@ -160,14 +163,14 @@ public class UsersController(IUserService userService, ICurrentUserService curre
     /// <response code="403">Signed in, but this is not something your role may do.</response>
     [HttpGet("supervisors")]
     [Authorize(Roles = $"{RoleNames.Admin},{RoleNames.Coordinator}")]
-    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<UserListItemDto>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<PagedResult<UserListItemDto>>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    public async Task<IActionResult> GetSupervisors([FromQuery] string? search)
+    public async Task<IActionResult> GetSupervisors([FromQuery] string? search, [FromQuery] PageRequest paging)
     {
         var result = await userService.GetAllAsync(RoleNames.Supervisor, nameof(UserStatus.Enabled), search,
-            availableOnly: true);
-        return Ok(ApiResponse<IReadOnlyList<UserListItemDto>>.Ok(result));
+            paging, availableOnly: true);
+        return Ok(ApiResponse<PagedResult<UserListItemDto>>.Ok(result));
     }
 
     /// <summary>
