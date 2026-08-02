@@ -102,17 +102,31 @@ jobs:
   deploy-azure:
     name: Deploy to Azure Container Apps
     needs: build-and-push
-    # Skipped entirely where the secret is absent, so a fork or a clone of this repository still
+    # Skipped entirely where the variables are absent, so a fork or a clone of this repository still
     # builds and pushes without needing an Azure subscription to do it.
-    if: needs.build-and-push.result == 'success' && vars.AZURE_RESOURCE_GROUP != ''
+    if: needs.build-and-push.result == 'success' && vars.AZURE_CLIENT_ID != ''
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      # Lets the runner ask GitHub for the short-lived token it presents to Azure. Without it the
+      # sign-in below has nothing to offer and fails asking for a client secret.
+      id-token: write
     steps:
+      # No stored credential. The runner proves which repository and branch it is with a token
+      # GitHub mints for this one job, and Azure trusts that against a federated credential on a
+      # user-assigned managed identity.
+      #
+      # A managed identity rather than the usual service principal for a specific reason: creating a
+      # service principal means registering an application, which is a directory permission the AIS
+      # tenant does not grant to ordinary accounts. A managed identity is an Azure resource, made
+      # with the same rights as any other resource in the subscription, and it can carry federated
+      # credentials just the same. There is no secret here to leak or to rotate.
       - name: Sign in to Azure
         uses: azure/login@v2
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
       - name: Point the container app at the image just pushed
         # Only the image. Everything else about the app was set by azure/deploy.sh and is left
@@ -129,11 +143,11 @@ jobs:
 
           az containerapp update \
             --name "${{ vars.AZURE_APP_NAME || 'publication-research-backend' }}" \
-            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP || 'publication-research' }}" \
             --image "$IMAGE" \
             --output none
 
           echo "Deployed. Live at: https://$(az containerapp show \
             --name "${{ vars.AZURE_APP_NAME || 'publication-research-backend' }}" \
-            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP || 'publication-research' }}" \
             --query properties.configuration.ingress.fqdn -o tsv)" >> "$GITHUB_STEP_SUMMARY"

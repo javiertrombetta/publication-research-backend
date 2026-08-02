@@ -163,22 +163,13 @@ deploying it can leave the revision already running in place and the push looks 
 nothing. Without `AZURE_RESOURCE_GROUP` set, the deploy job is skipped and the workflow behaves
 exactly as it did before.
 
-### The credential, and who can create it
+### How GitHub signs in to Azure, and why it is not a service principal
 
-```bash
-az ad sp create-for-rbac \
-  --name "publication-research-deploy" \
-  --role contributor \
-  --scopes "/subscriptions/$(az account show --query id -o tsv)/resourceGroups/publication-research" \
-  --sdk-auth
-```
+There is no stored credential. The runner asks GitHub for a short-lived token that says which
+repository and branch it is, and Azure trusts that against a federated credential. Nothing to leak,
+nothing to rotate, and it only works from `main` of these two repositories.
 
-Paste the whole JSON object as `AZURE_CREDENTIALS`. The scope is that one resource group, so the
-credential cannot touch anything else in the subscription.
-
-**On the AIS tenant this command fails**, with `Insufficient privileges to complete the operation`.
-Registering an application is a directory permission, and the tenant does not grant it to ordinary
-accounts:
+The usual way to do this is a service principal, and **on the AIS tenant it cannot be created**:
 
 ```bash
 az rest --method get --url "https://graph.microsoft.com/v1.0/policies/authorizationPolicy" \
@@ -186,9 +177,65 @@ az rest --method get --url "https://graph.microsoft.com/v1.0/policies/authorizat
 # false
 ```
 
-So somebody with Application Administrator in the AIS tenant has to run it once and hand back the
-JSON. Until then the workflow builds and publishes the image on every push, the deploy job skips
-itself, and `./azure/deploy.sh` is how the new image reaches Azure. Nothing else is blocked.
+Registering an application is a directory permission that ordinary accounts are not given, and
+nobody on this project has it. A **user-assigned managed identity** goes around that: it is an Azure
+resource, created with the same rights as any other resource in the subscription, and it can carry
+federated credentials exactly like an app registration can. It was created once, like this:
+
+```bash
+az identity create -g publication-research -n publication-research-deploy
+
+PRINCIPAL="$(az identity show -g publication-research -n publication-research-deploy \
+  --query principalId -o tsv)"
+
+az role assignment create \
+  --assignee-object-id "$PRINCIPAL" --assignee-principal-type ServicePrincipal \
+  --role Contributor \
+  --scope "/subscriptions/$(az account show --query id -o tsv)/resourceGroups/publication-research"
+
+for repo in backend frontend; do
+  az identity federated-credential create --name "github-${repo}-main" \
+    --identity-name publication-research-deploy --resource-group publication-research \
+    --issuer "https://token.actions.githubusercontent.com" \
+    --subject "repo:javiertrombetta/publication-research-${repo}:ref:refs/heads/main" \
+    --audiences "api://AzureADTokenExchange"
+done
+```
+
+Contributor on the one resource group, so it cannot touch anything else in the subscription. Write
+`${repo}` with the braces: in zsh, `$repo:r` is a modifier that strips a suffix, and without them
+the subject comes out quietly wrong and every sign-in is refused with nothing to show why.
+
+Then three **variables** per repository, under Settings, Secrets and variables, Actions, Variables.
+Variables rather than secrets because none of these are secret: they are identifiers, and what makes
+the arrangement safe is the federated trust and the role assignment, not their obscurity. They are
+still not published, which is why they are not written into the workflow file, and these
+repositories are public.
+
+| Name | Where to find it |
+|---|---|
+| `AZURE_CLIENT_ID` | `az identity show -g publication-research -n publication-research-deploy --query clientId -o tsv` |
+| `AZURE_TENANT_ID` | `az account show --query tenantId -o tsv` |
+| `AZURE_SUBSCRIPTION_ID` | `az account show --query id -o tsv` |
+
+Without `AZURE_CLIENT_ID` the deploy job skips itself, and the workflow behaves as it did before:
+the image is built and published, and nothing is deployed.
+
+### Deploying by hand
+
+Still worth having, for a commit built before the variables were set, or to put a known-good image
+back in a hurry:
+
+```bash
+./azure/deploy-image.sh
+```
+
+It works out the tag from the commit you are standing on, checks the image has actually been built
+before touching anything, updates only the image, and waits until the new revision is the one
+serving traffic before it says so. That last part matters more than it sounds: a revision is created
+at once but serves nothing until it is healthy, and asking the app a question in between gets an
+answer from the revision being replaced. A database reset ran against the image it was meant to
+replace exactly that way.
 
 **A changed setting**: run `./azure/deploy.sh` again. It updates what is there rather than
 recreating it.
