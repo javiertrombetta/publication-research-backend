@@ -67,6 +67,17 @@ public class DevToolsController(
         await DbSeeder.SeedRolesAsync(HttpContext.RequestServices);
         await DbSeeder.SeedAdminAsync(HttpContext.RequestServices, configuration);
 
+        // Where uploads go has to be said again, before anything is written.
+        //
+        // That setting lives in the database, which is right, and this method has just emptied it.
+        // Startup is the only other thing that states it, so until now a reset left a deployment
+        // that had been told to use Blob Storage quietly writing to the container's own disk
+        // instead: a disk that does not survive a restart, and one the next sample dataset was
+        // then built on. It has to happen here, before the dataset is triggered, or the files it
+        // creates go to the wrong place and show up afterwards as documents waiting to be
+        // migrated.
+        await StorageSettingsBootstrapper.ApplyAsync(HttpContext.RequestServices, configuration);
+
         // Registered only where the dataset is wanted, so its absence is the answer for a
         // deployment that carries none, rather than something to work around here.
         var demoData = services.GetService<DemoDataSeedRunner>();
