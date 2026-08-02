@@ -34,6 +34,10 @@ public class UserService(
             ["name"] = u => u.LastName,
             ["email"] = u => u.Email,
             ["status"] = u => u.Status,
+            // Whoever has said they are not taking work on, first. Ascending puts them at the top
+            // because that is what somebody clicking this column is looking for: an administrator
+            // reads it to find out who is unavailable, not to confirm that most people are.
+            ["available"] = u => u.IsAvailable,
             ["created"] = u => u.CreatedAt
         };
 
