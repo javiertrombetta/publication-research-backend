@@ -23,6 +23,14 @@ public static class RoleNames
     /// </summary>
     public const string EvaluationCommittee = "EvaluationCommittee";
 
+    /// <summary>
+    /// Also not an Identity role: the answer to "whose turn is it" when it is nobody's, either
+    /// because the publication is finished or because it is sitting between stages with no move
+    /// outstanding. It belongs beside the role names because it is one of the possible answers, and
+    /// a screen offering "waiting on" as a filter has to be able to ask for it.
+    /// </summary>
+    public const string Nobody = "Nobody";
+
     public static readonly string[] All =
     [
         Admin, HeadOfDepartment, Coordinator, Supervisor,

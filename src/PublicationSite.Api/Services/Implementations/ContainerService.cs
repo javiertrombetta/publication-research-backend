@@ -70,6 +70,13 @@ public class ContainerService(
     private static readonly Dictionary<string, Expression<Func<PublicationContainer, object?>>> SortColumns = new()
     {
         ["student"] = c => c.Student.LastName,
+        // The title the listing prints, which is the paper's once there is a paper and the
+        // assigned proposal's until then. Ordering by the paper's title alone left every
+        // publication still choosing a topic tied on an empty string, in the order they happened
+        // to come back.
+        ["title"] = c => c.Publication != null && c.Publication.Title != ""
+            ? c.Publication.Title
+            : c.Proposals.Where(p => p.Status == ProposalStatus.Assigned).Select(p => p.Title).FirstOrDefault(),
         ["coordinator"] = c => c.Coordinator!.LastName,
         ["supervisor"] = c => c.AssignedSupervisor!.LastName,
         ["stage"] = c => c.CurrentPipeline,
@@ -193,14 +200,16 @@ public class ContainerService(
         // Searchable and filterable by the paper's turn, like the coordinator's listing. A head of
         // department oversees every stage in their department, so the screens that show it need the
         // same handles: narrow to a student, or to the papers waiting on somebody in particular.
-        var department = WherePaperAwaiting(
-            WhereMatches(
-                WhereEthicsStep(
-                    db.PublicationContainers.Where(c => c.Student.StudentProfile != null
-                                && c.Student.StudentProfile.DepartmentId == departmentId),
-                    query.EthicsStep),
-                query.Search),
-            query.PaperAwaiting);
+        var department = WhereWaitingOn(
+            WherePaperAwaiting(
+                WhereMatches(
+                    WhereEthicsStep(
+                        db.PublicationContainers.Where(c => c.Student.StudentProfile != null
+                                    && c.Student.StudentProfile.DepartmentId == departmentId),
+                        query.EthicsStep),
+                    query.Search),
+                query.PaperAwaiting),
+            query.WaitingOn);
 
         return await ProjectToDto(department.SortBy(query, c => c.CreatedAt, SortColumns))
             .ToPageAsync(query, cancellationToken);
@@ -346,6 +355,69 @@ public class ContainerService(
                     .Any(r => r.ReviewerType == ReviewerType.Supervisor && r.Decision == ReviewDecision.Approve)
                 && c.Publication.Committee != null
                 && c.Publication.Committee.Status == CommitteeStatus.Completed);
+    }
+
+    /// <summary>
+    /// Narrows to the publications the department is waiting on a particular role for, or to the
+    /// ones nobody owes anything on.
+    ///
+    /// This is the whole publication rather than one stage of it, which is what makes it a separate
+    /// filter from <see cref="WherePaperAwaiting"/>: the answer comes from the ethics stage while
+    /// there is one to answer for and from the paper afterwards, exactly as the screen reads it off
+    /// EthicsAwaitingRole and PaperAwaitingRole.
+    ///
+    /// Restated against the entity, like the ordering above and for the same reason: both of those
+    /// fields are CASE expressions built during projection, and EF Core cannot filter on top of
+    /// them. Written as one flat chain rather than two, because the ethics branch running out of
+    /// conditions is precisely when the paper branch takes over.
+    /// </summary>
+    private static IQueryable<PublicationContainer> WhereWaitingOn(
+        IQueryable<PublicationContainer> query, string? role)
+    {
+        if (string.IsNullOrWhiteSpace(role)) return query;
+
+        var wanted = role.Trim();
+
+        return query.Where(c => (
+            c.Status == ContainerStatus.Completed
+                ? RoleNames.Nobody
+            : c.EthicsApproval != null && c.EthicsApproval.Status == EthicsStatus.PendingSupervisorDecision
+                ? RoleNames.Supervisor
+            : c.EthicsApproval != null && c.EthicsApproval.Status == EthicsStatus.NotRequired
+              && c.EthicsApproval.FinalDecisionAt == null
+                ? RoleNames.Coordinator
+            : c.EthicsApproval != null && c.EthicsApproval.Status == EthicsStatus.PendingUpload
+                ? RoleNames.Student
+            : c.EthicsApproval != null && c.EthicsApproval.Status == EthicsStatus.PendingVerification
+                ? (c.EthicsApproval.Documents.Any(d => d.Status == EthicsDocumentStatus.PendingReview)
+                    ? RoleNames.Supervisor
+                    : c.EthicsApproval.CoordinatorDecisionAt == null
+                        ? RoleNames.Coordinator
+                        : c.EthicsApproval.HeadOfDepartmentReviewedAt == null
+                            ? RoleNames.HeadOfDepartment
+                            : RoleNames.Coordinator)
+            // Ethics has nothing outstanding, so whose turn it is now belongs to the paper.
+            : c.Publication == null
+                ? RoleNames.Nobody
+            : c.Publication.Status == PublicationStatus.Draft
+              || c.Publication.Status == PublicationStatus.RevisionsRequested
+              || c.Publication.Status == PublicationStatus.Accepted
+                ? RoleNames.Student
+            : c.Publication.Status == PublicationStatus.Resubmitted
+                ? RoleNames.Supervisor
+            : c.Publication.Status == PublicationStatus.UnderReview
+                ? (!c.Publication.Versions
+                        .OrderByDescending(v => v.VersionNumber)
+                        .Take(1)
+                        .SelectMany(v => v.Reviews)
+                        .Any(r => r.ReviewerType == ReviewerType.Supervisor && r.Decision == ReviewDecision.Approve)
+                    ? RoleNames.Supervisor
+                    : c.Publication.Committee == null
+                        ? RoleNames.Admin
+                        : c.Publication.Committee.Status != CommitteeStatus.Completed
+                            ? RoleNames.EvaluationCommittee
+                            : RoleNames.Coordinator)
+            : RoleNames.Nobody) == wanted);
     }
 
     /// <summary>
