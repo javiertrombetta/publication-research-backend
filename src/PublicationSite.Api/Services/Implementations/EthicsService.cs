@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using PublicationSite.Api.Common.Exceptions;
 using PublicationSite.Api.Data;
@@ -32,15 +33,26 @@ public class EthicsService(
             throw new BusinessRuleException("Response must be Yes, No or Unsure.");
         }
 
+        var screening = SerialiseScreening(request.Screening);
+
         var declaration = await db.EthicsDeclarations.FirstOrDefaultAsync(d => d.PublicationContainerId == container.Id, cancellationToken);
         if (declaration is null)
         {
-            declaration = new EthicsDeclaration { PublicationContainerId = container.Id, StudentResponse = response };
+            declaration = new EthicsDeclaration
+            {
+                PublicationContainerId = container.Id,
+                StudentResponse = response,
+                ScreeningAnswers = screening
+            };
             db.EthicsDeclarations.Add(declaration);
         }
         else
         {
             declaration.StudentResponse = response;
+
+            // Only overwritten when this submission brought answers with it. A declaration revised
+            // from a screen that does not ask them should not wipe the working behind the last one.
+            if (screening is not null) declaration.ScreeningAnswers = screening;
             declaration.DecidedAt = DateTime.UtcNow;
         }
 
@@ -584,10 +596,47 @@ public class EthicsService(
         return (container, approval);
     }
 
+    /// <summary>
+    /// The answers as given, kept as JSON. Anything that is not one of the three answers is
+    /// dropped rather than stored: a form filled in with something else is not a form, and a
+    /// value nobody can read back is worse than none. Nothing at all is stored as nothing, so
+    /// "they answered none of them" and "this was never asked" stay different facts.
+    /// </summary>
+    private static string? SerialiseScreening(IReadOnlyList<EthicsScreeningAnswerDto>? screening)
+    {
+        if (screening is null || screening.Count == 0) return null;
+
+        var kept = screening
+            .Where(a => a.Answer is "Yes" or "No" or "Unsure")
+            .Where(a => !string.IsNullOrWhiteSpace(a.Question))
+            .Select(a => new EthicsScreeningAnswerDto(a.Number, a.Question.Trim(), a.Answer))
+            .Take(50)
+            .ToList();
+
+        return kept.Count == 0 ? null : JsonSerializer.Serialize(kept);
+    }
+
+    private static IReadOnlyList<EthicsScreeningAnswerDto>? DeserialiseScreening(string? stored)
+    {
+        if (string.IsNullOrWhiteSpace(stored)) return null;
+
+        try
+        {
+            return JsonSerializer.Deserialize<List<EthicsScreeningAnswerDto>>(stored);
+        }
+        catch (JsonException)
+        {
+            // Whatever is in there is not the form. The declaration itself is still readable, and
+            // it is the declaration people are ruling on.
+            return null;
+        }
+    }
+
     private static EthicsApprovalDto ToDto(EthicsApproval approval, EthicsDeclaration? declaration = null) => new(
         approval.Id, approval.PublicationContainerId, approval.Status.ToString(), approval.ReferenceNumber,
         approval.ApprovalDate, approval.ExpiryDate, approval.IsRequiredPerSupervisor, approval.SupervisorDecisionComments,
         approval.IsRequiredPerCoordinator, approval.CoordinatorDecisionComments, approval.HeadOfDepartmentComments,
         approval.HeadOfDepartmentReviewedAt, approval.FinalDecisionAt,
-        declaration?.StudentResponse.ToString(), declaration?.DecidedAt);
+        declaration?.StudentResponse.ToString(), declaration?.DecidedAt,
+        DeserialiseScreening(declaration?.ScreeningAnswers));
 }

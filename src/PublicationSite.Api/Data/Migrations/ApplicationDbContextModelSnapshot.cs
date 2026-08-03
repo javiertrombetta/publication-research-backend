@@ -680,6 +680,9 @@ namespace PublicationSite.Api.Data.Migrations
                     b.Property<Guid>("PublicationContainerId")
                         .HasColumnType("char(36)");
 
+                    b.Property<string>("ScreeningAnswers")
+                        .HasColumnType("longtext");
+
                     b.Property<int>("StudentResponse")
                         .HasColumnType("int");
 
