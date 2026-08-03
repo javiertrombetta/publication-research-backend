@@ -251,7 +251,7 @@ public class EthicsService(
             throw new BusinessRuleException("There is no ethics documentation currently awaiting review.");
         }
 
-        ApplyDocumentReviewOutcome(approval, request.Accept, request.Comments);
+        ApplyDocumentReviewOutcome(approval, request.Accept, request.Comments, request.DocumentIds);
         await db.SaveChangesAsync(cancellationToken);
 
         var container = await db.PublicationContainers.FindAsync([publicationContainerId], cancellationToken);
@@ -352,7 +352,7 @@ public class EthicsService(
         }
         else
         {
-            ApplyDocumentReviewOutcome(approval, accept: false, request.Comments);
+            ApplyDocumentReviewOutcome(approval, accept: false, request.Comments, request.DocumentIds);
             await db.SaveChangesAsync(cancellationToken);
 
             await auditService.LogActivityAsync(publicationContainerId, coordinatorId, "CoordinatorRequestedEthicsRevision",
@@ -393,7 +393,11 @@ public class EthicsService(
 
     public async Task CoordinatorFinalDecisionAsync(Guid publicationContainerId, Guid coordinatorId, CoordinatorFinalDecisionRequest request, CancellationToken cancellationToken = default)
     {
-        var (container, approval) = await GetApprovalForCoordinatorAsync(publicationContainerId, coordinatorId, cancellationToken);
+        // With the documents, because turning this down sends them back to the student and has to
+        // write the reason onto them. Loaded without, the set was empty and the send-back marked
+        // nothing.
+        var (container, approval) = await GetApprovalForCoordinatorAsync(
+            publicationContainerId, coordinatorId, cancellationToken, includeDocuments: true);
 
         if (approval.Status != EthicsStatus.PendingVerification || approval.HeadOfDepartmentReviewedAt is null)
         {
@@ -426,25 +430,60 @@ public class EthicsService(
         }
     }
 
-    private static void ApplyDocumentReviewOutcome(EthicsApproval approval, bool accept, string comments)
+    /// <summary>
+    /// What a review does to the documents in front of it.
+    ///
+    /// Accepting takes the lot. Sending back takes the ones named, and no names means all of them,
+    /// which is what a reviewer who has not singled any out is saying.
+    ///
+    /// The ones not named are accepted rather than left waiting. A reviewer has read the whole set
+    /// to decide that two of them will not do; leaving the other three pending would mean asking
+    /// the student to send those again as well, and reading them again afterwards. Accepted, the
+    /// student is asked for exactly what was wrong, and uploading it puts the set back in front of
+    /// the reviewer.
+    /// </summary>
+    private static void ApplyDocumentReviewOutcome(
+        EthicsApproval approval, bool accept, string comments, IReadOnlyList<Guid>? documentIds = null)
     {
+        // The set actually in front of this reviewer: the newest file against each requirement,
+        // leaving out anything an earlier round sent back and the student has not replaced.
+        //
+        // Not "everything still pending review". Only the supervisor sees documents in that state:
+        // by the time the set reaches the coordinator the supervisor has accepted all of it, so a
+        // send-back from there matched nothing at all and returned the student a set with no
+        // comment written against any of it.
+        var underReview = approval.Documents
+            .Where(d => d.Status != EthicsDocumentStatus.RevisionRequested)
+            .GroupBy(d => d.EthicsDocumentRequirementId)
+            .Select(versions => versions.OrderByDescending(d => d.Version).First())
+            .ToList();
+
         if (accept)
         {
-            foreach (var document in approval.Documents.Where(d => d.Status == EthicsDocumentStatus.PendingReview))
+            foreach (var document in underReview)
             {
                 document.Status = EthicsDocumentStatus.Accepted;
             }
+
+            return;
         }
-        else
+
+        var named = documentIds is { Count: > 0 } ? documentIds.ToHashSet() : null;
+
+        foreach (var document in underReview)
         {
-            foreach (var document in approval.Documents.Where(d => d.Status == EthicsDocumentStatus.PendingReview))
+            if (named is null || named.Contains(document.Id))
             {
                 document.Status = EthicsDocumentStatus.RevisionRequested;
                 document.ReviewComments = comments;
             }
-
-            approval.Status = EthicsStatus.PendingUpload;
+            else
+            {
+                document.Status = EthicsDocumentStatus.Accepted;
+            }
         }
+
+        approval.Status = EthicsStatus.PendingUpload;
     }
 
     public async Task<IReadOnlyList<RequiredEthicsDocumentDto>> GetRequiredDocumentsAsync(

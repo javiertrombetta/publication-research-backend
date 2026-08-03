@@ -160,6 +160,44 @@ public class EthicsServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task SupervisorReviewDocuments_reject_asks_again_only_for_the_documents_it_names()
+    {
+        var (student, supervisor, _, container) = await AllDocumentsUploadedAsync();
+        var applicationForm = (await _sut.GetDocumentsAsync(container.Id, student.Id))
+            .First(d => d.DocumentType == "ApplicationForm");
+
+        await _sut.SupervisorReviewDocumentsAsync(container.Id, supervisor.Id,
+            new DocumentReviewDecisionRequest(false, "The form is the old template.", [applicationForm.Id]));
+
+        var docs = await _sut.GetDocumentsAsync(container.Id, student.Id);
+        docs.Should().ContainSingle(d => d.Status == EthicsDocumentStatus.RevisionRequested.ToString())
+            .Which.DocumentType.Should().Be("ApplicationForm");
+
+        // The rest are accepted rather than left waiting, so the student is asked for exactly the
+        // one that was wrong and the supervisor does not read the other two a second time.
+        docs.Where(d => d.DocumentType != "ApplicationForm")
+            .Should().OnlyContain(d => d.Status == EthicsDocumentStatus.Accepted.ToString());
+        (await _sut.GetApprovalAsync(container.Id, student.Id)).Status.Should().Be(EthicsStatus.PendingUpload.ToString());
+    }
+
+    [Fact]
+    public async Task CoordinatorReviewDocuments_reject_writes_the_reason_onto_documents_the_supervisor_accepted()
+    {
+        // Everything is Accepted by the time it reaches the coordinator, so a send-back that only
+        // looked at documents still awaiting review marked nothing and returned the student a set
+        // with no comment against any of it.
+        var (student, _, coordinator, container) = await SupervisorApprovedDocumentsAsync();
+
+        await _sut.CoordinatorReviewDocumentsAsync(container.Id, coordinator.Id,
+            new CoordinatorDocumentReviewRequest(false, "The consent form is unsigned."));
+
+        var docs = await _sut.GetDocumentsAsync(container.Id, student.Id);
+        docs.Should().OnlyContain(d => d.Status == EthicsDocumentStatus.RevisionRequested.ToString());
+        docs.Should().OnlyContain(d => d.ReviewComments == "The consent form is unsigned.");
+        (await _sut.GetApprovalAsync(container.Id, student.Id)).Status.Should().Be(EthicsStatus.PendingUpload.ToString());
+    }
+
+    [Fact]
     public async Task SupervisorReviewDocuments_accept_notifies_coordinator()
     {
         var (student, supervisor, coordinator, container) = await AllDocumentsUploadedAsync();
