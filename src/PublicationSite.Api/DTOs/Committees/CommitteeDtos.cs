@@ -19,7 +19,16 @@ public record CommitteeDto(
     int MinApprovalsRequired,
     IReadOnlyList<CommitteeMemberDto> Members);
 
-public record AssignCommitteeRequest(IReadOnlyList<Guid> MemberUserIds, int MinApprovalsRequired, string Comments);
+/// <param name="OverrideComposition">
+/// Set when this publication is to be judged by a committee of a different shape from the one it
+/// was opened under. Asked for explicitly, and only accepted with a reason in Comments, because
+/// the recorded composition is what the institution agreed for this piece of research: departing
+/// from it is a decision somebody has to own and later readers have to be able to see. Nothing
+/// already assigned is touched; this is settled before the committee exists.
+/// </param>
+public record AssignCommitteeRequest(
+    IReadOnlyList<Guid> MemberUserIds, int MinApprovalsRequired, string Comments,
+    bool OverrideComposition = false);
 
 public record CommitteeMemberReviewRequest(bool Approve, string Comments);
 

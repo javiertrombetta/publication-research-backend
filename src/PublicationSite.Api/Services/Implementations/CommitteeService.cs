@@ -184,8 +184,27 @@ public class CommitteeService(
             .Select(m => m.Roles.Contains(RoleNames.ExternalCommitteeMember))
             .ToList();
 
+        var container = publication.PublicationContainer;
+
+        // Read before the override rewrites them, so the history can say what was set aside.
+        var (wasReviewers, wasExternal) = await ResolveRequiredCompositionAsync(container, cancellationToken);
+
         var minApprovals = await ResolveMinimumApprovalsAsync(
-            publication.PublicationContainer, isExternal, request.MinApprovalsRequired, cancellationToken);
+            container, isExternal, request.MinApprovalsRequired, request.OverrideComposition, cancellationToken);
+
+        var appointedExternal = isExternal.Count(external => external);
+        var appointedReviewers = isExternal.Count - appointedExternal;
+
+        // What was actually appointed becomes what this publication is judged by. Everything
+        // downstream reads these figures, so leaving them at the old ones would describe a
+        // committee that does not exist.
+        if (request.OverrideComposition)
+        {
+            container.RequiredReviewerMembers = appointedReviewers;
+            container.RequiredExternalCommitteeMembers = appointedExternal;
+            container.RequiredCommitteeApprovals = minApprovals;
+            container.UpdatedAt = DateTime.UtcNow;
+        }
 
         var committee = new Committee
         {
@@ -208,7 +227,15 @@ public class CommitteeService(
         publication.Status = PublicationStatus.UnderReview;
         await db.SaveChangesAsync(cancellationToken);
 
-        await auditService.LogActivityAsync(publication.PublicationContainerId, adminId, "CommitteeAssigned", request.Comments);
+        // Named as its own event when the shape changed, and carrying both compositions, because
+        // "why does this one have two reviewers when the rule says three" is a question asked
+        // months later by somebody who was not in the room.
+        await auditService.LogActivityAsync(publication.PublicationContainerId, adminId,
+            request.OverrideComposition ? "CommitteeAssignedWithDifferentComposition" : "CommitteeAssigned",
+            request.OverrideComposition
+                ? $"Appointed {appointedReviewers} reviewers and {appointedExternal} external, in place of "
+                  + $"the {wasReviewers} and {wasExternal} this publication was opened under. {request.Comments}"
+                : request.Comments);
 
         foreach (var member in members)
         {
@@ -445,9 +472,13 @@ public class CommitteeService(
         PublicationContainer container,
         IReadOnlyList<bool> membersAreExternal,
         int requested,
+        bool overrideComposition,
         CancellationToken cancellationToken)
     {
-        await EnsureCompositionMatchesRulesAsync(container, membersAreExternal, cancellationToken);
+        if (!overrideComposition)
+        {
+            await EnsureCompositionMatchesRulesAsync(container, membersAreExternal, cancellationToken);
+        }
 
         // Zero means the administrator did not override it, so the figure this publication was
         // opened under applies.
@@ -474,20 +505,7 @@ public class CommitteeService(
     private async Task EnsureCompositionMatchesRulesAsync(
         PublicationContainer container, IReadOnlyList<bool> membersAreExternal, CancellationToken cancellationToken)
     {
-        int requiredReviewers, requiredExternal;
-
-        if (container.RequiredReviewerMembers is { } snapshotReviewers &&
-            container.RequiredExternalCommitteeMembers is { } snapshotExternal)
-        {
-            requiredReviewers = snapshotReviewers;
-            requiredExternal = snapshotExternal;
-        }
-        else
-        {
-            var current = await settingService.GetCommitteeSettingsAsync(cancellationToken);
-            requiredReviewers = current.ReviewerMembers;
-            requiredExternal = current.ExternalMembers;
-        }
+        var (requiredReviewers, requiredExternal) = await ResolveRequiredCompositionAsync(container, cancellationToken);
 
         var actualExternal = membersAreExternal.Count(isExternal => isExternal);
         var actualReviewers = membersAreExternal.Count - actualExternal;
@@ -496,7 +514,25 @@ public class CommitteeService(
         {
             throw new BusinessRuleException(
                 $"This publication needs a committee of {requiredReviewers} reviewers and {requiredExternal} external " +
-                $"members. You have selected {actualReviewers} reviewers and {actualExternal} external.");
+                $"members. You have selected {actualReviewers} reviewers and {actualExternal} external. To appoint a "
+                + "different composition for this publication, say why.");
         }
+    }
+
+    /// <summary>
+    /// The composition this publication is judged by: the figures recorded when it was opened, or
+    /// what is configured now for a container from before those were kept.
+    /// </summary>
+    private async Task<(int Reviewers, int External)> ResolveRequiredCompositionAsync(
+        PublicationContainer container, CancellationToken cancellationToken)
+    {
+        if (container.RequiredReviewerMembers is { } reviewers &&
+            container.RequiredExternalCommitteeMembers is { } external)
+        {
+            return (reviewers, external);
+        }
+
+        var current = await settingService.GetCommitteeSettingsAsync(cancellationToken);
+        return (current.ReviewerMembers, current.ExternalMembers);
     }
 }
