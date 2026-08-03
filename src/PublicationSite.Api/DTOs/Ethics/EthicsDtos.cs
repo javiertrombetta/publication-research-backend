@@ -52,11 +52,13 @@ public record EthicsDocumentDto(
     DateTime UploadedAt,
     string? ReviewComments);
 
-public record DocumentReviewDecisionRequest(bool Accept, string Comments);
+/// <param name="DocumentIds">Which of the uploaded documents are being asked for again. Empty, or left out, means all of them. Ignored when accepting.</param>
+public record DocumentReviewDecisionRequest(bool Accept, string Comments, IReadOnlyList<Guid>? DocumentIds = null);
 
 public record CoordinatorNotRequiredReviewRequest(bool RequireDocumentation, string Comments);
 
-public record CoordinatorDocumentReviewRequest(bool Approve, string Comments);
+/// <param name="DocumentIds">Which of the uploaded documents are being asked for again. Empty, or left out, means all of them. Ignored when approving.</param>
+public record CoordinatorDocumentReviewRequest(bool Approve, string Comments, IReadOnlyList<Guid>? DocumentIds = null);
 
 public record HeadOfDepartmentReviewRequest(string Comments);
 
