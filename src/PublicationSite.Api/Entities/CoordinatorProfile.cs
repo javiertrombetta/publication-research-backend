@@ -1,6 +1,6 @@
 namespace PublicationSite.Api.Entities;
 
-public class CoordinatorProfile
+public class CoordinatorProfile : IDepartmentPost
 {
     public Guid Id { get; set; } = Guid.NewGuid();
 

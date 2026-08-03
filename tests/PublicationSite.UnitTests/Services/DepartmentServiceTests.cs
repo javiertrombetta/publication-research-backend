@@ -1,7 +1,10 @@
 using FluentAssertions;
+using Moq;
+using PublicationSite.Api.Services.Interfaces;
 using PublicationSite.Api.Common;
 using PublicationSite.Api.Common.Exceptions;
 using PublicationSite.Api.DTOs.Departments;
+using PublicationSite.Api.Entities;
 using PublicationSite.Api.Enums;
 using PublicationSite.Api.Services.Implementations;
 using PublicationSite.UnitTests.TestSupport;
@@ -12,11 +15,12 @@ namespace PublicationSite.UnitTests.Services;
 public class DepartmentServiceTests : IDisposable
 {
     private readonly SqliteDbContextFactory _fixture = new();
+    private readonly Mock<IAuditService> _auditService = new();
     private readonly DepartmentService _sut;
 
     public DepartmentServiceTests()
     {
-        _sut = new DepartmentService(_fixture.Context);
+        _sut = new DepartmentService(_fixture.Context, _auditService.Object);
     }
 
     public void Dispose() => _fixture.Dispose();
@@ -137,6 +141,95 @@ public class DepartmentServiceTests : IDisposable
         var department = TestDataBuilder.Department(_fixture.Context);
 
         var act = () => _sut.SelectCoordinatorForDepartmentAsync(department.Id);
+
+        await act.Should().ThrowAsync<BusinessRuleException>();
+    }
+
+    [Fact]
+    public async Task GetMembersAsync_tells_the_posts_from_the_attachments()
+    {
+        var department = TestDataBuilder.Department(_fixture.Context);
+
+        var head = TestDataBuilder.User(_fixture.Context);
+        TestDataBuilder.HeadOfDepartmentProfile(_fixture.Context, head, department);
+        TestDataBuilder.GrantRole(_fixture.Context, head, RoleNames.HeadOfDepartment);
+
+        var coordinator = TestDataBuilder.User(_fixture.Context);
+        TestDataBuilder.CoordinatorProfile(_fixture.Context, coordinator, department);
+        TestDataBuilder.GrantRole(_fixture.Context, coordinator, RoleNames.Coordinator);
+
+        var reviewer = TestDataBuilder.User(_fixture.Context);
+        TestDataBuilder.GrantRole(_fixture.Context, reviewer, RoleNames.Reviewer);
+        _fixture.Context.DepartmentMemberships.Add(new DepartmentMembership
+        {
+            UserId = reviewer.Id,
+            DepartmentId = department.Id
+        });
+        await _fixture.Context.SaveChangesAsync();
+
+        var members = await _sut.GetMembersAsync(department.Id);
+
+        members.HeadsOfDepartment.Should().ContainSingle(p => p.UserId == head.Id);
+        members.Coordinators.Should().ContainSingle(p => p.UserId == coordinator.Id);
+        members.Reviewers.Should().ContainSingle(p => p.UserId == reviewer.Id);
+        members.Supervisors.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task SetMembersAsync_moves_a_head_from_one_department_to_another()
+    {
+        var from = TestDataBuilder.Department(_fixture.Context);
+        var to = TestDataBuilder.Department(_fixture.Context, code: "TO");
+
+        var head = TestDataBuilder.User(_fixture.Context);
+        TestDataBuilder.HeadOfDepartmentProfile(_fixture.Context, head, from);
+        TestDataBuilder.GrantRole(_fixture.Context, head, RoleNames.HeadOfDepartment);
+
+        var members = await _sut.SetMembersAsync(to.Id, new SetDepartmentMembersRequest([head.Id], []), Guid.NewGuid());
+
+        members.HeadsOfDepartment.Should().ContainSingle(p => p.UserId == head.Id);
+        (await _sut.GetMembersAsync(from.Id)).HeadsOfDepartment.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// A head or a coordinator of no department holds a job in nothing, so leaving one out is
+    /// refused rather than obeyed. Removing somebody is done by moving them or by changing what
+    /// they are.
+    /// </summary>
+    [Fact]
+    public async Task SetMembersAsync_refuses_to_leave_somebody_in_no_department()
+    {
+        var department = TestDataBuilder.Department(_fixture.Context);
+
+        var head = TestDataBuilder.User(_fixture.Context);
+        TestDataBuilder.HeadOfDepartmentProfile(_fixture.Context, head, department);
+        TestDataBuilder.GrantRole(_fixture.Context, head, RoleNames.HeadOfDepartment);
+
+        var act = () => _sut.SetMembersAsync(department.Id, new SetDepartmentMembersRequest([], []), Guid.NewGuid());
+
+        await act.Should().ThrowAsync<BusinessRuleException>();
+    }
+
+    [Fact]
+    public async Task SetMembersAsync_refuses_somebody_who_does_not_hold_the_role()
+    {
+        var department = TestDataBuilder.Department(_fixture.Context);
+        var stranger = TestDataBuilder.User(_fixture.Context);
+
+        var act = () => _sut.SetMembersAsync(
+            department.Id, new SetDepartmentMembersRequest([stranger.Id], []), Guid.NewGuid());
+
+        await act.Should().ThrowAsync<BusinessRuleException>();
+    }
+
+    [Fact]
+    public async Task SetMembersAsync_refuses_somebody_listed_as_both()
+    {
+        var department = TestDataBuilder.Department(_fixture.Context);
+        var person = TestDataBuilder.User(_fixture.Context);
+
+        var act = () => _sut.SetMembersAsync(
+            department.Id, new SetDepartmentMembersRequest([person.Id], [person.Id]), Guid.NewGuid());
 
         await act.Should().ThrowAsync<BusinessRuleException>();
     }

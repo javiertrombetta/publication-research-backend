@@ -14,7 +14,7 @@ namespace PublicationSite.Api.Controllers;
 [ApiController]
 [Route("api/departments")]
 [Authorize]
-public class DepartmentsController(IDepartmentService departmentService) : ControllerBase
+public class DepartmentsController(IDepartmentService departmentService, ICurrentUserService currentUser) : ControllerBase
 {
     /// <summary>
     /// Every department, each with the person heading it. Readable by any signed-in user
@@ -88,6 +88,57 @@ public class DepartmentsController(IDepartmentService departmentService) : Contr
     {
         var result = await departmentService.UpdateAsync(id, request);
         return Ok(ApiResponse<DepartmentDto>.Ok(result));
+    }
+
+    /// <summary>
+    /// Everybody attached to a department: its heads, its coordinators, and the supervisors and
+    /// reviewers who work in it.
+    /// </summary>
+    /// <response code="200">Who is in the department.</response>
+    /// <response code="401">No access token was sent, or the one sent has expired.</response>
+    /// <response code="403">Signed in, but this is not something your role may do.</response>
+    /// <response code="404">No department with that id.</response>
+    [HttpGet("{id:guid}/members")]
+    [Authorize(Roles = RoleNames.Admin)]
+    [ProducesResponseType(typeof(ApiResponse<DepartmentMembersDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetMembers(Guid id)
+    {
+        var result = await departmentService.GetMembersAsync(id);
+        return Ok(ApiResponse<DepartmentMembersDto>.Ok(result));
+    }
+
+    /// <summary>
+    /// Sets this department's heads and coordinators.
+    ///
+    /// Naming somebody moves them here from whichever department they were in. Leaving somebody
+    /// out is refused rather than obeyed: a head or a coordinator with no department holds a job in
+    /// nothing, so the way to take one out is to put them in another department or to change what
+    /// they are in the user directory.
+    ///
+    /// Supervisors and reviewers are not set here. They may be attached to several departments at
+    /// once, so where they belong is part of what they are and is chosen with their role.
+    /// </summary>
+    /// <response code="200">Who is in the department now.</response>
+    /// <response code="400">The request did not pass validation. Which field, and why, comes back as a problem document rather than the usual envelope.</response>
+    /// <response code="401">No access token was sent, or the one sent has expired.</response>
+    /// <response code="403">Signed in, but this is not something your role may do.</response>
+    /// <response code="404">No department with that id.</response>
+    /// <response code="422">Understood, and refused: somebody would be left holding a role in no department, or does not hold the role at all.</response>
+    [HttpPut("{id:guid}/members")]
+    [Authorize(Roles = RoleNames.Admin)]
+    [ProducesResponseType(typeof(ApiResponse<DepartmentMembersDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status422UnprocessableEntity)]
+    public async Task<IActionResult> SetMembers(Guid id, [FromBody] SetDepartmentMembersRequest request)
+    {
+        var result = await departmentService.SetMembersAsync(id, request, currentUser.UserId);
+        return Ok(ApiResponse<DepartmentMembersDto>.Ok(result, "Saved."));
     }
 
     /// <summary>

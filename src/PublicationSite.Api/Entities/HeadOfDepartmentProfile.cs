@@ -3,7 +3,7 @@ namespace PublicationSite.Api.Entities;
 /// <summary>
 /// There is exactly one Head of Department per Department (enforced via a unique index on DepartmentId).
 /// </summary>
-public class HeadOfDepartmentProfile
+public class HeadOfDepartmentProfile : IDepartmentPost
 {
     public Guid Id { get; set; } = Guid.NewGuid();
 
