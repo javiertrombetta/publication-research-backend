@@ -162,7 +162,7 @@ public class PublicationServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task UploadVersionAsync_after_revision_request_marks_resubmitted()
+    public async Task A_paper_sent_back_can_be_edited_reuploaded_and_submitted_again()
     {
         var (student, supervisor, _, container) = SeedAtResearchPaperStage();
         var publication = await _sut.GetOrCreateDraftAsync(container.Id, student.Id);
@@ -170,12 +170,24 @@ public class PublicationServiceTests : IDisposable
         await _sut.SubmitAsync(publication.Id, student.Id);
         await _sut.SupervisorReviewAsync(publication.Id, supervisor.Id, new PaperReviewDecisionRequest(false, "Needs more detail"));
 
+        // What a student acting on those comments actually does, in the order the screen does it.
+        // The title and the abstract are as much a part of a revision as the file is, and editing
+        // them was refused outright.
+        await _sut.UpdateMetadataAsync(publication.Id, student.Id,
+            new UpdatePublicationMetadataRequest("A revised title", "A fuller abstract.", null, null, null, null));
+
         await _sut.UploadVersionAsync(publication.Id, student.Id, new MemoryStream([1]), "v2.pdf", null, null, null);
+
+        // Uploading leaves it with the student, the same way a first draft does.
+        (await _sut.GetByContainerAsync(container.Id, student.Id)).Status
+            .Should().Be(PublicationStatus.RevisionsRequested.ToString());
+
+        await _sut.SubmitAsync(publication.Id, student.Id);
 
         var updated = await _sut.GetByContainerAsync(container.Id, student.Id);
         updated.Status.Should().Be(PublicationStatus.Resubmitted.ToString());
-        var versions = await _sut.GetVersionsAsync(publication.Id, student.Id);
-        versions.Should().HaveCount(2);
+        updated.Title.Should().Be("A revised title");
+        (await _sut.GetVersionsAsync(publication.Id, student.Id)).Should().HaveCount(2);
     }
 
     [Fact]

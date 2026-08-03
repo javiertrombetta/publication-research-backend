@@ -76,7 +76,11 @@ public class PublicationService(
     {
         var publication = await GetOwnedPublicationAsync(publicationId, studentId, cancellationToken, includeMetadata: true);
 
-        if (publication.Status != PublicationStatus.Draft)
+        // A paper sent back for revisions is with the student again, and the title, the abstract
+        // and the keywords are as much a part of what a reviewer asked to be changed as the file
+        // is. Only a draft could be edited, so a student acting on their supervisor's comments was
+        // refused on the first save.
+        if (publication.Status is not (PublicationStatus.Draft or PublicationStatus.RevisionsRequested))
         {
             throw new BusinessRuleException("This research paper's metadata can no longer be edited.");
         }
@@ -154,8 +158,12 @@ public class PublicationService(
         };
         db.PublicationVersions.Add(version);
 
-        var wasRevision = publication.Status == PublicationStatus.RevisionsRequested;
-        publication.Status = wasRevision ? PublicationStatus.Resubmitted : PublicationStatus.Draft;
+        // Uploading is not submitting, in either cycle. A first draft stays a draft until the
+        // student says it is ready, and a revision stays with the student in the same way.
+        //
+        // This used to send a revision straight back to the supervisor, which left the student's
+        // own Submit with nothing to do and an error to show for it, and gave anyone attaching a
+        // file no way to look at it again before it went.
         publication.UpdatedAt = DateTime.UtcNow;
 
         await db.SaveChangesAsync(cancellationToken);
@@ -186,7 +194,11 @@ public class PublicationService(
     {
         var publication = await GetOwnedPublicationAsync(publicationId, studentId, cancellationToken);
 
-        if (publication.Status != PublicationStatus.Draft)
+        // Two ways in: a first draft, and one that came back for revisions. They part company only
+        // at the end, where the status says which of the two a reviewer is being handed.
+        var isRevision = publication.Status == PublicationStatus.RevisionsRequested;
+
+        if (publication.Status is not (PublicationStatus.Draft or PublicationStatus.RevisionsRequested))
         {
             throw new BusinessRuleException("The research paper has already been submitted.");
         }
@@ -218,18 +230,26 @@ public class PublicationService(
             throw new BusinessRuleException("The research paper cannot be submitted until the ethics approval process is complete.");
         }
 
-        publication.Status = PublicationStatus.UnderReview;
+        // Resubmitted, not UnderReview, so the queues can tell a revision from a first reading and
+        // say so to whoever picks it up.
+        publication.Status = isRevision ? PublicationStatus.Resubmitted : PublicationStatus.UnderReview;
         publication.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(cancellationToken);
 
-        await auditService.LogActivityAsync(container.Id, studentId, "PublicationSubmitted",
-            "Research paper submitted for Supervisor review.", newStatus: PublicationStatus.UnderReview.ToString());
+        await auditService.LogActivityAsync(container.Id, studentId,
+            isRevision ? "PublicationResubmitted" : "PublicationSubmitted",
+            isRevision
+                ? "Revised research paper submitted for Supervisor review."
+                : "Research paper submitted for Supervisor review.",
+            newStatus: publication.Status.ToString());
 
         if (container.AssignedSupervisorId is Guid supervisorId)
         {
             await notificationService.NotifyAsync(supervisorId, NotificationType.CommitteeReviewRequested,
-                "Research paper awaiting review",
-                "A student has submitted their research paper. Please log in to review it.",
+                isRevision ? "Revised research paper awaiting review" : "Research paper awaiting review",
+                isRevision
+                    ? "A student has acted on your comments and submitted a revised research paper. Please log in to review it."
+                    : "A student has submitted their research paper. Please log in to review it.",
                 nameof(PublicationContainer), container.Id, cancellationToken);
         }
     }
