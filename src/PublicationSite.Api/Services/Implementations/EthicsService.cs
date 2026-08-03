@@ -72,7 +72,12 @@ public class EthicsService(
         var approval = await db.EthicsApprovals.FirstOrDefaultAsync(a => a.PublicationContainerId == publicationContainerId, cancellationToken)
             ?? throw new NotFoundException(nameof(EthicsApproval), publicationContainerId);
 
-        return ToDto(approval);
+        // The student's own answer with it. Everybody who rules on this is ruling on that answer,
+        // and it lives in its own table, so it has to be asked for.
+        var declaration = await db.EthicsDeclarations
+            .FirstOrDefaultAsync(d => d.PublicationContainerId == publicationContainerId, cancellationToken);
+
+        return ToDto(approval, declaration);
     }
 
     public async Task SubmitSupervisorRequirementDecisionAsync(Guid publicationContainerId, Guid supervisorId, SupervisorRequirementDecisionRequest request, CancellationToken cancellationToken = default)
@@ -579,9 +584,10 @@ public class EthicsService(
         return (container, approval);
     }
 
-    private static EthicsApprovalDto ToDto(EthicsApproval approval) => new(
+    private static EthicsApprovalDto ToDto(EthicsApproval approval, EthicsDeclaration? declaration = null) => new(
         approval.Id, approval.PublicationContainerId, approval.Status.ToString(), approval.ReferenceNumber,
         approval.ApprovalDate, approval.ExpiryDate, approval.IsRequiredPerSupervisor, approval.SupervisorDecisionComments,
         approval.IsRequiredPerCoordinator, approval.CoordinatorDecisionComments, approval.HeadOfDepartmentComments,
-        approval.HeadOfDepartmentReviewedAt, approval.FinalDecisionAt);
+        approval.HeadOfDepartmentReviewedAt, approval.FinalDecisionAt,
+        declaration?.StudentResponse.ToString(), declaration?.DecidedAt);
 }

@@ -4,6 +4,8 @@ public record EthicsDeclarationRequest(string Response);
 
 public record EthicsDeclarationDto(Guid Id, Guid PublicationContainerId, string StudentResponse, DateTime DecidedAt);
 
+/// <param name="StudentDeclaration">What the student answered when asked whether their research involves people: Yes, No or Unsure, or null before they have said. It is the whole of the evidence a supervisor rules on, and it was not on this record at all: the screen asking them to decide was showing the stage the workflow had reached and calling it the declaration.</param>
+/// <param name="StudentDeclaredAt">When they answered.</param>
 public record EthicsApprovalDto(
     Guid Id,
     Guid PublicationContainerId,
@@ -17,7 +19,9 @@ public record EthicsApprovalDto(
     string? CoordinatorDecisionComments,
     string? HeadOfDepartmentComments,
     DateTime? HeadOfDepartmentReviewedAt,
-    DateTime? FinalDecisionAt);
+    DateTime? FinalDecisionAt,
+    string? StudentDeclaration = null,
+    DateTime? StudentDeclaredAt = null);
 
 public record SupervisorRequirementDecisionRequest(bool IsRequired, string Comments);
 

@@ -43,7 +43,18 @@ public class PublicationServiceTests : IDisposable
         var supervisor = TestDataBuilder.User(_fixture.Context);
         var container = TestDataBuilder.Container(_fixture.Context, student, coordinator, supervisor, PipelineStage.ResearchPaper);
 
-        _fixture.Context.EthicsApprovals.Add(new EthicsApproval { PublicationContainerId = container.Id, Status = ethicsStatus });
+        // A settled stage carries the date it was settled on, and that is what the paper waits for:
+        // the status on its own is reached before the coordinator has confirmed anything. The
+        // unsettled cases below pass a status that is not one of the two that close it, so they
+        // are unaffected by the date being there.
+        _fixture.Context.EthicsApprovals.Add(new EthicsApproval
+        {
+            PublicationContainerId = container.Id,
+            Status = ethicsStatus,
+            FinalDecisionAt = ethicsStatus is EthicsStatus.Verified or EthicsStatus.NotRequired
+                ? DateTime.UtcNow
+                : null
+        });
         _fixture.Context.SaveChanges();
 
         return (student, supervisor, coordinator, container);
@@ -106,6 +117,28 @@ public class PublicationServiceTests : IDisposable
         var (student, _, _, container) = SeedAtResearchPaperStage(EthicsStatus.PendingVerification);
         var publication = await _sut.GetOrCreateDraftAsync(container.Id, student.Id);
         await _sut.UploadVersionAsync(publication.Id, student.Id, new MemoryStream([1]), "paper.pdf", null, null, null);
+
+        var act = () => _sut.SubmitAsync(publication.Id, student.Id);
+
+        await act.Should().ThrowAsync<BusinessRuleException>();
+    }
+
+    /// <summary>
+    /// A supervisor ruling that ethics is not required puts the record into NotRequired straight
+    /// away, but the stage is not closed until the coordinator has confirmed it. The status alone
+    /// used to be enough here, which would have let a paper out of a decision still being made.
+    /// </summary>
+    [Fact]
+    public async Task SubmitAsync_rejects_while_the_ethics_decision_is_still_open()
+    {
+        var (student, _, _, container) = SeedAtResearchPaperStage();
+        var publication = await _sut.GetOrCreateDraftAsync(container.Id, student.Id);
+        await _sut.UploadVersionAsync(publication.Id, student.Id, new MemoryStream([1]), "paper.pdf", null, null, null);
+
+        // Not required, and nobody has confirmed it.
+        var approval = _fixture.Context.EthicsApprovals.Single(a => a.PublicationContainerId == container.Id);
+        approval.FinalDecisionAt = null;
+        _fixture.Context.SaveChanges();
 
         var act = () => _sut.SubmitAsync(publication.Id, student.Id);
 

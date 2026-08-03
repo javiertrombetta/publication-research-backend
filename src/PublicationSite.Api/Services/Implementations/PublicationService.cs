@@ -198,12 +198,22 @@ public class PublicationService(
         }
 
         var container = publication.PublicationContainer;
-        var ethicsStatus = await db.EthicsApprovals
+
+        // The status and the closing date, not the status alone. A supervisor ruling that ethics is
+        // not required puts the record straight into NotRequired, but the decision is not finished
+        // until the coordinator has confirmed it: it is the confirmation that closes the stage and
+        // opens the paper. Nothing can reach here before that today, since the paper stage will not
+        // hand out a draft either, but a rule that says what it means does not depend on that.
+        var ethics = await db.EthicsApprovals
             .Where(a => a.PublicationContainerId == container.Id)
-            .Select(a => (EthicsStatus?)a.Status)
+            .Select(a => new { a.Status, a.FinalDecisionAt })
             .FirstOrDefaultAsync(cancellationToken);
 
-        if (ethicsStatus is not (EthicsStatus.Verified or EthicsStatus.NotRequired))
+        var ethicsSettled = ethics is not null
+            && ethics.FinalDecisionAt is not null
+            && ethics.Status is EthicsStatus.Verified or EthicsStatus.NotRequired;
+
+        if (!ethicsSettled)
         {
             throw new BusinessRuleException("The research paper cannot be submitted until the ethics approval process is complete.");
         }
