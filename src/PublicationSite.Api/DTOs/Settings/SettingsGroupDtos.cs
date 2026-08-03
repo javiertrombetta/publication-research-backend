@@ -200,7 +200,8 @@ public record InstitutionSettingsDto(
     string? WebsiteUrl = null,
     bool SelfRegistrationOpen = false,
     bool PublicCatalogueEnabled = true,
-    int RowsPerPage = SettingKeys.DefaultRowsPerPage);
+    int RowsPerPage = SettingKeys.DefaultRowsPerPage,
+    bool ItSupportShownToVisitors = SettingKeys.DefaultItSupportShownToVisitors);
 
 public record UpdateInstitutionSettingsRequest(
     string Name,
@@ -211,7 +212,8 @@ public record UpdateInstitutionSettingsRequest(
     string? PrivacyPolicyUrl,
     string? CurrentAcademicCycle,
     string? WebsiteUrl = null,
-    int RowsPerPage = SettingKeys.DefaultRowsPerPage);
+    int RowsPerPage = SettingKeys.DefaultRowsPerPage,
+    bool ItSupportShownToVisitors = SettingKeys.DefaultItSupportShownToVisitors);
 
 /// <summary>
 /// How long each stage is expected to take. Zero means nothing is ever reported late for it.

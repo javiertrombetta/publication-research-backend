@@ -143,6 +143,7 @@ public static class SettingKeys
     public const string PublicCatalogueEnabled = "access.public-catalogue";
 
     public const bool DefaultPublicCatalogueEnabled = true;
+    public const bool DefaultItSupportShownToVisitors = false;
 
     /// <summary>How long an invitation stays usable before it has to be sent again.</summary>
     public const string InvitationValidDays = "access.invitation-valid-days";
@@ -187,6 +188,14 @@ public static class SettingKeys
     /// Shown rather than linked when blank, so the interface never offers a dead mailto.
     /// </summary>
     public const string ItSupportEmail = "institution.it-support-email";
+
+    /// <summary>
+    /// Whether the IT desk is offered to people with no account: the sign-in page, and the public
+    /// catalogue read by anybody. Off unless an institution says otherwise, because a desk that
+    /// supports its own students and staff cannot act on a message from a passer-by, and an address
+    /// on a page open to the world is an address that will be scraped.
+    /// </summary>
+    public const string ItSupportShownToVisitors = "institution.it-support-shown-to-visitors";
 
     /// <summary>
     /// Where the public writes to ask for a paper's full text. Research is not downloadable from
