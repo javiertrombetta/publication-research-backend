@@ -198,6 +198,20 @@ public class EthicsServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task CoordinatorReviewDocuments_rejects_while_the_supervisor_has_not_read_them()
+    {
+        // The status says PendingVerification from upload right through to the final decision, so
+        // on its own it let a coordinator approve documents nobody had read yet, and the head of
+        // department and the final decision after that.
+        var (_, _, coordinator, container) = await AllDocumentsUploadedAsync();
+
+        var act = () => _sut.CoordinatorReviewDocumentsAsync(container.Id, coordinator.Id,
+            new CoordinatorDocumentReviewRequest(true, "Looks fine to me."));
+
+        await act.Should().ThrowAsync<BusinessRuleException>();
+    }
+
+    [Fact]
     public async Task SupervisorReviewDocuments_accept_notifies_coordinator()
     {
         var (student, supervisor, coordinator, container) = await AllDocumentsUploadedAsync();

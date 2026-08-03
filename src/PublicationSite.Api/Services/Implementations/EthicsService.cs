@@ -318,7 +318,18 @@ public class EthicsService(
     {
         var (container, approval) = await GetApprovalForCoordinatorAsync(publicationContainerId, coordinatorId, cancellationToken, includeDocuments: true);
 
-        if (approval.Status != EthicsStatus.PendingVerification)
+        // The supervisor reads the documents first. Their acceptance is what puts every document
+        // past PendingReview, so anything still there means the set has not reached the
+        // coordinator yet.
+        //
+        // Only the status was checked, and it says PendingVerification for the whole of the run
+        // from upload to final decision. A coordinator opening the container by its id could
+        // therefore approve documents nobody had read, and the head of department and the final
+        // decision after that: the stage reached Verified with every document still sitting at
+        // PendingReview, and the supervisor's screen went on offering a review of a stage that
+        // had closed.
+        if (approval.Status != EthicsStatus.PendingVerification
+            || approval.Documents.Any(d => d.Status == EthicsDocumentStatus.PendingReview))
         {
             throw new BusinessRuleException("There is no ethics documentation currently awaiting Coordinator review.");
         }
