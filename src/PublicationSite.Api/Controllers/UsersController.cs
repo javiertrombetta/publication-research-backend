@@ -43,6 +43,28 @@ public class UsersController(IUserService userService, ICurrentUserService curre
     }
 
     /// <summary>
+    /// How this person has arranged their own sidebar, as the routes of its items in the order
+    /// they want them. An empty list puts the menu back the way it is written.
+    ///
+    /// Theirs, like their theme: it says nothing about anybody else and changes nothing anybody
+    /// else can see.
+    /// </summary>
+    /// <response code="200">Saved.</response>
+    /// <response code="400">The request did not pass validation. Which field, and why, comes back as a problem document rather than the usual envelope.</response>
+    /// <response code="401">No access token was sent, or the one sent has expired.</response>
+    /// <response code="422">Understood, and refused: more menu than this can remember.</response>
+    [HttpPut("me/sidebar-order")]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status422UnprocessableEntity)]
+    public async Task<IActionResult> SetSidebarOrder([FromBody] UpdateSidebarOrderRequest request)
+    {
+        await userService.SetSidebarOrderAsync(currentUser.UserId, request.Items);
+        return Ok(ApiResponse<object>.Ok(null!, "Saved."));
+    }
+
+    /// <summary>
     /// The signed-in user's own account and whichever profile their role carries.
     /// </summary>
     /// <response code="200">The account.</response>

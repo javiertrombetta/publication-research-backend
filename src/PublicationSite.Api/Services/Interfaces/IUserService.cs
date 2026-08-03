@@ -18,6 +18,12 @@ public interface IUserService
     /// <summary>Records which theme this person prefers, so it follows them to another machine.</summary>
     Task SetThemeAsync(Guid userId, string theme, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Records how somebody has arranged their own sidebar. An empty list clears it, which puts
+    /// the menu back in the order it is written in.
+    /// </summary>
+    Task SetSidebarOrderAsync(Guid userId, IReadOnlyList<string>? items, CancellationToken cancellationToken = default);
+
     Task<UserDetailDto> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
     /// <summary>
     /// Creates an account and emails its owner a link to set a password.

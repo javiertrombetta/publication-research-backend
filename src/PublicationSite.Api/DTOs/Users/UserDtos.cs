@@ -35,6 +35,9 @@ public record UserDetailDto(
 /// <summary>Light or dark. Anything else is refused rather than stored and puzzled over later.</summary>
 public record UpdateThemeRequest(string Theme);
 
+/// <param name="Items">The routes of the sidebar's items, in the order this person wants them. An empty list puts the menu back the way it is written.</param>
+public record UpdateSidebarOrderRequest(IReadOnlyList<string> Items);
+
 public class CreateUserRequest
 {
     public string Email { get; set; } = string.Empty;
