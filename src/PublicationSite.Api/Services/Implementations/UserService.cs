@@ -116,6 +116,35 @@ public class UserService(
         await db.SaveChangesAsync(cancellationToken);
     }
 
+    /// <summary>
+    /// Space-separated, because a route has no spaces in it and that makes the column readable by
+    /// a person looking at the table. Anything with a space in it is dropped rather than stored:
+    /// it could not be a route, and a value that cannot be read back is worse than none.
+    /// </summary>
+    public async Task SetSidebarOrderAsync(
+        Guid userId, IReadOnlyList<string>? items, CancellationToken cancellationToken = default)
+    {
+        var user = await db.Users.FirstOrDefaultAsync(u => u.Id == userId, cancellationToken)
+            ?? throw new NotFoundException(nameof(ApplicationUser), userId);
+
+        var routes = (items ?? [])
+            .Select(item => item?.Trim() ?? string.Empty)
+            .Where(item => item.Length > 0 && !item.Contains(' '))
+            .Distinct()
+            .ToList();
+
+        // Bounded, because this is a preference and not a place to keep things. A menu of a few
+        // items cannot fill it; anything that could is not a menu.
+        var order = string.Join(' ', routes);
+        if (order.Length > 2000)
+        {
+            throw new BusinessRuleException("That is more menu than this can remember.");
+        }
+
+        user.SidebarOrder = order.Length == 0 ? null : order;
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
     public async Task<UserDetailDto> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var user = await FindUserOrThrowAsync(id, cancellationToken);

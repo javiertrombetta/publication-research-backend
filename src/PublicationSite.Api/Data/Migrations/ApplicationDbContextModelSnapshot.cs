@@ -310,6 +310,10 @@ namespace PublicationSite.Api.Data.Migrations
                     b.Property<string>("SecurityStamp")
                         .HasColumnType("longtext");
 
+                    b.Property<string>("SidebarOrder")
+                        .HasMaxLength(2000)
+                        .HasColumnType("varchar(2000)");
+
                     b.Property<int>("Status")
                         .HasColumnType("int");
 

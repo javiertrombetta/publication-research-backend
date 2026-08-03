@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Identity;
 using PublicationSite.Api.Enums;
 
@@ -36,6 +37,22 @@ public class ApplicationUser : IdentityUser<Guid>
     /// fetched, and this is what refills it at sign-in.
     /// </summary>
     public string? ThemePreference { get; set; }
+
+    /// <summary>
+    /// The order this person has put their sidebar in, as the routes of its items separated by
+    /// spaces. Null until they rearrange it, which is what leaves everybody else with the order
+    /// the menu is written in.
+    ///
+    /// On the account for the same reason as the theme, and for one more: a browser is shared. Kept
+    /// only in one, the arrangement one person made was the arrangement the next person to sign in
+    /// on that machine was handed.
+    ///
+    /// Routes rather than labels or positions: a label changes with the wording and a position
+    /// means nothing once the menu a role sees has grown or shrunk, whereas the route an item opens
+    /// is the item.
+    /// </summary>
+    [MaxLength(2000)]
+    public string? SidebarOrder { get; set; }
 
     public AuthProvider AuthProvider { get; set; } = AuthProvider.Local;
     public string? AzureObjectId { get; set; }
