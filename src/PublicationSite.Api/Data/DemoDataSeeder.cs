@@ -145,28 +145,41 @@ public static class DemoDataSeeder
         db.SupervisorProfiles.AddRange(
             new SupervisorProfile
             {
-                UserId = infoTechSupervisor.Id, DepartmentId = infoTech.Id,
+                UserId = infoTechSupervisor.Id,
                 AreasOfExpertise = "Software engineering, human-computer interaction",
                 ResearchInterests = "How teams adopt development practices, and why they abandon them"
             },
             new SupervisorProfile
             {
-                UserId = infoTechSupervisorTwo.Id, DepartmentId = infoTech.Id,
+                UserId = infoTechSupervisorTwo.Id,
                 AreasOfExpertise = "Data science, applied machine learning",
                 ResearchInterests = "Fairness and interpretability in models used on people"
             },
             new SupervisorProfile
             {
-                UserId = businessSupervisor.Id, DepartmentId = business.Id,
+                UserId = businessSupervisor.Id,
                 AreasOfExpertise = "Organisational behaviour, small business strategy",
                 ResearchInterests = "Decision-making in owner-operated firms"
             },
             new SupervisorProfile
             {
-                UserId = businessSupervisorTwo.Id, DepartmentId = business.Id,
+                UserId = businessSupervisorTwo.Id,
                 AreasOfExpertise = "Accounting, corporate governance",
                 ResearchInterests = "How small boards oversee what they cannot audit themselves"
             });
+
+        // Which departments each of them is attached to. One supervisor and one reviewer sit in
+        // both, because a demo set where everybody is in exactly one department never shows that
+        // they can be in two, and a shape nothing exercises is a shape nobody notices is broken.
+        db.DepartmentMemberships.AddRange(
+            new DepartmentMembership { UserId = infoTechSupervisor.Id, DepartmentId = infoTech.Id },
+            new DepartmentMembership { UserId = infoTechSupervisorTwo.Id, DepartmentId = infoTech.Id },
+            new DepartmentMembership { UserId = infoTechSupervisorTwo.Id, DepartmentId = business.Id },
+            new DepartmentMembership { UserId = businessSupervisor.Id, DepartmentId = business.Id },
+            new DepartmentMembership { UserId = businessSupervisorTwo.Id, DepartmentId = business.Id },
+            new DepartmentMembership { UserId = reviewerOne.Id, DepartmentId = infoTech.Id },
+            new DepartmentMembership { UserId = reviewerTwo.Id, DepartmentId = infoTech.Id },
+            new DepartmentMembership { UserId = reviewerTwo.Id, DepartmentId = business.Id });
 
         db.CommitteeMemberProfiles.AddRange(
             new CommitteeMemberProfile { UserId = reviewerOne.Id, Type = CommitteeMemberRoleType.Reviewer, Affiliation = "Auckland Institute of Studies" },

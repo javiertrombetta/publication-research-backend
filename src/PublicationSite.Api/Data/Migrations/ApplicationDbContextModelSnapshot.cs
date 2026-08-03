@@ -554,6 +554,31 @@ namespace PublicationSite.Api.Data.Migrations
                     b.ToTable("Departments");
                 });
 
+            modelBuilder.Entity("PublicationSite.Api.Entities.DepartmentMembership", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid>("DepartmentId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("char(36)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DepartmentId");
+
+                    b.HasIndex("UserId", "DepartmentId")
+                        .IsUnique();
+
+                    b.ToTable("DepartmentMemberships");
+                });
+
             modelBuilder.Entity("PublicationSite.Api.Entities.EthicsApproval", b =>
                 {
                     b.Property<Guid>("Id")
@@ -758,8 +783,7 @@ namespace PublicationSite.Api.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("DepartmentId")
-                        .IsUnique();
+                    b.HasIndex("DepartmentId");
 
                     b.HasIndex("UserId")
                         .IsUnique();
@@ -1308,9 +1332,6 @@ namespace PublicationSite.Api.Data.Migrations
                     b.Property<string>("AreasOfExpertise")
                         .HasColumnType("text");
 
-                    b.Property<Guid>("DepartmentId")
-                        .HasColumnType("char(36)");
-
                     b.Property<string>("ResearchInterests")
                         .HasColumnType("text");
 
@@ -1318,8 +1339,6 @@ namespace PublicationSite.Api.Data.Migrations
                         .HasColumnType("char(36)");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("DepartmentId");
 
                     b.HasIndex("UserId")
                         .IsUnique();
@@ -1647,6 +1666,25 @@ namespace PublicationSite.Api.Data.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("PublicationSite.Api.Entities.DepartmentMembership", b =>
+                {
+                    b.HasOne("PublicationSite.Api.Entities.Department", "Department")
+                        .WithMany("Memberships")
+                        .HasForeignKey("DepartmentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("PublicationSite.Api.Entities.ApplicationUser", "User")
+                        .WithMany("DepartmentMemberships")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Department");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("PublicationSite.Api.Entities.EthicsApproval", b =>
                 {
                     b.HasOne("PublicationSite.Api.Entities.PublicationContainer", "PublicationContainer")
@@ -1718,8 +1756,8 @@ namespace PublicationSite.Api.Data.Migrations
             modelBuilder.Entity("PublicationSite.Api.Entities.HeadOfDepartmentProfile", b =>
                 {
                     b.HasOne("PublicationSite.Api.Entities.Department", "Department")
-                        .WithOne("HeadOfDepartment")
-                        .HasForeignKey("PublicationSite.Api.Entities.HeadOfDepartmentProfile", "DepartmentId")
+                        .WithMany("HeadsOfDepartment")
+                        .HasForeignKey("DepartmentId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
@@ -1957,19 +1995,11 @@ namespace PublicationSite.Api.Data.Migrations
 
             modelBuilder.Entity("PublicationSite.Api.Entities.SupervisorProfile", b =>
                 {
-                    b.HasOne("PublicationSite.Api.Entities.Department", "Department")
-                        .WithMany("Supervisors")
-                        .HasForeignKey("DepartmentId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.HasOne("PublicationSite.Api.Entities.ApplicationUser", "User")
                         .WithOne("SupervisorProfile")
                         .HasForeignKey("PublicationSite.Api.Entities.SupervisorProfile", "UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.Navigation("Department");
 
                     b.Navigation("User");
                 });
@@ -2030,6 +2060,8 @@ namespace PublicationSite.Api.Data.Migrations
 
                     b.Navigation("CoordinatorProfile");
 
+                    b.Navigation("DepartmentMemberships");
+
                     b.Navigation("HeadOfDepartmentProfile");
 
                     b.Navigation("StudentProfile");
@@ -2053,11 +2085,11 @@ namespace PublicationSite.Api.Data.Migrations
                 {
                     b.Navigation("Coordinators");
 
-                    b.Navigation("HeadOfDepartment");
+                    b.Navigation("HeadsOfDepartment");
+
+                    b.Navigation("Memberships");
 
                     b.Navigation("Students");
-
-                    b.Navigation("Supervisors");
                 });
 
             modelBuilder.Entity("PublicationSite.Api.Entities.EthicsApproval", b =>

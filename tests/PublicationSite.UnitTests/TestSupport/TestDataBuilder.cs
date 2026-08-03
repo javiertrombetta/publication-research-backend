@@ -69,12 +69,15 @@ public static class TestDataBuilder
 
     public static SupervisorProfile SupervisorProfile(ApplicationDbContext db, ApplicationUser user, Department department)
     {
-        var profile = new Api.Entities.SupervisorProfile
+        var profile = new Api.Entities.SupervisorProfile { UserId = user.Id };
+        db.SupervisorProfiles.Add(profile);
+
+        // The department is a membership now, since a supervisor may be in several.
+        db.DepartmentMemberships.Add(new Api.Entities.DepartmentMembership
         {
             UserId = user.Id,
             DepartmentId = department.Id
-        };
-        db.SupervisorProfiles.Add(profile);
+        });
         db.SaveChanges();
         return profile;
     }

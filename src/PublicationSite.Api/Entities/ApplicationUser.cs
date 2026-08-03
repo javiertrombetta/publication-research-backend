@@ -54,6 +54,13 @@ public class ApplicationUser : IdentityUser<Guid>
 
     public StudentProfile? StudentProfile { get; set; }
     public SupervisorProfile? SupervisorProfile { get; set; }
+
+    /// <summary>
+    /// The departments this person belongs to, for the roles that can be in more than one:
+    /// supervising and reviewing. Empty for everybody else, including external committee members,
+    /// who belong to another institution entirely.
+    /// </summary>
+    public ICollection<DepartmentMembership> DepartmentMemberships { get; set; } = [];
     public CoordinatorProfile? CoordinatorProfile { get; set; }
     public HeadOfDepartmentProfile? HeadOfDepartmentProfile { get; set; }
     public CommitteeMemberProfile? CommitteeMemberProfile { get; set; }

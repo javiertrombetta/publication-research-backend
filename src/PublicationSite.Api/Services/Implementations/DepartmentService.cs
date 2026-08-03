@@ -14,7 +14,7 @@ public class DepartmentService(ApplicationDbContext db) : IDepartmentService
     public async Task<IReadOnlyList<DepartmentDto>> GetAllAsync(CancellationToken cancellationToken = default)
     {
         return await db.Departments
-            .Include(d => d.HeadOfDepartment).ThenInclude(h => h!.User)
+            .Include(d => d.HeadsOfDepartment).ThenInclude(h => h.User)
             .OrderBy(d => d.Name)
             .Select(d => ToDto(d))
             .ToListAsync(cancellationToken);
@@ -23,7 +23,7 @@ public class DepartmentService(ApplicationDbContext db) : IDepartmentService
     public async Task<DepartmentDto> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         var department = await db.Departments
-            .Include(d => d.HeadOfDepartment).ThenInclude(h => h!.User)
+            .Include(d => d.HeadsOfDepartment).ThenInclude(h => h.User)
             .FirstOrDefaultAsync(d => d.Id == id, cancellationToken)
             ?? throw new NotFoundException(nameof(Department), id);
 
@@ -62,7 +62,7 @@ public class DepartmentService(ApplicationDbContext db) : IDepartmentService
             ?? throw new NotFoundException(nameof(Department), id);
 
         var inUse = await db.StudentProfiles.AnyAsync(s => s.DepartmentId == id, cancellationToken)
-            || await db.SupervisorProfiles.AnyAsync(s => s.DepartmentId == id, cancellationToken)
+            || await db.DepartmentMemberships.AnyAsync(m => m.DepartmentId == id, cancellationToken)
             || await db.CoordinatorProfiles.AnyAsync(c => c.DepartmentId == id, cancellationToken);
 
         if (inUse)
@@ -123,5 +123,11 @@ public class DepartmentService(ApplicationDbContext db) : IDepartmentService
         department.Id,
         department.Name,
         department.Code,
-        department.HeadOfDepartment?.User is { } hod ? $"{hod.FirstName} {hod.LastName}" : null);
+        // The heads, as one line. Usually one name; a department the administrator has put two
+        // people at the top of says both rather than picking one and hiding the other.
+        department.HeadsOfDepartment.Count == 0
+            ? null
+            : string.Join(", ", department.HeadsOfDepartment
+                .Where(h => h.User is not null)
+                .Select(h => $"{h.User.FirstName} {h.User.LastName}")));
 }
