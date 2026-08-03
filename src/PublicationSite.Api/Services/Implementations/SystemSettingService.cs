@@ -447,7 +447,11 @@ public class SystemSettingService(
             await settings.GetBoolAsync(SettingKeys.PublicCatalogueEnabled, SettingKeys.DefaultPublicCatalogueEnabled, cancellationToken),
             // Carried here because the site reads this response on every page anyway, and how long
             // a page is has to be known before the first listing is drawn.
-            await settings.GetIntAsync(SettingKeys.RowsPerPage, SettingKeys.DefaultRowsPerPage, cancellationToken));
+            await settings.GetIntAsync(SettingKeys.RowsPerPage, SettingKeys.DefaultRowsPerPage, cancellationToken),
+            // Also on the anonymous response, because whether to offer the IT desk has to be
+            // decided on the very pages where nobody has signed in.
+            await settings.GetBoolAsync(SettingKeys.ItSupportShownToVisitors,
+                SettingKeys.DefaultItSupportShownToVisitors, cancellationToken));
 
     public async Task<InstitutionSettingsDto> UpdateInstitutionSettingsAsync(
         UpdateInstitutionSettingsRequest request, Guid actingAdminId, CancellationToken cancellationToken = default)
@@ -487,6 +491,8 @@ public class SystemSettingService(
         await SetPendingAsync(SettingKeys.CurrentAcademicCycle, request.CurrentAcademicCycle?.Trim() ?? string.Empty, actingAdminId, cancellationToken);
         await SetPendingAsync(SettingKeys.WebsiteUrl, request.WebsiteUrl?.Trim() ?? string.Empty, actingAdminId, cancellationToken);
         await SetPendingAsync(SettingKeys.RowsPerPage, rowsPerPage.ToString(), actingAdminId, cancellationToken);
+        await SetPendingAsync(SettingKeys.ItSupportShownToVisitors,
+            request.ItSupportShownToVisitors.ToString(), actingAdminId, cancellationToken);
 
         await CommitAsync(actingAdminId, "InstitutionSettingsUpdated",
             $"Student addresses end in {studentDomain} and staff addresses in {staffDomain}." +
