@@ -15,6 +15,7 @@ public record UserListItemDto(
     DateTime CreatedAt,
     bool IsAvailable = true);
 
+/// <param name="DepartmentIds">The departments this person belongs to, for the roles that can be in several. Empty for everybody else, whose department is on their own profile, and for external committee members, who have none. An administrator changing somebody's role has to see what is already true, or the form offers to move them out of every department they are in.</param>
 public record UserDetailDto(
     Guid Id,
     string Email,
@@ -28,7 +29,8 @@ public record UserDetailDto(
     object? Profile,
     bool HasProfilePhoto,
     bool IsAvailable = true,
-    string? ThemePreference = null);
+    string? ThemePreference = null,
+    IReadOnlyList<Guid>? DepartmentIds = null);
 
 /// <summary>Light or dark. Anything else is refused rather than stored and puzzled over later.</summary>
 public record UpdateThemeRequest(string Theme);
