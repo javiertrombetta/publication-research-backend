@@ -166,6 +166,47 @@ public class CommitteeServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task AssignAsync_refuses_a_composition_the_publication_was_not_opened_for()
+    {
+        var (publication, container, coordinator) = SeedApprovedPublication();
+        container.RequiredReviewerMembers = 2;
+        container.RequiredExternalCommitteeMembers = 1;
+        _fixture.Context.SaveChanges();
+
+        var member = SeedCommitteeMember();
+
+        var act = () => _sut.AssignAsync(publication.Id,
+            new AssignCommitteeRequest([member.Id], 1, "Assign"), coordinator.Id);
+
+        (await act.Should().ThrowAsync<BusinessRuleException>())
+            .Which.Message.Should().Contain("2 reviewers and 1 external");
+    }
+
+    [Fact]
+    public async Task AssignAsync_appoints_a_different_composition_when_it_is_asked_for_explicitly()
+    {
+        var (publication, container, coordinator) = SeedApprovedPublication();
+        container.RequiredReviewerMembers = 2;
+        container.RequiredExternalCommitteeMembers = 1;
+        _fixture.Context.SaveChanges();
+
+        var member = SeedCommitteeMember();
+
+        await _sut.AssignAsync(publication.Id,
+            new AssignCommitteeRequest([member.Id], 1, "No external reader is available in this field.",
+                OverrideComposition: true),
+            coordinator.Id);
+
+        _fixture.Context.CommitteeMembers.Count(m => m.UserId == member.Id).Should().Be(1);
+
+        // What was appointed becomes what this publication is judged by. Left at the old figures,
+        // everything downstream would describe a committee that does not exist.
+        var updated = _fixture.Context.PublicationContainers.Single(c => c.Id == container.Id);
+        updated.RequiredReviewerMembers.Should().Be(1);
+        updated.RequiredExternalCommitteeMembers.Should().Be(0);
+    }
+
+    [Fact]
     public async Task AssignAsync_counts_someone_without_the_external_role_as_internal()
     {
         var (publication, _, coordinator) = SeedApprovedPublication();
