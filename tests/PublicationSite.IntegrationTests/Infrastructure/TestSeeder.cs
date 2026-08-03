@@ -86,8 +86,8 @@ public static class TestSeeder
             case RoleNames.HeadOfDepartment:
                 db.HeadOfDepartmentProfiles.Add(new HeadOfDepartmentProfile { UserId = user.Id, DepartmentId = resolvedDepartmentId });
                 break;
-            case RoleNames.InternalCommitteeMember:
-                db.CommitteeMemberProfiles.Add(new CommitteeMemberProfile { UserId = user.Id, Type = CommitteeMemberRoleType.Internal });
+            case RoleNames.Reviewer:
+                db.CommitteeMemberProfiles.Add(new CommitteeMemberProfile { UserId = user.Id, Type = CommitteeMemberRoleType.Reviewer });
                 break;
             case RoleNames.ExternalCommitteeMember:
                 db.CommitteeMemberProfiles.Add(new CommitteeMemberProfile { UserId = user.Id, Type = CommitteeMemberRoleType.External });

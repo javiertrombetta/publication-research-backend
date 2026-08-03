@@ -84,19 +84,19 @@ public class CommitteeServiceTests : IDisposable
     /// committee that exists, one internal member, so a test only says otherwise when the mix is
     /// the point.
     /// </summary>
-    private void RequireCommitteeOf(int internalMembers, int externalMembers, int approvals) =>
+    private void RequireCommitteeOf(int reviewerMembers, int externalMembers, int approvals) =>
         _settingService.Setup(s => s.GetCommitteeSettingsAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new CommitteeSettingsDto(internalMembers, externalMembers, approvals, RoleNames.CommitteeEligible, [], RoleNames.CommitteeEligible));
+            .ReturnsAsync(new CommitteeSettingsDto(reviewerMembers, externalMembers, approvals, RoleNames.CommitteeEligible, [], RoleNames.CommitteeEligible));
 
-    private ApplicationUser SeedCommitteeMember(CommitteeMemberRoleType type = CommitteeMemberRoleType.Internal)
+    private ApplicationUser SeedCommitteeMember(CommitteeMemberRoleType type = CommitteeMemberRoleType.Reviewer)
     {
         var user = TestDataBuilder.User(_fixture.Context);
         TestDataBuilder.CommitteeMemberProfile(_fixture.Context, user, type);
 
         // The role as well as the profile: assignment checks both, because a profile outlives the
         // role that created it and must not keep someone assignable after it is taken away.
-        TestDataBuilder.GrantRole(_fixture.Context, user, type == CommitteeMemberRoleType.Internal
-            ? RoleNames.InternalCommitteeMember
+        TestDataBuilder.GrantRole(_fixture.Context, user, type == CommitteeMemberRoleType.Reviewer
+            ? RoleNames.Reviewer
             : RoleNames.ExternalCommitteeMember);
 
         return user;
@@ -175,7 +175,7 @@ public class CommitteeServiceTests : IDisposable
         await _sut.AssignAsync(publication.Id, new AssignCommitteeRequest([staff.Id], 1, "Assign"), coordinator.Id);
 
         var member = _fixture.Context.CommitteeMembers.Single(m => m.UserId == staff.Id);
-        member.RoleType.Should().Be(CommitteeMemberRoleType.Internal);
+        member.RoleType.Should().Be(CommitteeMemberRoleType.Reviewer);
     }
 
     [Fact]
@@ -185,7 +185,7 @@ public class CommitteeServiceTests : IDisposable
 
         // This publication was opened needing one external member and no internal one, so that the
         // assignment is testing how the person is classified rather than the composition rule.
-        container.RequiredInternalCommitteeMembers = 0;
+        container.RequiredReviewerMembers = 0;
         container.RequiredExternalCommitteeMembers = 1;
         _fixture.Context.SaveChanges();
 
@@ -206,7 +206,7 @@ public class CommitteeServiceTests : IDisposable
         // The administrator has narrowed committees to the two roles named after them. A supervisor
         // is still eligible in principle, and is still refused, because this institution says so.
         _settingService.Setup(s => s.GetCandidateRolesAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync([RoleNames.InternalCommitteeMember, RoleNames.ExternalCommitteeMember]);
+            .ReturnsAsync([RoleNames.Reviewer, RoleNames.ExternalCommitteeMember]);
 
         var supervisor = TestDataBuilder.User(_fixture.Context);
         TestDataBuilder.GrantRole(_fixture.Context, supervisor, RoleNames.Supervisor);
@@ -252,7 +252,7 @@ public class CommitteeServiceTests : IDisposable
         RequireCommitteeOf(1, 1, 2);
 
         var (publication, _, coordinator) = SeedApprovedPublication();
-        var internalMember = SeedCommitteeMember(CommitteeMemberRoleType.Internal);
+        var internalMember = SeedCommitteeMember(CommitteeMemberRoleType.Reviewer);
         var externalMember = SeedCommitteeMember(CommitteeMemberRoleType.External);
 
         var result = await _sut.AssignAsync(publication.Id,
@@ -332,9 +332,9 @@ public class CommitteeServiceTests : IDisposable
     [Fact]
     public async Task Default_and_per_committee_role_configuration_round_trip()
     {
-        await _sut.SetDefaultConfigAsync(new SetCommitteeRoleConfigRequest("Internal", 2));
+        await _sut.SetDefaultConfigAsync(new SetCommitteeRoleConfigRequest("Reviewer", 2));
         var defaults = await _sut.GetDefaultConfigAsync();
-        defaults.Should().ContainSingle(c => c.RoleType == "Internal" && c.RequiredCount == 2);
+        defaults.Should().ContainSingle(c => c.RoleType == "Reviewer" && c.RequiredCount == 2);
 
         var (publication, _, coordinator) = SeedApprovedPublication();
         var member = SeedCommitteeMember();
@@ -356,7 +356,7 @@ public class CommitteeServiceTests : IDisposable
         var act = () => _sut.AssignAsync(publication.Id, new AssignCommitteeRequest([member.Id], 1, "Assign"), coordinator.Id);
 
         (await act.Should().ThrowAsync<BusinessRuleException>())
-            .Which.Message.Should().Contain("2 internal and 1 external");
+            .Which.Message.Should().Contain("2 reviewers and 1 external");
     }
 
     [Fact]

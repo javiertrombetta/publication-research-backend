@@ -173,7 +173,7 @@ public class ContainerAccessServiceTests : IDisposable
 
         var creator = TestDataBuilder.User(_fixture.Context);
         var committee = new Committee { PublicationId = publication.Id, CreatedByUserId = creator.Id, MinApprovalsRequired = 1 };
-        committee.Members.Add(new CommitteeMember { UserId = member.Id, RoleType = Api.Enums.CommitteeMemberRoleType.Internal });
+        committee.Members.Add(new CommitteeMember { UserId = member.Id, RoleType = Api.Enums.CommitteeMemberRoleType.Reviewer });
         _fixture.Context.Committees.Add(committee);
         _fixture.Context.SaveChanges();
 

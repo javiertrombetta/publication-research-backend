@@ -14,7 +14,7 @@ namespace PublicationSite.Api.DTOs.Settings;
 /// the screen offers the real list rather than one written out again in a view.
 /// </summary>
 public record CommitteeSettingsDto(
-    int InternalMembers,
+    int ReviewerMembers,
     int ExternalMembers,
     int MinimumApprovals,
     IReadOnlyList<string> CandidateRoles,
@@ -22,7 +22,7 @@ public record CommitteeSettingsDto(
     IReadOnlyList<string> SelectableRoles);
 
 public record UpdateCommitteeSettingsRequest(
-    int InternalMembers,
+    int ReviewerMembers,
     int ExternalMembers,
     int MinimumApprovals,
     IReadOnlyList<string>? CandidateRoles = null,

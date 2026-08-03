@@ -52,12 +52,12 @@ public record PublishDecisionRequest(bool Publish, string? Comments);
 /// further requests per publication, and the answer still came out wrong, because nothing in those
 /// responses says whether the Supervisor has approved.
 /// </summary>
-/// <param name="RequiredInternalCommitteeMembers"><summary>The composition agreed when this publication was opened; null on ones that predate it.</summary></param>
+/// <param name="RequiredReviewerMembers"><summary>The composition agreed when this publication was opened; null on ones that predate it.</summary></param>
 public record AwaitingCommitteeDto(
     Guid Id,
     Guid PublicationContainerId,
     string Title,
     string Abstract,
     string StudentName,
-    int? RequiredInternalCommitteeMembers,
+    int? RequiredReviewerMembers,
     int? RequiredExternalCommitteeMembers);

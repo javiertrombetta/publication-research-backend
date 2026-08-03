@@ -14,12 +14,12 @@ public static class SettingKeys
     // ---------- Evaluation committees ----------
 
     /// <summary>
-    /// How many internal and external members an evaluation committee needs. Applies to
+    /// How many reviewers and external members an evaluation committee needs. Applies to
     /// publications created from the moment it changes: each Publication Container records the
     /// figures in force on the day it was opened, so a change never moves the goalposts for
     /// research already under way.
     /// </summary>
-    public const string CommitteeInternalMembers = "committee.internal-members";
+    public const string CommitteeReviewerMembers = "committee.reviewer-members";
     public const string CommitteeExternalMembers = "committee.external-members";
 
     /// <summary>How many committee members must approve for a paper to pass.</summary>
@@ -41,7 +41,7 @@ public static class SettingKeys
     public const string CommitteeCandidateRoles = "committee.candidate-roles";
     public const string CommitteeExcludedUserIds = "committee.excluded-user-ids";
 
-    public const int DefaultCommitteeInternalMembers = 2;
+    public const int DefaultCommitteeReviewerMembers = 2;
     public const int DefaultCommitteeExternalMembers = 1;
     public const int DefaultCommitteeMinApprovals = 2;
 

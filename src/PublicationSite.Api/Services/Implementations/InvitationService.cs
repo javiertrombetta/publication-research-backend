@@ -233,8 +233,8 @@ public class InvitationService(
             DepartmentId = invitation.DepartmentId,
 
             // A committee member's type follows from the role they were invited as.
-            CommitteeMemberType = invitation.Role == RoleNames.InternalCommitteeMember
-                ? nameof(CommitteeMemberRoleType.Internal)
+            CommitteeMemberType = invitation.Role == RoleNames.Reviewer
+                ? nameof(CommitteeMemberRoleType.Reviewer)
                 : invitation.Role == RoleNames.ExternalCommitteeMember
                     ? nameof(CommitteeMemberRoleType.External)
                     : null
@@ -371,7 +371,7 @@ public class InvitationService(
     private static string DisplayRole(string role) => role switch
     {
         RoleNames.HeadOfDepartment => "Head of Department",
-        RoleNames.InternalCommitteeMember => "an internal committee member",
+        RoleNames.Reviewer => "a reviewer",
         RoleNames.ExternalCommitteeMember => "an external committee member",
         RoleNames.Admin => "an administrator",
         _ => "a " + role

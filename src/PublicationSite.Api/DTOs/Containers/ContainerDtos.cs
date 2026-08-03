@@ -9,7 +9,7 @@ namespace PublicationSite.Api.DTOs.Containers;
 /// <param name="EthicsAwaitingRole">Whose turn it is in the ethics workflow, as a role name, or null when nothing is pending. EthicsStatus alone cannot answer this. PendingVerification covers four different waits, told apart only by which timestamps have been set: the Supervisor checking the documents, the Coordinator reviewing them, the Head of Department commenting, and the Coordinator's final decision. Deriving that belongs here rather than in every client.</param>
 /// <param name="EthicsAwaitingStep">Which ethics decision this is waiting for, by name. See Common/EthicsSteps. Finer than EthicsAwaitingRole, because two of the steps belong to the Coordinator and are separate screens.</param>
 /// <param name="PaperAwaitingRole">Whose turn it is on the research paper, as a role name, or null when nothing is pending, which covers the time before a paper exists and the time after it is published. UnderReview alone cannot answer this: it covers the Supervisor still reading the paper, an Admin appointing a committee, the committee voting and the Coordinator's decision, told apart only by what has been recorded against it. RoleNames.EvaluationCommittee is returned where the wait belongs to the committee as a body rather than to one role.</param>
-/// <param name="RequiredInternalCommitteeMembers">The evaluation committee this publication needs, as agreed when it was opened rather than as configured today, so an administrator assigning a committee months later is told the figures this piece of research was actually started under. Null on containers created before the figures were recorded; the current settings apply to those.</param>
+/// <param name="RequiredReviewerMembers">The evaluation committee this publication needs, as agreed when it was opened rather than as configured today, so an administrator assigning a committee months later is told the figures this piece of research was actually started under. Null on containers created before the figures were recorded; the current settings apply to those.</param>
 public record PublicationContainerDto(
     Guid Id,
     Guid StudentId,
@@ -28,7 +28,7 @@ public record PublicationContainerDto(
     string? EthicsAwaitingRole = null,
     string? PaperAwaitingRole = null,
     string? EthicsAwaitingStep = null,
-    int? RequiredInternalCommitteeMembers = null,
+    int? RequiredReviewerMembers = null,
     int? RequiredExternalCommitteeMembers = null);
 
 /// <param name="ActorRole">The capacity the actor was acting in (Coordinator, Supervisor, ...). Without it the history is a list of names, and a student reading it can't tell who decided what. Null only if the account somehow carries no role.</param>

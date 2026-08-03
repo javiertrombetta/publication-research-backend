@@ -981,7 +981,7 @@ namespace PublicationSite.Api.Data.Migrations
                     b.Property<int?>("RequiredExternalCommitteeMembers")
                         .HasColumnType("int");
 
-                    b.Property<int?>("RequiredInternalCommitteeMembers")
+                    b.Property<int?>("RequiredReviewerMembers")
                         .HasColumnType("int");
 
                     b.Property<int>("Status")

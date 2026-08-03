@@ -91,7 +91,7 @@ public static class TestDataBuilder
         return profile;
     }
 
-    public static CommitteeMemberProfile CommitteeMemberProfile(ApplicationDbContext db, ApplicationUser user, CommitteeMemberRoleType type = CommitteeMemberRoleType.Internal)
+    public static CommitteeMemberProfile CommitteeMemberProfile(ApplicationDbContext db, ApplicationUser user, CommitteeMemberRoleType type = CommitteeMemberRoleType.Reviewer)
     {
         var profile = new Api.Entities.CommitteeMemberProfile
         {

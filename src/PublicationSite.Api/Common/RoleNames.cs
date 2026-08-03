@@ -11,7 +11,7 @@ public static class RoleNames
     public const string HeadOfDepartment = "HeadOfDepartment";
     public const string Coordinator = "Coordinator";
     public const string Supervisor = "Supervisor";
-    public const string InternalCommitteeMember = "InternalCommitteeMember";
+    public const string Reviewer = "Reviewer";
     public const string ExternalCommitteeMember = "ExternalCommitteeMember";
     public const string Student = "Student";
     public const string Staff = "Staff";
@@ -27,12 +27,12 @@ public static class RoleNames
     public static readonly string[] All =
     [
         Admin, HeadOfDepartment, Coordinator, Supervisor,
-        InternalCommitteeMember, ExternalCommitteeMember, Student, Staff
+        Reviewer, ExternalCommitteeMember, Student, Staff
     ];
 
     public static readonly string[] CommitteeRoles =
     [
-        InternalCommitteeMember, ExternalCommitteeMember
+        Reviewer, ExternalCommitteeMember
     ];
 
     /// <summary>
@@ -49,7 +49,7 @@ public static class RoleNames
     public static readonly string[] Operational =
     [
         Admin, HeadOfDepartment, Coordinator, Supervisor,
-        InternalCommitteeMember, ExternalCommitteeMember
+        Reviewer, ExternalCommitteeMember
     ];
 
     /// <summary>
@@ -70,5 +70,5 @@ public static class RoleNames
 
     /// <summary>The same list, for [Authorize(Roles = ...)], which takes one comma-separated string.</summary>
     public const string CommitteeEligibleRoles =
-        $"{Admin},{HeadOfDepartment},{Coordinator},{Supervisor},{InternalCommitteeMember},{ExternalCommitteeMember}";
+        $"{Admin},{HeadOfDepartment},{Coordinator},{Supervisor},{Reviewer},{ExternalCommitteeMember}";
 }

@@ -37,7 +37,7 @@ public class ContainerService(
             CoordinatorId = coordinatorId,
             CurrentPipeline = PipelineStage.ResearchProposals,
             Status = ContainerStatus.InProgress,
-            RequiredInternalCommitteeMembers = committeeRules.InternalMembers,
+            RequiredReviewerMembers = committeeRules.ReviewerMembers,
             RequiredExternalCommitteeMembers = committeeRules.ExternalMembers,
             RequiredCommitteeApprovals = committeeRules.MinimumApprovals
         };
@@ -47,7 +47,7 @@ public class ContainerService(
 
         await auditService.LogActivityAsync(container.Id, studentUserId, "ContainerCreated",
             "Publication Container created; Coordinator auto-assigned by department workload. " +
-            $"Its evaluation committee will need {committeeRules.InternalMembers} internal and " +
+            $"Its evaluation committee will need {committeeRules.ReviewerMembers} reviewers and " +
             $"{committeeRules.ExternalMembers} external members.",
             newStatus: container.Status.ToString());
 
@@ -637,6 +637,6 @@ public class ContainerService(
                                 ? EthicsSteps.HeadOfDepartmentReview
                                 : EthicsSteps.CoordinatorFinalDecision)
                     : null,
-            c.RequiredInternalCommitteeMembers,
+            c.RequiredReviewerMembers,
             c.RequiredExternalCommitteeMembers));
 }

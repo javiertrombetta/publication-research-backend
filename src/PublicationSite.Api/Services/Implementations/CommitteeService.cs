@@ -194,13 +194,13 @@ public class CommitteeService(
             CreatedByUserId = adminId,
             // External means from outside the institution, which is a fact about the person rather
             // than a choice made per committee, and the only people outside it are the ones invited
-            // as external members. Everybody else is internal by definition.
+            // as external members. Everybody else is a reviewer by definition.
             Members = members.Select(m => new CommitteeMember
             {
                 UserId = m.User.Id,
                 RoleType = m.Roles.Contains(RoleNames.ExternalCommitteeMember)
                     ? CommitteeMemberRoleType.External
-                    : CommitteeMemberRoleType.Internal
+                    : CommitteeMemberRoleType.Reviewer
             }).ToList()
         };
 
@@ -474,29 +474,29 @@ public class CommitteeService(
     private async Task EnsureCompositionMatchesRulesAsync(
         PublicationContainer container, IReadOnlyList<bool> membersAreExternal, CancellationToken cancellationToken)
     {
-        int requiredInternal, requiredExternal;
+        int requiredReviewers, requiredExternal;
 
-        if (container.RequiredInternalCommitteeMembers is { } snapshotInternal &&
+        if (container.RequiredReviewerMembers is { } snapshotReviewers &&
             container.RequiredExternalCommitteeMembers is { } snapshotExternal)
         {
-            requiredInternal = snapshotInternal;
+            requiredReviewers = snapshotReviewers;
             requiredExternal = snapshotExternal;
         }
         else
         {
             var current = await settingService.GetCommitteeSettingsAsync(cancellationToken);
-            requiredInternal = current.InternalMembers;
+            requiredReviewers = current.ReviewerMembers;
             requiredExternal = current.ExternalMembers;
         }
 
         var actualExternal = membersAreExternal.Count(isExternal => isExternal);
-        var actualInternal = membersAreExternal.Count - actualExternal;
+        var actualReviewers = membersAreExternal.Count - actualExternal;
 
-        if (actualInternal != requiredInternal || actualExternal != requiredExternal)
+        if (actualReviewers != requiredReviewers || actualExternal != requiredExternal)
         {
             throw new BusinessRuleException(
-                $"This publication needs a committee of {requiredInternal} internal and {requiredExternal} external " +
-                $"members. You have selected {actualInternal} internal and {actualExternal} external.");
+                $"This publication needs a committee of {requiredReviewers} reviewers and {requiredExternal} external " +
+                $"members. You have selected {actualReviewers} reviewers and {actualExternal} external.");
         }
     }
 }
