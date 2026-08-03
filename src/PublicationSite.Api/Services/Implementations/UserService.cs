@@ -198,6 +198,7 @@ public class UserService(
             LastName = user.LastName,
             Role = request.Role,
             DepartmentId = request.DepartmentId,
+            DepartmentIds = request.DepartmentIds,
             Affiliation = request.Affiliation
         }, cancellationToken);
 
@@ -505,9 +506,18 @@ public class UserService(
                 .FirstOrDefaultAsync(cancellationToken);
         }
 
+        // Which departments they are in, for the roles that can be in several. An administrator
+        // opening this page to change a role has to see what is already true, or the form they are
+        // given offers to move somebody out of every department they belong to.
+        var departmentIds = await db.DepartmentMemberships
+            .Where(m => m.UserId == user.Id)
+            .OrderBy(m => m.Department.Name)
+            .Select(m => m.DepartmentId)
+            .ToListAsync(cancellationToken);
+
         return new UserDetailDto(user.Id, user.Email!, user.FirstName, user.LastName, user.InstitutionalId,
             user.Status.ToString(), user.AuthProvider.ToString(), roles.ToList(), user.CreatedAt, profile,
-            user.ProfilePhotoPath is not null, user.IsAvailable, user.ThemePreference);
+            user.ProfilePhotoPath is not null, user.IsAvailable, user.ThemePreference, departmentIds);
     }
 
 }
