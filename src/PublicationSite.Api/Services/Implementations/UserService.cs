@@ -473,7 +473,17 @@ public class UserService(
         else if (roles.Contains(RoleNames.Supervisor))
         {
             profile = await db.SupervisorProfiles.Where(s => s.UserId == user.Id)
-                .Select(s => new SupervisorProfileSummaryDto(s.Id, s.DepartmentId, s.Department.Name, s.AreasOfExpertise, s.ResearchInterests))
+                .Select(s => new SupervisorProfileSummaryDto(
+                    s.Id,
+                    // Read from the memberships rather than the profile: a supervisor may be in
+                    // several departments, and the profile deliberately names none.
+                    db.DepartmentMemberships
+                        .Where(m => m.UserId == user.Id)
+                        .OrderBy(m => m.Department.Name)
+                        .Select(m => new DepartmentSummaryDto(m.DepartmentId, m.Department.Name))
+                        .ToList(),
+                    s.AreasOfExpertise,
+                    s.ResearchInterests))
                 .FirstOrDefaultAsync(cancellationToken);
         }
         else if (roles.Contains(RoleNames.Coordinator))

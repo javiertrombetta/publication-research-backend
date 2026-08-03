@@ -41,7 +41,18 @@ public class CreateUserRequest
     public string? InstitutionalId { get; set; }
     public string Role { get; set; } = string.Empty;
 
+    /// <summary>
+    /// The department, for the roles that belong to exactly one: a student, a coordinator, a head
+    /// of department.
+    /// </summary>
     public Guid? DepartmentId { get; set; }
+
+    /// <summary>
+    /// The departments, for the roles that may belong to several: a supervisor and a reviewer.
+    /// A single <see cref="DepartmentId"/> is accepted for those too and read as a list of one,
+    /// so a caller with one department to give does not have to wrap it.
+    /// </summary>
+    public IReadOnlyList<Guid>? DepartmentIds { get; set; }
 
     // Student
     public string? StudentIdNumber { get; set; }
@@ -66,11 +77,14 @@ public record UpdateUserRequest(string FirstName, string LastName, string? Insti
 /// profile is invisible to auto-assignment, and a committee member with none cannot be put on a
 /// committee at all.
 /// </summary>
+/// <param name="DepartmentId">The department, where the new role belongs to exactly one.</param>
+/// <param name="DepartmentIds">The departments, where the new role may belong to several. A supervisor or a reviewer can be in more than one, and an external committee member is in none.</param>
 public record ChangeUserRoleRequest(
     string Role,
     string Comments,
     Guid? DepartmentId = null,
-    string? Affiliation = null);
+    string? Affiliation = null,
+    IReadOnlyList<Guid>? DepartmentIds = null);
 
 public class ProfilePhotoUploadForm
 {

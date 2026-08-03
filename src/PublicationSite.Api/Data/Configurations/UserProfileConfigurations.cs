@@ -102,11 +102,6 @@ public class SupervisorProfileConfiguration : IEntityTypeConfiguration<Superviso
             .WithOne(u => u.SupervisorProfile)
             .HasForeignKey<SupervisorProfile>(s => s.UserId)
             .OnDelete(DeleteBehavior.Cascade);
-
-        builder.HasOne(s => s.Department)
-            .WithMany(d => d.Supervisors)
-            .HasForeignKey(s => s.DepartmentId)
-            .OnDelete(DeleteBehavior.Restrict);
     }
 }
 
@@ -133,7 +128,11 @@ public class HeadOfDepartmentProfileConfiguration : IEntityTypeConfiguration<Hea
     public void Configure(EntityTypeBuilder<HeadOfDepartmentProfile> builder)
     {
         builder.HasIndex(h => h.UserId).IsUnique();
-        builder.HasIndex(h => h.DepartmentId).IsUnique();
+
+        // Not unique any more. One head is what a department normally has and what the screens
+        // offer, but which people hold it is the administrator's to decide, and a shared or
+        // handed-over headship was being refused by the schema rather than by anybody's policy.
+        builder.HasIndex(h => h.DepartmentId);
 
         builder.HasOne(h => h.User)
             .WithOne(u => u.HeadOfDepartmentProfile)
@@ -141,8 +140,8 @@ public class HeadOfDepartmentProfileConfiguration : IEntityTypeConfiguration<Hea
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasOne(h => h.Department)
-            .WithOne(d => d.HeadOfDepartment)
-            .HasForeignKey<HeadOfDepartmentProfile>(h => h.DepartmentId)
+            .WithMany(d => d.HeadsOfDepartment)
+            .HasForeignKey(h => h.DepartmentId)
             .OnDelete(DeleteBehavior.Restrict);
     }
 }
@@ -189,6 +188,32 @@ public class UserInvitationConfiguration : IEntityTypeConfiguration<UserInvitati
         builder.HasOne(i => i.Department)
             .WithMany()
             .HasForeignKey(i => i.DepartmentId)
+            .OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+
+/// <summary>
+/// Who belongs to which department, for the roles that can be in more than one.
+/// </summary>
+public class DepartmentMembershipConfiguration : IEntityTypeConfiguration<DepartmentMembership>
+{
+    public void Configure(EntityTypeBuilder<DepartmentMembership> builder)
+    {
+        // The same person in the same department twice is not a second membership, it is the same
+        // one saved again, so the database refuses it rather than leaving a screen to notice.
+        builder.HasIndex(m => new { m.UserId, m.DepartmentId }).IsUnique();
+
+        builder.HasOne(m => m.User)
+            .WithMany(u => u.DepartmentMemberships)
+            .HasForeignKey(m => m.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // Restricted, like every other tie to a department: a department somebody still belongs to
+        // is not one to delete out from under them.
+        builder.HasOne(m => m.Department)
+            .WithMany(d => d.Memberships)
+            .HasForeignKey(m => m.DepartmentId)
             .OnDelete(DeleteBehavior.Restrict);
     }
 }

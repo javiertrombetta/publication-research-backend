@@ -18,6 +18,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
     public DbSet<StudentProfile> StudentProfiles => Set<StudentProfile>();
     public DbSet<SupervisorProfile> SupervisorProfiles => Set<SupervisorProfile>();
+    public DbSet<DepartmentMembership> DepartmentMemberships => Set<DepartmentMembership>();
     public DbSet<CoordinatorProfile> CoordinatorProfiles => Set<CoordinatorProfile>();
     public DbSet<HeadOfDepartmentProfile> HeadOfDepartmentProfiles => Set<HeadOfDepartmentProfile>();
     public DbSet<CommitteeMemberProfile> CommitteeMemberProfiles => Set<CommitteeMemberProfile>();

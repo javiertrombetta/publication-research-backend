@@ -81,7 +81,12 @@ public static class TestSeeder
                 db.CoordinatorProfiles.Add(new CoordinatorProfile { UserId = user.Id, DepartmentId = resolvedDepartmentId });
                 break;
             case RoleNames.Supervisor:
-                db.SupervisorProfiles.Add(new SupervisorProfile { UserId = user.Id, DepartmentId = resolvedDepartmentId });
+                db.SupervisorProfiles.Add(new SupervisorProfile { UserId = user.Id });
+                db.DepartmentMemberships.Add(new DepartmentMembership
+                {
+                    UserId = user.Id,
+                    DepartmentId = resolvedDepartmentId
+                });
                 break;
             case RoleNames.HeadOfDepartment:
                 db.HeadOfDepartmentProfiles.Add(new HeadOfDepartmentProfile { UserId = user.Id, DepartmentId = resolvedDepartmentId });

@@ -314,9 +314,12 @@ public class EthicsService(
         {
             await db.SaveChangesAsync(cancellationToken);
 
+            // Whoever heads the student's department. Normally one person; where the
+            // administrator has appointed more, the first is notified and the rest see it on
+            // their own queue, which is where the work actually is.
             var headOfDepartment = await db.StudentProfiles
                 .Where(s => s.UserId == container.StudentId)
-                .Select(s => s.Department.HeadOfDepartment)
+                .SelectMany(s => s.Department.HeadsOfDepartment)
                 .FirstOrDefaultAsync(cancellationToken);
 
             await auditService.LogActivityAsync(publicationContainerId, coordinatorId, "CoordinatorApprovedEthicsDocuments",

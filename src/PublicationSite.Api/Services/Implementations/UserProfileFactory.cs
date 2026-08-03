@@ -32,12 +32,14 @@ public class UserProfileFactory(ApplicationDbContext db) : IUserProfileFactory
                 break;
 
             case RoleNames.Supervisor:
+                // The departments come first: they are what the role needs, and a supervisor
+                // recorded with none is one nobody can place.
+                await SetMembershipsAsync(user, request, cancellationToken);
+
                 if (await db.SupervisorProfiles.AnyAsync(s => s.UserId == user.Id, cancellationToken)) break;
-                RequireDepartment(request);
                 db.SupervisorProfiles.Add(new SupervisorProfile
                 {
                     UserId = user.Id,
-                    DepartmentId = request.DepartmentId!.Value,
                     AreasOfExpertise = request.AreasOfExpertise,
                     ResearchInterests = request.ResearchInterests
                 });
@@ -72,6 +74,17 @@ public class UserProfileFactory(ApplicationDbContext db) : IUserProfileFactory
 
             case RoleNames.Reviewer:
             case RoleNames.ExternalCommitteeMember:
+                // A reviewer belongs to departments; an external member belongs to another
+                // institution, so asking them for one would be asking the wrong question.
+                if (request.Role == RoleNames.Reviewer)
+                {
+                    await SetMembershipsAsync(user, request, cancellationToken);
+                }
+                else
+                {
+                    await ClearMembershipsAsync(user, cancellationToken);
+                }
+
                 var committeeType = request.Role == RoleNames.Reviewer
                     ? CommitteeMemberRoleType.Reviewer
                     : CommitteeMemberRoleType.External;
@@ -106,5 +119,57 @@ public class UserProfileFactory(ApplicationDbContext db) : IUserProfileFactory
         {
             throw new BusinessRuleException($"A department is required for the '{request.Role}' role.");
         }
+    }
+
+    /// <summary>
+    /// Records which departments somebody belongs to, for the roles that can be in several.
+    ///
+    /// One list in, one list stored: what is passed becomes the whole of their membership, so
+    /// removing a department is saying the shorter list rather than asking for a deletion. A
+    /// single DepartmentId is read as a list of one, because a caller who has one department to
+    /// give should not have to know that the field is plural.
+    /// </summary>
+    private async Task SetMembershipsAsync(
+        ApplicationUser user, CreateUserRequest request, CancellationToken cancellationToken)
+    {
+        var wanted = request.DepartmentIds is { Count: > 0 }
+            ? request.DepartmentIds.Distinct().ToList()
+            : request.DepartmentId is { } single ? [single] : new List<Guid>();
+
+        if (wanted.Count == 0)
+        {
+            throw new BusinessRuleException($"At least one department is required for the '{request.Role}' role.");
+        }
+
+        var known = await db.Departments
+            .Where(d => wanted.Contains(d.Id))
+            .Select(d => d.Id)
+            .ToListAsync(cancellationToken);
+
+        if (known.Count != wanted.Count)
+        {
+            throw new BusinessRuleException("One of the departments given does not exist.");
+        }
+
+        var existing = await db.DepartmentMemberships
+            .Where(m => m.UserId == user.Id)
+            .ToListAsync(cancellationToken);
+
+        db.DepartmentMemberships.RemoveRange(existing.Where(m => !wanted.Contains(m.DepartmentId)));
+
+        foreach (var departmentId in wanted.Where(id => existing.All(m => m.DepartmentId != id)))
+        {
+            db.DepartmentMemberships.Add(new DepartmentMembership { UserId = user.Id, DepartmentId = departmentId });
+        }
+    }
+
+    /// <summary>For the role that belongs to no department at all.</summary>
+    private async Task ClearMembershipsAsync(ApplicationUser user, CancellationToken cancellationToken)
+    {
+        var existing = await db.DepartmentMemberships
+            .Where(m => m.UserId == user.Id)
+            .ToListAsync(cancellationToken);
+
+        db.DepartmentMemberships.RemoveRange(existing);
     }
 }
