@@ -114,11 +114,11 @@ public static class DemoDataSeeder
         var businessSupervisor = await CreateAsync(userManager, "supervisor.business@ais.ac.nz", "Aroha", "Bennett", RoleNames.Supervisor);
         var businessSupervisorTwo = await CreateAsync(userManager, "supervisor.business.second@ais.ac.nz", "Marcus", "Toledo", RoleNames.Supervisor);
 
-        // Two of each kind, because the default composition asks for two internal members and one
+        // Two of each kind, because the default composition asks for two reviewers and one
         // external. A single one of each would make the standard committee impossible to build,
         // and whoever tried would meet a rule they could not satisfy rather than a working system.
-        var internalOne = await CreateAsync(userManager, "internal.test@ais.ac.nz", "Sofia", "Marchetti", RoleNames.InternalCommitteeMember);
-        var internalTwo = await CreateAsync(userManager, "internal.second@ais.ac.nz", "Hemi", "Walker", RoleNames.InternalCommitteeMember);
+        var reviewerOne = await CreateAsync(userManager, "reviewer.test@ais.ac.nz", "Sofia", "Marchetti", RoleNames.Reviewer);
+        var reviewerTwo = await CreateAsync(userManager, "reviewer.second@ais.ac.nz", "Hemi", "Walker", RoleNames.Reviewer);
         var externalOne = await CreateAsync(userManager, "external.test@ais.ac.nz", "Jonathan", "Reyes", RoleNames.ExternalCommitteeMember);
         var externalTwo = await CreateAsync(userManager, "external.second@ais.ac.nz", "Ingrid", "Halvorsen", RoleNames.ExternalCommitteeMember);
 
@@ -169,8 +169,8 @@ public static class DemoDataSeeder
             });
 
         db.CommitteeMemberProfiles.AddRange(
-            new CommitteeMemberProfile { UserId = internalOne.Id, Type = CommitteeMemberRoleType.Internal, Affiliation = "Auckland Institute of Studies" },
-            new CommitteeMemberProfile { UserId = internalTwo.Id, Type = CommitteeMemberRoleType.Internal, Affiliation = "Auckland Institute of Studies" },
+            new CommitteeMemberProfile { UserId = reviewerOne.Id, Type = CommitteeMemberRoleType.Reviewer, Affiliation = "Auckland Institute of Studies" },
+            new CommitteeMemberProfile { UserId = reviewerTwo.Id, Type = CommitteeMemberRoleType.Reviewer, Affiliation = "Auckland Institute of Studies" },
             new CommitteeMemberProfile { UserId = externalOne.Id, Type = CommitteeMemberRoleType.External, Affiliation = "University of Otago" },
             new CommitteeMemberProfile { UserId = externalTwo.Id, Type = CommitteeMemberRoleType.External, Affiliation = "Massey University" });
 
@@ -206,7 +206,7 @@ public static class DemoDataSeeder
             AlternateSupervisorId: infoTechSupervisorTwo.Id,
             HeadOfDepartmentId: infoTechHead.Id,
             AdminId: admin.Id,
-            CommitteeMemberIds: [internalOne.Id, internalTwo.Id, externalOne.Id]);
+            CommitteeMemberIds: [reviewerOne.Id, reviewerTwo.Id, externalOne.Id]);
 
         var businessCast = infoTechCast with
         {
@@ -214,7 +214,7 @@ public static class DemoDataSeeder
             PrimarySupervisorId = businessSupervisor.Id,
             AlternateSupervisorId = businessSupervisorTwo.Id,
             HeadOfDepartmentId = businessHead.Id,
-            CommitteeMemberIds = [internalOne.Id, internalTwo.Id, externalTwo.Id]
+            CommitteeMemberIds = [reviewerOne.Id, reviewerTwo.Id, externalTwo.Id]
         };
 
         foreach (var (student, plans) in PlansByStudent(studentOne, studentTwo, studentThree, studentFour, studentBusiness))

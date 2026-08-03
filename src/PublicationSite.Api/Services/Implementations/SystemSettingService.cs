@@ -70,7 +70,7 @@ public class SystemSettingService(
 
     public async Task<CommitteeSettingsDto> GetCommitteeSettingsAsync(CancellationToken cancellationToken = default) =>
         new(
-            await settings.GetIntAsync(SettingKeys.CommitteeInternalMembers, SettingKeys.DefaultCommitteeInternalMembers, cancellationToken),
+            await settings.GetIntAsync(SettingKeys.CommitteeReviewerMembers, SettingKeys.DefaultCommitteeReviewerMembers, cancellationToken),
             await settings.GetIntAsync(SettingKeys.CommitteeExternalMembers, SettingKeys.DefaultCommitteeExternalMembers, cancellationToken),
             await settings.GetIntAsync(SettingKeys.CommitteeMinApprovals, SettingKeys.DefaultCommitteeMinApprovals, cancellationToken),
             await GetCandidateRolesAsync(cancellationToken),
@@ -113,12 +113,12 @@ public class SystemSettingService(
     public async Task<CommitteeSettingsDto> UpdateCommitteeSettingsAsync(
         UpdateCommitteeSettingsRequest request, Guid actingAdminId, CancellationToken cancellationToken = default)
     {
-        if (request.InternalMembers < 0 || request.ExternalMembers < 0)
+        if (request.ReviewerMembers < 0 || request.ExternalMembers < 0)
         {
             throw new BusinessRuleException("A committee cannot require a negative number of members.");
         }
 
-        var total = request.InternalMembers + request.ExternalMembers;
+        var total = request.ReviewerMembers + request.ExternalMembers;
         if (total == 0)
         {
             throw new BusinessRuleException("A committee needs at least one member.");
@@ -160,7 +160,7 @@ public class SystemSettingService(
                 "Choose at least one role for committees to draw on, or no committee could ever be formed.");
         }
 
-        await SetPendingAsync(SettingKeys.CommitteeInternalMembers, request.InternalMembers, actingAdminId, cancellationToken);
+        await SetPendingAsync(SettingKeys.CommitteeReviewerMembers, request.ReviewerMembers, actingAdminId, cancellationToken);
         await SetPendingAsync(SettingKeys.CommitteeExternalMembers, request.ExternalMembers, actingAdminId, cancellationToken);
         await SetPendingAsync(SettingKeys.CommitteeMinApprovals, request.MinimumApprovals, actingAdminId, cancellationToken);
 
@@ -177,7 +177,7 @@ public class SystemSettingService(
         }
 
         await CommitAsync(actingAdminId, "CommitteeSettingsUpdated",
-            $"Committees now require {request.InternalMembers} internal and {request.ExternalMembers} external " +
+            $"Committees now require {request.ReviewerMembers} reviewers and {request.ExternalMembers} external " +
             $"members, with {request.MinimumApprovals} approvals. Applies to publications opened from now on.",
             cancellationToken);
 

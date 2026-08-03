@@ -488,7 +488,7 @@ public class UserService(
                 .Select(h => new HeadOfDepartmentProfileSummaryDto(h.Id, h.DepartmentId, h.Department.Name))
                 .FirstOrDefaultAsync(cancellationToken);
         }
-        else if (roles.Contains(RoleNames.InternalCommitteeMember) || roles.Contains(RoleNames.ExternalCommitteeMember))
+        else if (roles.Contains(RoleNames.Reviewer) || roles.Contains(RoleNames.ExternalCommitteeMember))
         {
             profile = await db.CommitteeMemberProfiles.Where(c => c.UserId == user.Id)
                 .Select(c => new CommitteeMemberProfileSummaryDto(c.Id, c.Type.ToString(), c.Affiliation))

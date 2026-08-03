@@ -32,7 +32,7 @@ public class PublicationContainer
     /// before this existed. Those fall back to whatever is configured now, which is the only figure
     /// anyone ever agreed for them.
     /// </summary>
-    public int? RequiredInternalCommitteeMembers { get; set; }
+    public int? RequiredReviewerMembers { get; set; }
     public int? RequiredExternalCommitteeMembers { get; set; }
     public int? RequiredCommitteeApprovals { get; set; }
 

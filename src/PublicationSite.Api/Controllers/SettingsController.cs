@@ -39,7 +39,7 @@ public class SettingsController(
     // ---------- Committees ----------
 
     /// <summary>
-    /// How many internal and external members a committee needs by default.
+    /// How many reviewers and external members a committee needs by default.
     /// </summary>
     /// <response code="200">The committee settings.</response>
     /// <response code="401">No access token was sent, or the one sent has expired.</response>

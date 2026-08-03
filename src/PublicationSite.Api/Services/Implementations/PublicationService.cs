@@ -293,7 +293,7 @@ public class PublicationService(
                 p.Title,
                 p.Abstract,
                 p.PublicationContainer.Student.FirstName + " " + p.PublicationContainer.Student.LastName,
-                p.PublicationContainer.RequiredInternalCommitteeMembers,
+                p.PublicationContainer.RequiredReviewerMembers,
                 p.PublicationContainer.RequiredExternalCommitteeMembers))
             .ToListAsync(cancellationToken);
     }

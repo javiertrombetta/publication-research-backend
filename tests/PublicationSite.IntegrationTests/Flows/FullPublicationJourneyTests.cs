@@ -27,7 +27,7 @@ public class FullPublicationJourneyTests(ApiTestFactory factory)
         var department = await TestSeeder.CreateDepartmentAsync(factory);
         var coordinator = await TestSeeder.CreateEnabledUserAsync(factory, RoleNames.Coordinator, departmentId: department.Id);
         var supervisor = await TestSeeder.CreateEnabledUserAsync(factory, RoleNames.Supervisor, departmentId: department.Id);
-        var internalMember = await TestSeeder.CreateEnabledUserAsync(factory, RoleNames.InternalCommitteeMember);
+        var internalMember = await TestSeeder.CreateEnabledUserAsync(factory, RoleNames.Reviewer);
         var externalMember = await TestSeeder.CreateEnabledUserAsync(factory, RoleNames.ExternalCommitteeMember);
         var admin = await TestSeeder.CreateEnabledUserAsync(factory, RoleNames.Admin);
 
@@ -59,7 +59,7 @@ public class FullPublicationJourneyTests(ApiTestFactory factory)
         // journey has one member of each type.
         var (committeeSettingsStatus, _) = await adminClient.PutAsync<object>("/api/settings/committees", new
         {
-            internalMembers = 1, externalMembers = 1, minimumApprovals = 2
+            reviewerMembers = 1, externalMembers = 1, minimumApprovals = 2
         });
         committeeSettingsStatus.Should().Be(HttpStatusCode.OK);
 
