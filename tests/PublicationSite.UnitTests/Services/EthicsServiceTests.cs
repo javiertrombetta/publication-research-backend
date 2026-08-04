@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Moq;
 using PublicationSite.Api.Common.Exceptions;
 using PublicationSite.Api.DTOs.Ethics;
+using PublicationSite.Api.DTOs.Settings;
 using PublicationSite.Api.Entities;
 using PublicationSite.Api.Enums;
 using PublicationSite.Api.Services.Implementations;
@@ -20,6 +21,7 @@ public class EthicsServiceTests : IDisposable
     private readonly Mock<IAuditService> _auditService = new();
     private readonly Mock<INotificationService> _notificationService = new();
     private readonly Mock<IFileStorageService> _fileStorageService = new();
+    private readonly Mock<ISystemSettingService> _settingService = new();
     private readonly EthicsService _sut;
 
     public EthicsServiceTests()
@@ -35,8 +37,14 @@ public class EthicsServiceTests : IDisposable
         // nothing.
         TestDataBuilder.EthicsDocumentRequirements(_fixture.Context);
 
+        // The Head of Department step is part of the pipeline unless an administrator turns it
+        // off, and these tests walk the full sequence.
+        _settingService.Setup(s => s.GetEthicsWorkflowSettingsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new EthicsWorkflowSettingsDto(true));
+
         _sut = new EthicsService(_fixture.Context, _accessService.Object, _auditService.Object, _notificationService.Object, _fileStorageService.Object,
-            new DecisionCommentPolicy(new SystemSettingsProvider(_fixture.Context, new MemoryCache(new MemoryCacheOptions()))));
+            new DecisionCommentPolicy(new SystemSettingsProvider(_fixture.Context, new MemoryCache(new MemoryCacheOptions()))),
+            _settingService.Object);
     }
 
     public void Dispose() => _fixture.Dispose();
@@ -319,6 +327,40 @@ public class EthicsServiceTests : IDisposable
         await _sut.CoordinatorReviewDocumentsAsync(container.Id, coordinator.Id, new CoordinatorDocumentReviewRequest(true, "Looks good"));
 
         var act = () => _sut.CoordinatorFinalDecisionAsync(container.Id, coordinator.Id, new CoordinatorFinalDecisionRequest(true, "Approved"));
+
+        await act.Should().ThrowAsync<BusinessRuleException>();
+    }
+
+    [Fact]
+    public async Task CoordinatorFinalDecisionAsync_closes_the_stage_alone_when_the_hod_step_is_off()
+    {
+        _settingService.Setup(s => s.GetEthicsWorkflowSettingsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new EthicsWorkflowSettingsDto(false));
+
+        var (student, _, coordinator, container) = await SupervisorApprovedDocumentsAsync();
+        await _sut.CoordinatorReviewDocumentsAsync(container.Id, coordinator.Id, new CoordinatorDocumentReviewRequest(true, "Looks good"));
+
+        await _sut.CoordinatorFinalDecisionAsync(container.Id, coordinator.Id, new CoordinatorFinalDecisionRequest(true, "Approved"));
+
+        (await _sut.GetApprovalAsync(container.Id, student.Id)).Status.Should().Be(EthicsStatus.Verified.ToString());
+    }
+
+    [Fact]
+    public async Task HeadOfDepartmentReviewAsync_is_refused_when_the_step_is_off()
+    {
+        _settingService.Setup(s => s.GetEthicsWorkflowSettingsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new EthicsWorkflowSettingsDto(false));
+
+        var (student, _, coordinator, container) = await SupervisorApprovedDocumentsAsync();
+
+        var departmentId = await _fixture.Context.StudentProfiles.Where(s => s.UserId == student.Id).Select(s => s.DepartmentId).FirstAsync();
+        var department = await _fixture.Context.Departments.FindAsync(departmentId);
+        var hod = TestDataBuilder.User(_fixture.Context);
+        TestDataBuilder.HeadOfDepartmentProfile(_fixture.Context, hod, department!);
+
+        await _sut.CoordinatorReviewDocumentsAsync(container.Id, coordinator.Id, new CoordinatorDocumentReviewRequest(true, "Looks good"));
+
+        var act = () => _sut.HeadOfDepartmentReviewAsync(container.Id, hod.Id, new HeadOfDepartmentReviewRequest("No concerns"));
 
         await act.Should().ThrowAsync<BusinessRuleException>();
     }

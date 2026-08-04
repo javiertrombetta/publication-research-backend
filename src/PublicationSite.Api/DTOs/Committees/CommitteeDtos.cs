@@ -11,6 +11,10 @@ public record CommitteeMemberDto(
 /// <param name="Paper"> What the committee is being asked to judge, carried with the assignment.
 /// Without it a member's list of assignments had to fetch each paper separately, a request per
 /// committee, before the page could be shown at all. </param>
+/// <param name="StudentName">Whose paper it is, so a listing of committees can name the student.</param>
+/// <param name="CanBeChanged"> Whether an administrator may still change it. A committee that has
+/// finished has produced the decisions the coordinator ruled on, and rearranging it afterwards
+/// would rewrite the record of a judgement already made. </param>
 public record CommitteeDto(
     Guid Id,
     Guid PublicationId,
@@ -18,13 +22,7 @@ public record CommitteeDto(
     string Status,
     int MinApprovalsRequired,
     IReadOnlyList<CommitteeMemberDto> Members,
-    /// <summary>Whose paper it is, so a listing of committees can name the student.</summary>
     string? StudentName = null,
-    /// <summary>
-    /// Whether an administrator may still change it. A committee that has finished has produced
-    /// the decisions the coordinator ruled on, and rearranging it afterwards would rewrite the
-    /// record of a judgement already made.
-    /// </summary>
     bool CanBeChanged = false);
 
 /// <summary>

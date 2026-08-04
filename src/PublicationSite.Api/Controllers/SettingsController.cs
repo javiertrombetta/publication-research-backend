@@ -537,26 +537,31 @@ public class SettingsController(
         return Ok(ApiResponse<ProposalSettingsDto>.Ok(result, "Saved."));
     }
 
-    // ---------- Comments on decisions ----------
+    // ---------- Steps of the ethics pipeline ----------
 
     /// <summary>
-    /// Every decision in the pipeline that carries a comment, and whether this institution asks
-    /// for one on it.
+    /// Turns the Head of Department's reading on or off.
     ///
-    /// Readable by anyone signed in, not only administrators: the screens where these decisions
-    /// are made have to say which of their buttons needs a reason before somebody presses one.
+    /// It applies to publications already waiting at that step as well as to new ones, which is
+    /// the point: an institution that has nobody to do it needs the ones already parked there to
+    /// move on.
     /// </summary>
-    /// <response code="200">Every decision, with what it is set to and what it would be by default.</response>
+    /// <response code="200">The ethics workflow settings.</response>
+    /// <response code="400">The request did not pass validation. Which field, and why, comes back as a problem document rather than the usual envelope.</response>
     /// <response code="401">No access token was sent, or the one sent has expired.</response>
-    [HttpGet("decision-comments")]
-    [Authorize]
-    [ProducesResponseType(typeof(ApiResponse<DecisionCommentSettingsDto>), StatusCodes.Status200OK)]
+    /// <response code="403">Signed in, but this is not something your role may do.</response>
+    [HttpPut("ethics-workflow")]
+    [ProducesResponseType(typeof(ApiResponse<EthicsWorkflowSettingsDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public async Task<IActionResult> GetDecisionComments()
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> UpdateEthicsWorkflow([FromBody] UpdateEthicsWorkflowSettingsRequest request)
     {
-        var result = await systemSettingService.GetDecisionCommentSettingsAsync();
-        return Ok(ApiResponse<DecisionCommentSettingsDto>.Ok(result));
+        var result = await systemSettingService.UpdateEthicsWorkflowSettingsAsync(request, currentUser.UserId);
+        return Ok(ApiResponse<EthicsWorkflowSettingsDto>.Ok(result, "Saved."));
     }
+
+    // ---------- Comments on decisions ----------
 
     /// <summary>
     /// Chooses which decisions must carry a comment. The whole set is posted each time: a decision

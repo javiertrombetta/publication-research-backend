@@ -76,6 +76,21 @@ public record ActivityHistoryEntryDto(
     DateTime CreatedAt);
 
 /// <summary>
+/// Changing who is responsible for a publication that is already under way.
+///
+/// A process stalls on a person: a coordinator who has left, a supervisor on sick leave. Without
+/// this the publication simply stops, because every step waits on somebody named on it and nothing
+/// could rename them.
+/// </summary>
+/// <param name="CoordinatorUserId">The coordinator it should now have. Null leaves it as it is.</param>
+/// <param name="SupervisorUserId">The supervisor it should now have. Null leaves it as it is; a publication that has not reached one yet cannot be given one here, since choosing the supervisor is the coordinator's decision on a proposal.</param>
+/// <param name="Comments">Why. Required, and recorded on the publication's history.</param>
+public record ReassignContainerRequest(
+    Guid? CoordinatorUserId,
+    Guid? SupervisorUserId,
+    string Comments);
+
+/// <summary>
 /// Admin manual assignment. <paramref name="PublicationContainerId"/> selects which of the
 /// student's containers to reassign; omit it to create an additional container for them.
 /// </summary>
