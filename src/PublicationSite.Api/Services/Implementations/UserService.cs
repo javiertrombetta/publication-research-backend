@@ -246,6 +246,11 @@ public class UserService(
 
     public async Task ResetPasswordAsync(Guid id, string comments, Guid actingAdminId, CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(comments))
+        {
+            throw new BusinessRuleException("A reason is required when resetting somebody else's password.");
+        }
+
         var user = await FindUserOrThrowAsync(id, cancellationToken);
 
         var token = await userManager.GeneratePasswordResetTokenAsync(user);
@@ -471,6 +476,11 @@ public class UserService(
 
     private async Task SetStatusAsync(Guid id, UserStatus status, string actionType, string comments, Guid actingAdminId, CancellationToken cancellationToken)
     {
+        if (string.IsNullOrWhiteSpace(comments))
+        {
+            throw new BusinessRuleException("A reason is required when changing whether an account can be used.");
+        }
+
         var user = await FindUserOrThrowAsync(id, cancellationToken);
         var previous = user.Status.ToString();
         user.Status = status;

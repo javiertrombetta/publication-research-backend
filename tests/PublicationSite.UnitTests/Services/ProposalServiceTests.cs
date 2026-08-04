@@ -2,6 +2,7 @@ using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Moq;
+using PublicationSite.Api.Common;
 using PublicationSite.Api.Common.Exceptions;
 using PublicationSite.Api.DTOs.Proposals;
 using PublicationSite.Api.DTOs.Common;
@@ -216,6 +217,43 @@ public class ProposalServiceTests : IDisposable
         _notificationService.Verify(n => n.NotifyAsync(
             supervisor2.Id, NotificationType.ProposalsAwaitingEvaluation, It.IsAny<string>(), It.IsAny<string>(),
             It.IsAny<string?>(), It.IsAny<Guid?>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task SendToSupervisorsAsync_goes_through_without_a_message_when_the_institution_asks_for_none()
+    {
+        var (student, coordinator, container) = SeedContainer();
+        var proposal = await _sut.CreateAsync(container.Id, student.Id, new SaveProposalRequest("A", "Abstract"));
+        await _sut.FinishSubmissionAsync(container.Id, student.Id);
+        var supervisor = TestDataBuilder.User(_fixture.Context);
+
+        // No row written, so the decision stands at its default, which is optional.
+        await _sut.SendToSupervisorsAsync(
+            new SendToSupervisorsRequest([proposal.Id], [supervisor.Id], string.Empty), coordinator.Id);
+
+        (await _fixture.Context.ProposalSupervisorSelections.CountAsync(s => s.ProposalId == proposal.Id))
+            .Should().Be(1);
+    }
+
+    [Fact]
+    public async Task SendToSupervisorsAsync_asks_for_a_message_when_the_institution_requires_one()
+    {
+        var (student, coordinator, container) = SeedContainer();
+        var proposal = await _sut.CreateAsync(container.Id, student.Id, new SaveProposalRequest("A", "Abstract"));
+        await _sut.FinishSubmissionAsync(container.Id, student.Id);
+        var supervisor = TestDataBuilder.User(_fixture.Context);
+
+        _fixture.Context.SystemSettings.Add(new SystemSetting
+        {
+            Key = DecisionPoints.SettingKeyFor(DecisionPoints.ProposalSendToSupervisors),
+            Value = "true"
+        });
+        await _fixture.Context.SaveChangesAsync();
+
+        var act = () => _sut.SendToSupervisorsAsync(
+            new SendToSupervisorsRequest([proposal.Id], [supervisor.Id], "   "), coordinator.Id);
+
+        await act.Should().ThrowAsync<BusinessRuleException>();
     }
 
     [Fact]

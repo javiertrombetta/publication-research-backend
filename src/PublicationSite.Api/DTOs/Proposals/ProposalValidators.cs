@@ -17,7 +17,10 @@ public class SendToSupervisorsRequestValidator : AbstractValidator<SendToSupervi
     {
         RuleFor(x => x.ProposalIds).NotEmpty();
         RuleFor(x => x.SupervisorIds).NotEmpty();
-        RuleFor(x => x.Comments).NotEmpty();
+
+        // Length only. Whether this decision has to carry a message is the institution's to set,
+        // and a rule here would refuse the send before the service could read that setting.
+        RuleFor(x => x.Comments).MaximumLength(4000);
 
         // A date already gone would expire the round at the moment it was created, which is not a
         // deadline anybody meant to set. A minute's grace, so a form filled in slowly is not
@@ -40,6 +43,6 @@ public class AssignSupervisorRequestValidator : AbstractValidator<AssignSupervis
 {
     public AssignSupervisorRequestValidator()
     {
-        RuleFor(x => x.Comments).NotEmpty();
+        RuleFor(x => x.Comments).MaximumLength(4000);
     }
 }
