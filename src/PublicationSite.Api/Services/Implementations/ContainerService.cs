@@ -318,6 +318,38 @@ public class ContainerService(
         // revisions and a committee accumulates a long trail, and the whole of it arrived in one
         // response and was drawn as one unbroken list.
         var query = db.ActivityHistoryEntries.Where(a => a.PublicationContainerId == id);
+
+        if (paging is ActivityHistoryQuery filter)
+        {
+            // Whole days, in the reader's terms: somebody asking for the 4th means all of it, not
+            // up to midnight at its start. The stored instants are UTC, which is close enough for
+            // a trail read by people in one country and far simpler than carrying a timezone
+            // through the query string.
+            if (filter.From is { } from)
+            {
+                var start = from.ToDateTime(TimeOnly.MinValue);
+                query = query.Where(a => a.CreatedAt >= start);
+            }
+
+            if (filter.To is { } to)
+            {
+                var end = to.AddDays(1).ToDateTime(TimeOnly.MinValue);
+                query = query.Where(a => a.CreatedAt < end);
+            }
+
+            if (!string.IsNullOrWhiteSpace(filter.Action))
+            {
+                query = query.Where(a => a.Action == filter.Action);
+            }
+
+            // Either side of "on behalf of": somebody looking for what a student's record shows
+            // wants the decisions taken for them as well as by them.
+            if (filter.ActorUserId is { } actor)
+            {
+                query = query.Where(a => a.ActorUserId == actor || a.OnBehalfOfUserId == actor);
+            }
+        }
+
         var total = await query.CountAsync(cancellationToken);
 
         var items = await query
@@ -344,6 +376,32 @@ public class ContainerService(
             .ToListAsync(cancellationToken);
 
         return new PagedResult<ActivityHistoryEntryDto>(items, paging.SafePage, paging.SafePageSize, total);
+    }
+
+    public async Task<ActivityHistoryFiltersDto> GetActivityHistoryFiltersAsync(
+        Guid id, Guid requestingUserId, CancellationToken cancellationToken = default)
+    {
+        await accessService.EnsureAccessAsync(id, requestingUserId);
+
+        // Only what this publication's own trail actually holds. A fixed list of every action the
+        // system can record would offer a student a dozen filters that match nothing on the page
+        // in front of them.
+        var entries = db.ActivityHistoryEntries.Where(a => a.PublicationContainerId == id);
+
+        var actions = await entries
+            .Select(a => a.Action)
+            .Distinct()
+            .OrderBy(action => action)
+            .ToListAsync(cancellationToken);
+
+        var actors = await entries
+            .Select(a => new { a.ActorUserId, a.ActorUser.FirstName, a.ActorUser.LastName })
+            .Distinct()
+            .OrderBy(a => a.LastName).ThenBy(a => a.FirstName)
+            .Select(a => new ActivityHistoryActorDto(a.ActorUserId, a.FirstName + " " + a.LastName))
+            .ToListAsync(cancellationToken);
+
+        return new ActivityHistoryFiltersDto(actions, actors);
     }
 
     public async Task<PagedResult<PublicationContainerDto>> GetAllAsync(

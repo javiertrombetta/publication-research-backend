@@ -16,7 +16,8 @@ public class PublicationService(
     IContainerAccessService accessService,
     IAuditService auditService,
     INotificationService notificationService,
-    IFileStorageService fileStorageService) : IPublicationService
+    IFileStorageService fileStorageService,
+    IDecisionCommentPolicy commentPolicy) : IPublicationService
 {
     public async Task<PublicationDto> GetOrCreateDraftAsync(Guid publicationContainerId, Guid studentId, CancellationToken cancellationToken = default)
     {
@@ -339,6 +340,10 @@ public class PublicationService(
             throw new ForbiddenException();
         }
 
+        await commentPolicy.EnsureAsync(request.Accept
+            ? DecisionPoints.PaperSupervisorAccept
+            : DecisionPoints.PaperSupervisorReturn, request.Comments, cancellationToken);
+
         if (publication.Status is not (PublicationStatus.UnderReview or PublicationStatus.Resubmitted))
         {
             throw new BusinessRuleException("This research paper is not awaiting Supervisor review.");
@@ -430,6 +435,10 @@ public class PublicationService(
             throw new BusinessRuleException("The evaluation committee has not yet completed its review.");
         }
 
+        await commentPolicy.EnsureAsync(request.Accept
+            ? DecisionPoints.PaperCoordinatorAccept
+            : DecisionPoints.PaperCoordinatorReturn, request.Comments, cancellationToken);
+
         if (request.Accept)
         {
             publication.Status = PublicationStatus.Accepted;
@@ -482,9 +491,9 @@ public class PublicationService(
                 "Only the author, their Coordinator or an Administrator can make this decision.");
         }
 
-        if (!isOwner && string.IsNullOrWhiteSpace(request.Comments))
+        if (!isOwner)
         {
-            throw new BusinessRuleException("Comments are required when publishing on behalf of the student.");
+            await commentPolicy.EnsureAsync(DecisionPoints.PaperPublishOnBehalf, request.Comments, cancellationToken);
         }
 
         if (publication.Status != PublicationStatus.Accepted)
@@ -523,6 +532,8 @@ public class PublicationService(
         // turned off, which left a record saying it was published, on a date, by somebody, and not
         // published: the catalogue dropped it while every screen showing a status still read
         // "Published". The outcome the paper earned is Accepted, and that is what it now says.
+        await commentPolicy.EnsureAsync(DecisionPoints.PaperWithdrawFromCatalogue, comments, cancellationToken);
+
         publication.IsPublished = false;
         publication.Status = PublicationStatus.Accepted;
         publication.PublishedAt = null;

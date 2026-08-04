@@ -228,3 +228,32 @@ public record UpdateDeadlineSettingsRequest(
     int SupervisorResponseDays,
     int EthicsReviewDays,
     int CommitteeReviewDays);
+
+/// <summary>
+/// How many research proposals a student submits in one round, and so how many a supervisor is
+/// given to choose between. Applies to a round a coordinator has asked for again as well as to
+/// the first.
+/// </summary>
+public record ProposalSettingsDto(int MinimumPerRound, int MaximumPerRound);
+
+public record UpdateProposalSettingsRequest(int MinimumPerRound, int MaximumPerRound);
+
+/// <summary>
+/// One decision in the pipeline, and whether this institution asks for a comment on it.
+/// </summary>
+/// <param name="Key">The stable name of the decision. See Common/DecisionPoints.</param>
+/// <param name="Stage">Which part of the pipeline it belongs to, so the screen can group them.</param>
+/// <param name="Name">What the decision is, in the words the screen uses.</param>
+/// <param name="CommentRequired">What it is set to now.</param>
+/// <param name="RequiredByDefault">What it would be if nobody had ever set it, so the screen can say which have been changed.</param>
+public record DecisionCommentDto(
+    string Key, string Stage, string Name, bool CommentRequired, bool RequiredByDefault);
+
+public record DecisionCommentSettingsDto(IReadOnlyList<DecisionCommentDto> Decisions);
+
+/// <param name="Required">
+/// The keys of the decisions that must carry a comment. Anything in DecisionPoints and absent
+/// here is optional: the screen posts the whole set every time, so a decision left out is a
+/// decision unticked rather than one nobody mentioned.
+/// </param>
+public record UpdateDecisionCommentSettingsRequest(IReadOnlyList<string> Required);

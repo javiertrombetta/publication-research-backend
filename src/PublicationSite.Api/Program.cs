@@ -194,6 +194,7 @@ builder.Services.AddScoped<IDashboardService, DashboardService>();
 // queried per use; the provider drops the cache whenever the service writes.
 builder.Services.AddMemoryCache();
 builder.Services.AddScoped<ISystemSettingsProvider, SystemSettingsProvider>();
+builder.Services.AddScoped<IDecisionCommentPolicy, DecisionCommentPolicy>();
 builder.Services.AddScoped<ISystemSettingService, SystemSettingService>();
 builder.Services.AddScoped<IEthicsDocumentRequirementService, EthicsDocumentRequirementService>();
 builder.Services.AddScoped<IUserProfileFactory, UserProfileFactory>();

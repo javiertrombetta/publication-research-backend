@@ -497,4 +497,85 @@ public class SettingsController(
         var result = await systemSettingService.UpdateDeadlineSettingsAsync(request, currentUser.UserId);
         return Ok(ApiResponse<DeadlineSettingsDto>.Ok(result, "Saved."));
     }
+
+    // ---------- Research proposals ----------
+
+    /// <summary>
+    /// How many research proposals a student submits in one round.
+    ///
+    /// Anonymous, because the student's own screen has to say what it is asking for before it can
+    /// ask for it, and there is nothing here worth withholding: two numbers describing what the
+    /// institution expects of its own students.
+    /// </summary>
+    /// <response code="200">The proposal settings.</response>
+    [HttpGet("proposals")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(ApiResponse<ProposalSettingsDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetProposals()
+    {
+        var result = await systemSettingService.GetProposalSettingsAsync();
+        return Ok(ApiResponse<ProposalSettingsDto>.Ok(result));
+    }
+
+    /// <summary>
+    /// Changes how many a round holds. It governs a round asked for again as well as a first one.
+    /// </summary>
+    /// <response code="200">The proposal settings.</response>
+    /// <response code="400">The request did not pass validation. Which field, and why, comes back as a problem document rather than the usual envelope.</response>
+    /// <response code="401">No access token was sent, or the one sent has expired.</response>
+    /// <response code="403">Signed in, but this is not something your role may do.</response>
+    /// <response code="422">Understood, and refused: the workflow does not allow this at the point it has reached.</response>
+    [HttpPut("proposals")]
+    [ProducesResponseType(typeof(ApiResponse<ProposalSettingsDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status422UnprocessableEntity)]
+    public async Task<IActionResult> UpdateProposals([FromBody] UpdateProposalSettingsRequest request)
+    {
+        var result = await systemSettingService.UpdateProposalSettingsAsync(request, currentUser.UserId);
+        return Ok(ApiResponse<ProposalSettingsDto>.Ok(result, "Saved."));
+    }
+
+    // ---------- Comments on decisions ----------
+
+    /// <summary>
+    /// Every decision in the pipeline that carries a comment, and whether this institution asks
+    /// for one on it.
+    ///
+    /// Readable by anyone signed in, not only administrators: the screens where these decisions
+    /// are made have to say which of their buttons needs a reason before somebody presses one.
+    /// </summary>
+    /// <response code="200">Every decision, with what it is set to and what it would be by default.</response>
+    /// <response code="401">No access token was sent, or the one sent has expired.</response>
+    [HttpGet("decision-comments")]
+    [Authorize]
+    [ProducesResponseType(typeof(ApiResponse<DecisionCommentSettingsDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> GetDecisionComments()
+    {
+        var result = await systemSettingService.GetDecisionCommentSettingsAsync();
+        return Ok(ApiResponse<DecisionCommentSettingsDto>.Ok(result));
+    }
+
+    /// <summary>
+    /// Chooses which decisions must carry a comment. The whole set is posted each time: a decision
+    /// left out of the list is one an administrator has made optional.
+    /// </summary>
+    /// <response code="200">Every decision, as it now stands.</response>
+    /// <response code="400">The request did not pass validation. Which field, and why, comes back as a problem document rather than the usual envelope.</response>
+    /// <response code="401">No access token was sent, or the one sent has expired.</response>
+    /// <response code="403">Signed in, but this is not something your role may do.</response>
+    /// <response code="422">Understood, and refused: the workflow does not allow this at the point it has reached.</response>
+    [HttpPut("decision-comments")]
+    [ProducesResponseType(typeof(ApiResponse<DecisionCommentSettingsDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status422UnprocessableEntity)]
+    public async Task<IActionResult> UpdateDecisionComments([FromBody] UpdateDecisionCommentSettingsRequest request)
+    {
+        var result = await systemSettingService.UpdateDecisionCommentSettingsAsync(request, currentUser.UserId);
+        return Ok(ApiResponse<DecisionCommentSettingsDto>.Ok(result, "Saved."));
+    }
 }

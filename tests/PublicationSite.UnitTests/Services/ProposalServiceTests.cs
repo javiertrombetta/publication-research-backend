@@ -35,7 +35,7 @@ public class ProposalServiceTests : IDisposable
         _accessService.Setup(a => a.EnsureAccessAsync(It.IsAny<Guid>(), It.IsAny<Guid>())).Returns(Task.CompletedTask);
         _settings = new SystemSettingsProvider(_fixture.Context, new MemoryCache(new MemoryCacheOptions()));
         _sut = new ProposalService(_fixture.Context, _accessService.Object, _auditService.Object,
-            _notificationService.Object, _settings);
+            _notificationService.Object, _settings, new DecisionCommentPolicy(new SystemSettingsProvider(_fixture.Context, new MemoryCache(new MemoryCacheOptions()))));
     }
 
     public void Dispose() => _fixture.Dispose();
