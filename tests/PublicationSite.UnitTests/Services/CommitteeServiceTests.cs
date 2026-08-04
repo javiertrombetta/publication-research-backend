@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.EntityFrameworkCore;
 using Moq;
 using PublicationSite.Api.Common;
@@ -41,7 +42,7 @@ public class CommitteeServiceTests : IDisposable
             .ReturnsAsync([]);
 
         _sut = new CommitteeService(_fixture.Context, _accessService.Object, _auditService.Object,
-            _notificationService.Object, _settingService.Object);
+            _notificationService.Object, _settingService.Object, new DecisionCommentPolicy(new SystemSettingsProvider(_fixture.Context, new MemoryCache(new MemoryCacheOptions()))));
     }
 
     public void Dispose() => _fixture.Dispose();

@@ -264,6 +264,25 @@ public static class SettingKeys
     public const int DefaultEthicsReviewDays = 21;
     public const int DefaultCommitteeReviewDays = 30;
 
+    // ---------- Research proposals ----------
+
+    /// <summary>
+    /// How many research proposals a student submits in one round.
+    ///
+    /// A round is a set offered together for a supervisor to choose between, so the minimum is
+    /// what makes it a choice and the maximum is what keeps it readable. Both apply again when a
+    /// coordinator sends a student back to write more: the second round is a round like the first,
+    /// and letting it through with one proposal would defeat the reason the first was refused.
+    /// </summary>
+    public const string ProposalsMinimumPerRound = "proposals.minimum-per-round";
+    public const string ProposalsMaximumPerRound = "proposals.maximum-per-round";
+
+    public const int DefaultProposalsMinimumPerRound = 1;
+    public const int DefaultProposalsMaximumPerRound = 3;
+
+    /// <summary>A ceiling on the ceiling: a round nobody could read is not a round.</summary>
+    public const int HighestProposalsPerRound = 20;
+
     // ---------- Where uploaded files are kept ----------
 
     /// <summary>

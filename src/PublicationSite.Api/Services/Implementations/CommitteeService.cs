@@ -16,7 +16,8 @@ public class CommitteeService(
     IContainerAccessService accessService,
     IAuditService auditService,
     INotificationService notificationService,
-    ISystemSettingService settingService) : ICommitteeService
+    ISystemSettingService settingService,
+    IDecisionCommentPolicy commentPolicy) : ICommitteeService
 {
     public async Task<bool> IsCandidateAsync(Guid userId, CancellationToken cancellationToken = default)
     {
@@ -186,6 +187,10 @@ public class CommitteeService(
 
         var container = publication.PublicationContainer;
 
+        await commentPolicy.EnsureAsync(request.OverrideComposition
+            ? DecisionPoints.PaperCommitteeAssignOverride
+            : DecisionPoints.PaperCommitteeAssign, request.Comments, cancellationToken);
+
         // Read before the override rewrites them, so the history can say what was set aside.
         var (wasReviewers, wasExternal) = await ResolveRequiredCompositionAsync(container, cancellationToken);
 
@@ -331,6 +336,10 @@ public class CommitteeService(
         {
             throw new ConflictException("You have already submitted your decision for this committee.");
         }
+
+        await commentPolicy.EnsureAsync(request.Approve
+            ? DecisionPoints.PaperCommitteeApprove
+            : DecisionPoints.PaperCommitteeReject, request.Comments, cancellationToken);
 
         member.Decision = request.Approve ? CommitteeMemberDecision.Approve : CommitteeMemberDecision.Reject;
         member.DecisionComments = request.Comments;

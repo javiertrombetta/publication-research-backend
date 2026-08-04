@@ -31,6 +31,36 @@ public record PublicationContainerDto(
     int? RequiredReviewerMembers = null,
     int? RequiredExternalCommitteeMembers = null);
 
+/// <summary>
+/// Which part of a publication's history a reader wants.
+///
+/// A publication that has been through three stages, revisions and a committee accumulates a
+/// trail dozens of entries long, and "when was it sent back, and by whom" is what people open it
+/// to answer. Filtered before the page is cut, or the answer would only ever be found in whatever
+/// ten entries happened to be on screen.
+/// </summary>
+public class ActivityHistoryQuery : PageRequest
+{
+    /// <summary>Inclusive, read as a date in the reader's own day rather than an instant.</summary>
+    public DateOnly? From { get; set; }
+
+    /// <inheritdoc cref="From"/>
+    public DateOnly? To { get; set; }
+
+    /// <summary>One of the action names the trail records. See ActivityHistoryEntryDto.Action.</summary>
+    public string? Action { get; set; }
+
+    /// <summary>Whoever did it. The person acted on behalf of counts too, since that is who it was for.</summary>
+    public Guid? ActorUserId { get; set; }
+}
+
+/// <summary>What this publication's own trail can be filtered by, so a screen offers only what is there.</summary>
+public record ActivityHistoryFiltersDto(
+    IReadOnlyList<string> Actions,
+    IReadOnlyList<ActivityHistoryActorDto> Actors);
+
+public record ActivityHistoryActorDto(Guid UserId, string Name);
+
 /// <param name="ActorRole">The capacity the actor was acting in (Coordinator, Supervisor, ...). Without it the history is a list of names, and a student reading it can't tell who decided what. Null only if the account somehow carries no role.</param>
 public record ActivityHistoryEntryDto(
     Guid Id,

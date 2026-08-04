@@ -16,12 +16,29 @@ public class ProposalService(
     IContainerAccessService accessService,
     IAuditService auditService,
     INotificationService notificationService,
-    ISystemSettingsProvider settings) : IProposalService
+    ISystemSettingsProvider settings,
+    IDecisionCommentPolicy commentPolicy) : IProposalService
 {
     public async Task<ProposalDto> CreateAsync(Guid publicationContainerId, Guid studentId, SaveProposalRequest request, CancellationToken cancellationToken = default)
     {
         var container = await GetOwnedContainerAsync(publicationContainerId, studentId, cancellationToken);
         await EnsureProposalsEditableAsync(container.Id, cancellationToken);
+
+        // The ceiling for a round, checked as each one is written rather than only when the round
+        // is sent: a student who has typed a fourth proposal has done the work before being told
+        // the institution asks for three.
+        var (_, most) = await ProposalsPerRoundAsync(cancellationToken);
+
+        var drafted = await db.ResearchProposals.CountAsync(
+            p => p.PublicationContainerId == container.Id && p.Status == ProposalStatus.Draft,
+            cancellationToken);
+
+        if (drafted >= most)
+        {
+            throw new BusinessRuleException(
+                $"This round takes at most {most} research {(most == 1 ? "proposal" : "proposals")}. "
+                + "Edit one of the ones you have, or remove it, to write another.");
+        }
 
         var proposal = new ResearchProposal
         {
@@ -80,9 +97,22 @@ public class ProposalService(
             .Where(p => p.PublicationContainerId == container.Id && p.Status == ProposalStatus.Draft)
             .ToListAsync(cancellationToken);
 
-        if (drafts.Count == 0)
+        // The size of a round, as the institution has it. A round asked for again is a round like
+        // the first, so this is the one check both go through: letting a second one past with
+        // fewer would give the supervisor less to choose between than the first was refused for.
+        var (fewest, most) = await ProposalsPerRoundAsync(cancellationToken);
+
+        if (drafts.Count < fewest)
         {
-            throw new BusinessRuleException("At least one research proposal is required before finishing submission.");
+            throw new BusinessRuleException(fewest == 1
+                ? "At least one research proposal is required before finishing submission."
+                : $"This round asks for at least {fewest} research proposals, so that there is a choice to make. You have {drafts.Count}.");
+        }
+
+        if (drafts.Count > most)
+        {
+            throw new BusinessRuleException(
+                $"This round takes at most {most} research {(most == 1 ? "proposal" : "proposals")}. You have {drafts.Count}.");
         }
 
         // One instant for the whole round. Read inside the loop, DateTime.UtcNow gives each
@@ -108,6 +138,8 @@ public class ProposalService(
         Guid publicationContainerId, string comments, Guid actingUserId, bool actingAsAdmin = false,
         CancellationToken cancellationToken = default)
     {
+        await commentPolicy.EnsureAsync(DecisionPoints.ProposalRequestNewRound, comments, cancellationToken);
+
         var container = await db.PublicationContainers.FindAsync([publicationContainerId], cancellationToken)
             ?? throw new NotFoundException(nameof(PublicationContainer), publicationContainerId);
 
@@ -436,6 +468,8 @@ public class ProposalService(
             .FirstOrDefaultAsync(s => s.ProposalId == proposalId && s.SupervisorId == supervisorId, cancellationToken)
             ?? throw new ForbiddenException("This proposal was not sent to you for evaluation.");
 
+        await commentPolicy.EnsureAsync(DecisionPoints.ProposalSupervisorSelection, request.Comments, cancellationToken);
+
         selection.IsSelected = true;
         selection.Comments = request.Comments;
         selection.SelectedAt = DateTime.UtcNow;
@@ -468,6 +502,8 @@ public class ProposalService(
 
     public async Task AssignSupervisorAsync(Guid proposalId, AssignSupervisorRequest request, Guid coordinatorId, CancellationToken cancellationToken = default)
     {
+        await commentPolicy.EnsureAsync(DecisionPoints.ProposalCoordinatorAssign, request.Comments, cancellationToken);
+
         var proposal = await db.ResearchProposals
             .Include(p => p.PublicationContainer)
             .FirstOrDefaultAsync(p => p.Id == proposalId, cancellationToken)
@@ -551,6 +587,8 @@ public class ProposalService(
     public async Task<DiscardSelectionsResultDto> DiscardSelectionsAsync(
         Guid proposalId, string comments, Guid coordinatorId, CancellationToken cancellationToken = default)
     {
+        await commentPolicy.EnsureAsync(DecisionPoints.ProposalCoordinatorDiscard, comments, cancellationToken);
+
         var proposal = await db.ResearchProposals
             .Include(p => p.PublicationContainer).ThenInclude(c => c.Student)
             .FirstOrDefaultAsync(p => p.Id == proposalId, cancellationToken)
@@ -665,6 +703,22 @@ public class ProposalService(
         }
 
         return container;
+    }
+
+    /// <summary>
+    /// How many proposals make one round, as configured. One place, so the ceiling enforced while
+    /// a student writes and the pair enforced when they send cannot come apart.
+    /// </summary>
+    private async Task<(int Fewest, int Most)> ProposalsPerRoundAsync(CancellationToken cancellationToken)
+    {
+        var fewest = await settings.GetIntAsync(
+            SettingKeys.ProposalsMinimumPerRound, SettingKeys.DefaultProposalsMinimumPerRound, cancellationToken);
+        var most = await settings.GetIntAsync(
+            SettingKeys.ProposalsMaximumPerRound, SettingKeys.DefaultProposalsMaximumPerRound, cancellationToken);
+
+        // A maximum below the minimum can only come from a setting written outside the screen that
+        // validates them. Taken the generous way round rather than refusing every submission.
+        return (fewest, Math.Max(fewest, most));
     }
 
     private async Task EnsureProposalsEditableAsync(Guid containerId, CancellationToken cancellationToken)

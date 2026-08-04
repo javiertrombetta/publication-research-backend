@@ -527,6 +527,84 @@ public class SystemSettingService(
         return domain;
     }
 
+    // ---------- Comments on decisions ----------
+
+    public async Task<DecisionCommentSettingsDto> GetDecisionCommentSettingsAsync(CancellationToken cancellationToken = default)
+    {
+        var decisions = new List<DecisionCommentDto>(DecisionPoints.All.Count);
+
+        foreach (var decision in DecisionPoints.All)
+        {
+            var required = await settings.GetBoolAsync(
+                DecisionPoints.SettingKeyFor(decision.Key), decision.RequiredByDefault, cancellationToken);
+
+            decisions.Add(new DecisionCommentDto(
+                decision.Key, decision.Stage, decision.Name, required, decision.RequiredByDefault));
+        }
+
+        return new DecisionCommentSettingsDto(decisions);
+    }
+
+    public async Task<DecisionCommentSettingsDto> UpdateDecisionCommentSettingsAsync(
+        UpdateDecisionCommentSettingsRequest request, Guid actingAdminId, CancellationToken cancellationToken = default)
+    {
+        var required = request.Required?.ToHashSet(StringComparer.OrdinalIgnoreCase) ?? [];
+
+        var unknown = required.Where(key => DecisionPoints.Find(key) is null).ToList();
+        if (unknown.Count > 0)
+        {
+            throw new BusinessRuleException($"No such decision: {string.Join(", ", unknown)}.");
+        }
+
+        // Every decision written every time, including the ones left optional. A screen that only
+        // sent the ticked ones could never turn one off again, since an absent key would be
+        // indistinguishable from one nobody mentioned.
+        foreach (var decision in DecisionPoints.All)
+        {
+            await SetPendingAsync(
+                DecisionPoints.SettingKeyFor(decision.Key), required.Contains(decision.Key), actingAdminId, cancellationToken);
+        }
+
+        await CommitAsync(actingAdminId, "DecisionCommentSettingsUpdated",
+            $"{required.Count} of {DecisionPoints.All.Count} decisions now require a comment.",
+            cancellationToken);
+
+        return await GetDecisionCommentSettingsAsync(cancellationToken);
+    }
+
+    // ---------- Research proposals ----------
+
+    public async Task<ProposalSettingsDto> GetProposalSettingsAsync(CancellationToken cancellationToken = default) =>
+        new(
+            await settings.GetIntAsync(SettingKeys.ProposalsMinimumPerRound, SettingKeys.DefaultProposalsMinimumPerRound, cancellationToken),
+            await settings.GetIntAsync(SettingKeys.ProposalsMaximumPerRound, SettingKeys.DefaultProposalsMaximumPerRound, cancellationToken));
+
+    public async Task<ProposalSettingsDto> UpdateProposalSettingsAsync(
+        UpdateProposalSettingsRequest request, Guid actingAdminId, CancellationToken cancellationToken = default)
+    {
+        if (request.MinimumPerRound < 1 || request.MinimumPerRound > SettingKeys.HighestProposalsPerRound)
+        {
+            throw new BusinessRuleException(
+                $"A student must submit at least one proposal, and no more than {SettingKeys.HighestProposalsPerRound}.");
+        }
+
+        if (request.MaximumPerRound < request.MinimumPerRound || request.MaximumPerRound > SettingKeys.HighestProposalsPerRound)
+        {
+            throw new BusinessRuleException(
+                $"The most a student may submit has to be at least the fewest, and no more than {SettingKeys.HighestProposalsPerRound}.");
+        }
+
+        await SetPendingAsync(SettingKeys.ProposalsMinimumPerRound, request.MinimumPerRound, actingAdminId, cancellationToken);
+        await SetPendingAsync(SettingKeys.ProposalsMaximumPerRound, request.MaximumPerRound, actingAdminId, cancellationToken);
+
+        await CommitAsync(actingAdminId, "ProposalSettingsUpdated",
+            $"A round of research proposals is now {request.MinimumPerRound} to {request.MaximumPerRound}. "
+            + "It applies to rounds asked for again as well as to first ones.",
+            cancellationToken);
+
+        return await GetProposalSettingsAsync(cancellationToken);
+    }
+
     // ---------- Deadlines ----------
 
     public async Task<DeadlineSettingsDto> GetDeadlineSettingsAsync(CancellationToken cancellationToken = default) =>

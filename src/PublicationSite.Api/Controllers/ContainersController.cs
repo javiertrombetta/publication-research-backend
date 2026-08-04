@@ -152,10 +152,27 @@ public class ContainersController(IContainerService containerService, ICurrentUs
     [ProducesResponseType(typeof(ApiResponse<PagedResult<ActivityHistoryEntryDto>>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status403Forbidden)]
-    public async Task<IActionResult> GetActivityHistory(Guid id, [FromQuery] PageRequest paging)
+    public async Task<IActionResult> GetActivityHistory(Guid id, [FromQuery] ActivityHistoryQuery query)
     {
-        var result = await containerService.GetActivityHistoryAsync(id, currentUser.UserId, paging);
+        var result = await containerService.GetActivityHistoryAsync(id, currentUser.UserId, query);
         return Ok(ApiResponse<PagedResult<ActivityHistoryEntryDto>>.Ok(result));
+    }
+
+    /// <summary>
+    /// What this publication's history can be filtered by: the actions it holds and the people in
+    /// it. Only what is actually there, so a screen never offers a filter that matches nothing.
+    /// </summary>
+    /// <response code="200">The filters this publication's trail supports.</response>
+    /// <response code="401">No access token was sent, or the one sent has expired.</response>
+    /// <response code="403">Signed in, but this record is not yours to see or act on.</response>
+    [HttpGet("{id:guid}/activity-history/filters")]
+    [ProducesResponseType(typeof(ApiResponse<ActivityHistoryFiltersDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetActivityHistoryFilters(Guid id)
+    {
+        var result = await containerService.GetActivityHistoryFiltersAsync(id, currentUser.UserId);
+        return Ok(ApiResponse<ActivityHistoryFiltersDto>.Ok(result));
     }
 
     /// <summary>

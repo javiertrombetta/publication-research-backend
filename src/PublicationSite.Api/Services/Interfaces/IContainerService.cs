@@ -40,6 +40,13 @@ public interface IContainerService
     Task<PagedResult<ActivityHistoryEntryDto>> GetActivityHistoryAsync(
         Guid id, Guid requestingUserId, PageRequest paging, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// What this publication's trail can be filtered by: the actions it actually records and the
+    /// people who appear in it.
+    /// </summary>
+    Task<ActivityHistoryFiltersDto> GetActivityHistoryFiltersAsync(
+        Guid id, Guid requestingUserId, CancellationToken cancellationToken = default);
+
     Task<PagedResult<PublicationContainerDto>> GetAllAsync(ContainerQuery query, CancellationToken cancellationToken = default);
 
     /// <summary>Admin-only manual assignment; creates the Container if the student does not have one yet.</summary>

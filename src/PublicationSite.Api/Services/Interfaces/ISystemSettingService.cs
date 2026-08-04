@@ -61,4 +61,16 @@ public interface ISystemSettingService
 
     Task<DeadlineSettingsDto> UpdateDeadlineSettingsAsync(
         UpdateDeadlineSettingsRequest request, Guid actingAdminId, CancellationToken cancellationToken = default);
+
+    /// <summary>How many research proposals make up one round.</summary>
+    Task<ProposalSettingsDto> GetProposalSettingsAsync(CancellationToken cancellationToken = default);
+
+    Task<ProposalSettingsDto> UpdateProposalSettingsAsync(
+        UpdateProposalSettingsRequest request, Guid actingAdminId, CancellationToken cancellationToken = default);
+
+    /// <summary>Which decisions in the pipeline this institution asks for a comment on.</summary>
+    Task<DecisionCommentSettingsDto> GetDecisionCommentSettingsAsync(CancellationToken cancellationToken = default);
+
+    Task<DecisionCommentSettingsDto> UpdateDecisionCommentSettingsAsync(
+        UpdateDecisionCommentSettingsRequest request, Guid actingAdminId, CancellationToken cancellationToken = default);
 }

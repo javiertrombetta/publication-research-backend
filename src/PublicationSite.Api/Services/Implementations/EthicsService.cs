@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using PublicationSite.Api.Common;
 using PublicationSite.Api.Common.Exceptions;
 using PublicationSite.Api.Data;
 using PublicationSite.Api.DTOs.Ethics;
@@ -14,7 +15,8 @@ public class EthicsService(
     IContainerAccessService accessService,
     IAuditService auditService,
     INotificationService notificationService,
-    IFileStorageService fileStorageService) : IEthicsService
+    IFileStorageService fileStorageService,
+    IDecisionCommentPolicy commentPolicy) : IEthicsService
 {
 
     public EthicsGuidanceDto GetGuidance() => new(
@@ -107,6 +109,8 @@ public class EthicsService(
     public async Task SubmitSupervisorRequirementDecisionAsync(Guid publicationContainerId, Guid supervisorId, SupervisorRequirementDecisionRequest request, CancellationToken cancellationToken = default)
     {
         var approval = await GetApprovalForSupervisorAsync(publicationContainerId, supervisorId, cancellationToken);
+
+        await commentPolicy.EnsureAsync(DecisionPoints.EthicsSupervisorRuling, request.Comments, cancellationToken);
 
         approval.IsRequiredPerSupervisor = request.IsRequired;
         approval.SupervisorDecisionComments = request.Comments;
@@ -263,6 +267,10 @@ public class EthicsService(
             throw new BusinessRuleException("There is no ethics documentation currently awaiting review.");
         }
 
+        await commentPolicy.EnsureAsync(request.Accept
+            ? DecisionPoints.EthicsSupervisorDocumentsAccept
+            : DecisionPoints.EthicsSupervisorDocumentsReturn, request.Comments, cancellationToken);
+
         ApplyDocumentReviewOutcome(approval, request.Accept, request.Comments, request.DocumentIds);
         await db.SaveChangesAsync(cancellationToken);
 
@@ -295,6 +303,10 @@ public class EthicsService(
         {
             throw new BusinessRuleException("This container's ethics decision is not awaiting Coordinator review.");
         }
+
+        await commentPolicy.EnsureAsync(request.RequireDocumentation
+            ? DecisionPoints.EthicsCoordinatorOverturnNotRequired
+            : DecisionPoints.EthicsCoordinatorConfirmNotRequired, request.Comments, cancellationToken);
 
         approval.IsRequiredPerCoordinator = request.RequireDocumentation;
         approval.CoordinatorDecisionComments = request.Comments;
@@ -345,6 +357,10 @@ public class EthicsService(
         {
             throw new BusinessRuleException("There is no ethics documentation currently awaiting Coordinator review.");
         }
+
+        await commentPolicy.EnsureAsync(request.Approve
+            ? DecisionPoints.EthicsCoordinatorDocumentsApprove
+            : DecisionPoints.EthicsCoordinatorDocumentsReturn, request.Comments, cancellationToken);
 
         approval.IsRequiredPerCoordinator = true;
         approval.CoordinatorDecisionComments = request.Comments;
@@ -400,6 +416,8 @@ public class EthicsService(
             throw new BusinessRuleException("This container's ethics documentation is not awaiting Head of Department review.");
         }
 
+        await commentPolicy.EnsureAsync(DecisionPoints.EthicsHeadOfDepartmentReview, request.Comments, cancellationToken);
+
         approval.HeadOfDepartmentComments = request.Comments;
         approval.HeadOfDepartmentReviewedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(cancellationToken);
@@ -426,6 +444,10 @@ public class EthicsService(
         {
             throw new BusinessRuleException("This container's ethics documentation is not awaiting a final Coordinator decision.");
         }
+
+        await commentPolicy.EnsureAsync(request.Approve
+            ? DecisionPoints.EthicsCoordinatorFinalApprove
+            : DecisionPoints.EthicsCoordinatorFinalReturn, request.Comments, cancellationToken);
 
         if (request.Approve)
         {
