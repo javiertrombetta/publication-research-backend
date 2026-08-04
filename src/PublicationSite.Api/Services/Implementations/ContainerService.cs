@@ -696,5 +696,10 @@ public class ContainerService(
                                 : EthicsSteps.CoordinatorFinalDecision)
                     : null,
             c.RequiredReviewerMembers,
-            c.RequiredExternalCommitteeMembers));
+            c.RequiredExternalCommitteeMembers,
+            // Sent back, rather than never sent. Both read as "waiting on the student", and a
+            // student asked to correct one document could not tell which publication it was.
+            c.EthicsApproval != null
+                && c.EthicsApproval.Status == EthicsStatus.PendingUpload
+                && c.EthicsApproval.Documents.Any(d => d.Status == EthicsDocumentStatus.RevisionRequested)));
 }

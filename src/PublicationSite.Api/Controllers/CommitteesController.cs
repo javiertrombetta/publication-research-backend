@@ -69,6 +69,54 @@ public class CommitteesController(ICommitteeService committeeService, ICurrentUs
     }
 
     /// <summary>
+    /// Every evaluation committee still sitting, newest first.
+    ///
+    /// The assignment screen only lists papers with no committee yet, so an appointed one used to
+    /// leave every screen there was. This is what an administrator needs to find one whose
+    /// membership has to change.
+    /// </summary>
+    /// <response code="200">One page of committees, with the total count alongside it.</response>
+    /// <response code="401">No access token was sent, or the one sent has expired.</response>
+    /// <response code="403">Signed in, but this is not something your role may do.</response>
+    [HttpGet("api/committees/in-progress")]
+    [Authorize(Roles = RoleNames.Admin)]
+    [ProducesResponseType(typeof(ApiResponse<PagedResult<CommitteeDto>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetInProgress([FromQuery] PageRequest paging)
+    {
+        var result = await committeeService.GetInProgressAsync(paging);
+        return Ok(ApiResponse<PagedResult<CommitteeDto>>.Ok(result));
+    }
+
+    /// <summary>
+    /// Changes who sits on a committee and how many approvals it needs, with a reason.
+    ///
+    /// The list of members is the committee as it should now stand: anyone left out is removed.
+    /// Members who stay keep the decision they have already recorded. Refused once the committee
+    /// has finished, because its decisions are what the coordinator ruled on.
+    /// </summary>
+    /// <response code="200">The committee as it now stands.</response>
+    /// <response code="400">The request did not pass validation. Which field, and why, comes back as a problem document rather than the usual envelope.</response>
+    /// <response code="401">No access token was sent, or the one sent has expired.</response>
+    /// <response code="403">Signed in, but this is not something your role may do.</response>
+    /// <response code="404">No committee with that id.</response>
+    /// <response code="422">Understood, and refused: the workflow does not allow this at the point it has reached.</response>
+    [HttpPut("api/committees/{committeeId:guid}")]
+    [Authorize(Roles = RoleNames.Admin)]
+    [ProducesResponseType(typeof(ApiResponse<CommitteeDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status422UnprocessableEntity)]
+    public async Task<IActionResult> Update(Guid committeeId, [FromBody] UpdateCommitteeRequest request)
+    {
+        var result = await committeeService.UpdateAsync(committeeId, request, currentUser.UserId);
+        return Ok(ApiResponse<CommitteeDto>.Ok(result, "Committee updated."));
+    }
+
+    /// <summary>
     /// Everybody who could be put on a committee right now: holding a role the institution draws
     /// on, enabled, available, and not one of the people an administrator has left out.
     ///

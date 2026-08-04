@@ -167,6 +167,69 @@ public class CommitteeServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task UpdateAsync_swaps_a_member_and_keeps_the_decisions_of_those_who_stay()
+    {
+        var (publication, _, coordinator) = SeedApprovedPublication();
+        RequireCommitteeOf(2, 0, 1);
+        var staying = SeedCommitteeMember();
+        var leaving = SeedCommitteeMember();
+        var arriving = SeedCommitteeMember();
+
+        await _sut.AssignAsync(publication.Id,
+            new AssignCommitteeRequest([staying.Id, leaving.Id], 1, "Assign"), coordinator.Id);
+
+        var committee = _fixture.Context.Committees.Single(c => c.PublicationId == publication.Id);
+        await _sut.MemberReviewAsync(committee.Id, staying.Id,
+            new CommitteeMemberReviewRequest(true, "Sound work."));
+
+        await _sut.UpdateAsync(committee.Id,
+            new UpdateCommitteeRequest([staying.Id, arriving.Id], 1, "The second reviewer is on leave."),
+            coordinator.Id);
+
+        var members = _fixture.Context.CommitteeMembers.Where(m => m.CommitteeId == committee.Id).ToList();
+        members.Select(m => m.UserId).Should().BeEquivalentTo([staying.Id, arriving.Id]);
+
+        // The one who stayed keeps their vote: they read the paper, and being asked again because
+        // somebody else was replaced beside them would throw that away.
+        members.Single(m => m.UserId == staying.Id).Decision.Should().Be(CommitteeMemberDecision.Approve);
+        members.Single(m => m.UserId == arriving.Id).Decision.Should().Be(CommitteeMemberDecision.Pending);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_refuses_once_the_committee_has_finished()
+    {
+        var (publication, _, coordinator) = SeedApprovedPublication();
+        var member = SeedCommitteeMember();
+        var other = SeedCommitteeMember();
+
+        await _sut.AssignAsync(publication.Id, new AssignCommitteeRequest([member.Id], 1, "Assign"), coordinator.Id);
+        var committee = _fixture.Context.Committees.Single(c => c.PublicationId == publication.Id);
+        await _sut.MemberReviewAsync(committee.Id, member.Id, new CommitteeMemberReviewRequest(true, "Fine."));
+
+        var act = () => _sut.UpdateAsync(committee.Id,
+            new UpdateCommitteeRequest([other.Id], 1, "Changed my mind."), coordinator.Id);
+
+        (await act.Should().ThrowAsync<BusinessRuleException>())
+            .Which.Message.Should().Contain("has finished");
+    }
+
+    [Fact]
+    public async Task UpdateAsync_refuses_without_a_reason()
+    {
+        var (publication, _, coordinator) = SeedApprovedPublication();
+        var member = SeedCommitteeMember();
+        var other = SeedCommitteeMember();
+
+        await _sut.AssignAsync(publication.Id, new AssignCommitteeRequest([member.Id], 1, "Assign"), coordinator.Id);
+        var committee = _fixture.Context.Committees.Single(c => c.PublicationId == publication.Id);
+
+        var act = () => _sut.UpdateAsync(committee.Id,
+            new UpdateCommitteeRequest([other.Id], 1, "   "), coordinator.Id);
+
+        await act.Should().ThrowAsync<BusinessRuleException>();
+    }
+
+    [Fact]
     public async Task AssignAsync_refuses_a_composition_the_publication_was_not_opened_for()
     {
         var (publication, container, coordinator) = SeedApprovedPublication();

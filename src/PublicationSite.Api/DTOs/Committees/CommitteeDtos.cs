@@ -17,7 +17,32 @@ public record CommitteeDto(
     CommitteePaperDto? Paper,
     string Status,
     int MinApprovalsRequired,
-    IReadOnlyList<CommitteeMemberDto> Members);
+    IReadOnlyList<CommitteeMemberDto> Members,
+    /// <summary>Whose paper it is, so a listing of committees can name the student.</summary>
+    string? StudentName = null,
+    /// <summary>
+    /// Whether an administrator may still change it. A committee that has finished has produced
+    /// the decisions the coordinator ruled on, and rearranging it afterwards would rewrite the
+    /// record of a judgement already made.
+    /// </summary>
+    bool CanBeChanged = false);
+
+/// <summary>
+/// Changing a committee that is already sitting: who is on it, and how many of them have to
+/// approve.
+///
+/// Separate from assigning one, and deliberately so. Assigning creates something that did not
+/// exist; this alters something people are working on, so it always costs a reason and it is
+/// refused once the committee has finished.
+/// </summary>
+/// <param name="MemberUserIds">The committee as it should now stand, not the people to add. Anyone left out is removed.</param>
+/// <param name="Comments">Why. Required, and recorded on the publication's history.</param>
+/// <param name="OverrideComposition">Set when the new shape departs from what this publication was opened under.</param>
+public record UpdateCommitteeRequest(
+    IReadOnlyList<Guid> MemberUserIds,
+    int MinApprovalsRequired,
+    string Comments,
+    bool OverrideComposition = false);
 
 /// <param name="OverrideComposition">
 /// Set when this publication is to be judged by a committee of a different shape from the one it
