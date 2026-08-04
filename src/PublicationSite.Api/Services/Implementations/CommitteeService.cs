@@ -104,83 +104,7 @@ public class CommitteeService(
             throw new ConflictException("A committee has already been assigned to this research paper.");
         }
 
-        // Anyone with a job here may be asked to evaluate a paper. Holding a committee-member role
-        // is not the entry ticket: supervisors, coordinators and heads of department are exactly
-        // who an institution draws its evaluators from, and requiring an extra role first meant an
-        // administrator had to grant one before they could ask anybody.
-        var members = await db.Users
-            .Where(u => request.MemberUserIds.Contains(u.Id))
-            .Select(u => new
-            {
-                User = u,
-                Roles = db.UserRoles
-                    .Where(ur => ur.UserId == u.Id)
-                    .Join(db.Roles, ur => ur.RoleId, r => r.Id, (ur, r) => r.Name!)
-                    .ToList()
-            })
-            .ToListAsync(cancellationToken);
-
-        // Two exclusions are the rule. A committee judges a student's work, so its members cannot be
-        // drawn from the people whose work is being judged. And Staff is the placeholder an
-        // institutional account holds until an administrator says what it is: it is not a job, so
-        // there is nobody there to ask yet.
-        var ineligible = members
-            .Where(m => !m.Roles.Any(RoleNames.CommitteeEligible.Contains))
-            .ToList();
-
-        if (ineligible.Count > 0)
-        {
-            var reason = ineligible.Any(m => m.Roles.Contains(RoleNames.Student))
-                ? "A committee cannot include students: it judges their work."
-                : "Somebody chosen has no role here yet. Give them one first, and they can be appointed.";
-
-            throw new BusinessRuleException(reason);
-        }
-
-        // Within that, an administrator says which roles this institution draws on and who to leave
-        // out. Checked here rather than only on the screen that lists candidates: the screen is a
-        // convenience, and a rule that lives only in a list is not a rule.
-        var candidateRoles = await settingService.GetCandidateRolesAsync(cancellationToken);
-        var notCandidates = members.Where(m => !m.Roles.Any(candidateRoles.Contains)).ToList();
-
-        if (notCandidates.Count > 0)
-        {
-            throw new BusinessRuleException(
-                "Somebody chosen holds a role that this institution does not draw committees from. "
-                + "An administrator sets which roles those are in System settings.");
-        }
-
-        var excluded = await settingService.GetExcludedCommitteeUsersAsync(cancellationToken);
-        if (members.Any(m => excluded.Contains(m.User.Id)))
-        {
-            throw new BusinessRuleException(
-                "Somebody chosen has been left out of committee work by an administrator.");
-        }
-
-        if (members.Any(m => m.User.Status != UserStatus.Enabled))
-        {
-            throw new BusinessRuleException("Everyone on a committee must have an enabled account.");
-        }
-
-        // Refused rather than filtered out silently: the administrator chose these people, and a
-        // committee quietly built one member short is worse than being told why. Not the same as
-        // a disabled account either, so the message says which it is.
-        var unavailable = members.Where(m => !m.User.IsAvailable).ToList();
-        if (unavailable.Count > 0)
-        {
-            var names = string.Join(", ", unavailable.Select(m => $"{m.User.FirstName} {m.User.LastName}"));
-            throw new BusinessRuleException(
-                $"Not taking new work on at the moment: {names}. Choose somebody else, or ask them to mark "
-                + "themselves available.");
-        }
-
-        // A member id the request named but the database does not have would otherwise vanish
-        // silently, producing a committee smaller than the administrator believes they built.
-        if (members.Count != request.MemberUserIds.Distinct().Count())
-        {
-            throw new BusinessRuleException("One or more of the people selected could not be found.");
-        }
-
+        var members = await LoadEligibleMembersAsync(request.MemberUserIds, cancellationToken);
         var isExternal = members
             .Select(m => m.Roles.Contains(RoleNames.ExternalCommitteeMember))
             .ToList();
@@ -251,6 +175,143 @@ public class CommitteeService(
         }
 
         return await GetByPublicationAsync(publicationId, adminId, cancellationToken);
+    }
+
+    /// <summary>
+    /// Every committee that is still sitting, newest first.
+    ///
+    /// The administrator's screen only ever showed papers with no committee yet, so once one was
+    /// appointed it left the screen and there was nothing anywhere that listed it. A member going
+    /// on leave, or appointed by mistake, then needed the database.
+    /// </summary>
+    public async Task<PagedResult<CommitteeDto>> GetInProgressAsync(
+        PageRequest paging, CancellationToken cancellationToken = default)
+    {
+        var query = db.Committees
+            .Where(c => c.Status != CommitteeStatus.Completed)
+            .OrderByDescending(c => c.CreatedAt);
+
+        var total = await query.CountAsync(cancellationToken);
+
+        var committees = await query
+            .Skip((paging.SafePage - 1) * paging.SafePageSize)
+            .Take(paging.SafePageSize)
+            .Include(c => c.Publication).ThenInclude(p => p.Keywords)
+            .Include(c => c.Publication).ThenInclude(p => p.PublicationContainer).ThenInclude(pc => pc.Student)
+            .Include(c => c.Members).ThenInclude(m => m.User)
+            .ToListAsync(cancellationToken);
+
+        return new PagedResult<CommitteeDto>(
+            committees.Select(ToDto).ToList(), paging.SafePage, paging.SafePageSize, total);
+    }
+
+    public async Task<CommitteeDto> UpdateAsync(
+        Guid committeeId, UpdateCommitteeRequest request, Guid adminId, CancellationToken cancellationToken = default)
+    {
+        var committee = await db.Committees
+            .Include(c => c.Publication).ThenInclude(p => p.PublicationContainer)
+            .Include(c => c.Members).ThenInclude(m => m.User)
+            .FirstOrDefaultAsync(c => c.Id == committeeId, cancellationToken)
+            ?? throw new NotFoundException(nameof(Committee), committeeId);
+
+        if (committee.Status == CommitteeStatus.Completed)
+        {
+            throw new BusinessRuleException(
+                "This committee has finished. Its decisions are what the coordinator ruled on, so its membership can no longer be changed.");
+        }
+
+        // Always, whatever the settings say about assigning one. This alters something people are
+        // already working on, and somebody reading the history later has to see why.
+        if (string.IsNullOrWhiteSpace(request.Comments))
+        {
+            throw new BusinessRuleException("Say why this committee is being changed. It stays on the publication's history.");
+        }
+
+        var members = await LoadEligibleMembersAsync(request.MemberUserIds, cancellationToken);
+
+        var isExternal = members
+            .Select(m => m.Roles.Contains(RoleNames.ExternalCommitteeMember))
+            .ToList();
+
+        var container = committee.Publication.PublicationContainer;
+        var (wasReviewers, wasExternal) = await ResolveRequiredCompositionAsync(container, cancellationToken);
+
+        var minApprovals = await ResolveMinimumApprovalsAsync(
+            container, isExternal, request.MinApprovalsRequired, request.OverrideComposition, cancellationToken);
+
+        var appointedExternal = isExternal.Count(external => external);
+        var appointedReviewers = isExternal.Count - appointedExternal;
+
+        if (request.OverrideComposition)
+        {
+            container.RequiredReviewerMembers = appointedReviewers;
+            container.RequiredExternalCommitteeMembers = appointedExternal;
+            container.RequiredCommitteeApprovals = minApprovals;
+            container.UpdatedAt = DateTime.UtcNow;
+        }
+
+        // Whoever is staying keeps their decision. Somebody who has already read the paper and
+        // voted should not be made to do it again because a different member was replaced beside
+        // them, and the vote is part of the record either way.
+        var keeping = members.Select(m => m.User.Id).ToHashSet();
+        var removed = committee.Members.Where(m => !keeping.Contains(m.UserId)).ToList();
+        var added = members.Where(m => committee.Members.All(existing => existing.UserId != m.User.Id)).ToList();
+
+        // Through the DbSet rather than the navigation collection. CommitteeMember.Id already has
+        // a value from its property initialiser, so a row reached only through the collection is
+        // inferred as Modified: an UPDATE by an id no row carries, which affects nothing and
+        // throws. The same trap as Keyword in PublicationService.
+        db.CommitteeMembers.RemoveRange(removed);
+
+        foreach (var arrival in added)
+        {
+            var member = new CommitteeMember
+            {
+                CommitteeId = committee.Id,
+                UserId = arrival.User.Id,
+                RoleType = arrival.Roles.Contains(RoleNames.ExternalCommitteeMember)
+                    ? CommitteeMemberRoleType.External
+                    : CommitteeMemberRoleType.Reviewer
+            };
+            db.CommitteeMembers.Add(member);
+            committee.Members.Add(member);
+        }
+
+        foreach (var gone in removed)
+        {
+            committee.Members.Remove(gone);
+        }
+
+        committee.MinApprovalsRequired = minApprovals;
+
+        // A committee that had finished voting and then gained a member is waiting again.
+        committee.Status = committee.Members.All(m => m.Decision != CommitteeMemberDecision.Pending)
+            ? CommitteeStatus.Completed
+            : committee.Members.Any(m => m.Decision != CommitteeMemberDecision.Pending)
+                ? CommitteeStatus.InReview
+                : CommitteeStatus.Assigned;
+
+        await db.SaveChangesAsync(cancellationToken);
+
+        var changes = new List<string>();
+        if (added.Count > 0) changes.Add($"added {string.Join(", ", added.Select(a => a.User.FirstName + " " + a.User.LastName))}");
+        if (removed.Count > 0) changes.Add($"removed {string.Join(", ", removed.Select(r => r.User.FirstName + " " + r.User.LastName))}");
+        if (request.OverrideComposition) changes.Add($"composition now {appointedReviewers} reviewers and {appointedExternal} external, in place of {wasReviewers} and {wasExternal}");
+
+        await auditService.LogActivityAsync(committee.Publication.PublicationContainerId, adminId, "CommitteeChanged",
+            (changes.Count > 0 ? string.Join("; ", changes) + ". " : string.Empty) + request.Comments);
+
+        // Only the people newly on it. Telling somebody who was already reading the paper that
+        // they have been assigned to it says nothing and reads as a duplicate.
+        foreach (var arrival in added)
+        {
+            await notificationService.NotifyAsync(arrival.User.Id, NotificationType.CommitteeReviewRequested,
+                "Research paper awaiting your evaluation",
+                "You have been added to an evaluation committee. Please log in to review the research paper.",
+                nameof(Committee), committee.Id, cancellationToken);
+        }
+
+        return await GetByPublicationAsync(committee.PublicationId, adminId, cancellationToken);
     }
 
     public async Task<CommitteeDto> GetByPublicationAsync(Guid publicationId, Guid requestingUserId, CancellationToken cancellationToken = default)
@@ -449,6 +510,100 @@ public class CommitteeService(
         await db.SaveChangesAsync(cancellationToken);
     }
 
+    /// <summary>
+    /// The people named, checked against every rule about who may sit on a committee, and
+    /// returned with the roles that decide whether each counts as a reviewer or an external.
+    ///
+    /// Shared by appointing a committee and by changing one. Written twice, the two would drift,
+    /// and the one that drifted would be the one that lets somebody onto a committee the other
+    /// would refuse.
+    /// </summary>
+    private async Task<IReadOnlyList<EligibleMember>> LoadEligibleMembersAsync(
+        IReadOnlyList<Guid> memberUserIds, CancellationToken cancellationToken)
+    {
+        // Anyone with a job here may be asked to evaluate a paper. Holding a committee-member role
+        // is not the entry ticket: supervisors, coordinators and heads of department are exactly
+        // who an institution draws its evaluators from, and requiring an extra role first meant an
+        // administrator had to grant one before they could ask anybody.
+        var members = await db.Users
+            .Where(u => memberUserIds.Contains(u.Id))
+            .Select(u => new
+            {
+                User = u,
+                Roles = db.UserRoles
+                    .Where(ur => ur.UserId == u.Id)
+                    .Join(db.Roles, ur => ur.RoleId, r => r.Id, (ur, r) => r.Name!)
+                    .ToList()
+            })
+            .ToListAsync(cancellationToken);
+
+        // Two exclusions are the rule. A committee judges a student's work, so its members cannot be
+        // drawn from the people whose work is being judged. And Staff is the placeholder an
+        // institutional account holds until an administrator says what it is: it is not a job, so
+        // there is nobody there to ask yet.
+        var ineligible = members
+            .Where(m => !m.Roles.Any(RoleNames.CommitteeEligible.Contains))
+            .ToList();
+
+        if (ineligible.Count > 0)
+        {
+            var reason = ineligible.Any(m => m.Roles.Contains(RoleNames.Student))
+                ? "A committee cannot include students: it judges their work."
+                : "Somebody chosen has no role here yet. Give them one first, and they can be appointed.";
+
+            throw new BusinessRuleException(reason);
+        }
+
+        // Within that, an administrator says which roles this institution draws on and who to leave
+        // out. Checked here rather than only on the screen that lists candidates: the screen is a
+        // convenience, and a rule that lives only in a list is not a rule.
+        var candidateRoles = await settingService.GetCandidateRolesAsync(cancellationToken);
+        var notCandidates = members.Where(m => !m.Roles.Any(candidateRoles.Contains)).ToList();
+
+        if (notCandidates.Count > 0)
+        {
+            throw new BusinessRuleException(
+                "Somebody chosen holds a role that this institution does not draw committees from. "
+                + "An administrator sets which roles those are in System settings.");
+        }
+
+        var excluded = await settingService.GetExcludedCommitteeUsersAsync(cancellationToken);
+        if (members.Any(m => excluded.Contains(m.User.Id)))
+        {
+            throw new BusinessRuleException(
+                "Somebody chosen has been left out of committee work by an administrator.");
+        }
+
+        if (members.Any(m => m.User.Status != UserStatus.Enabled))
+        {
+            throw new BusinessRuleException("Everyone on a committee must have an enabled account.");
+        }
+
+        // Refused rather than filtered out silently: the administrator chose these people, and a
+        // committee quietly built one member short is worse than being told why. Not the same as
+        // a disabled account either, so the message says which it is.
+        var unavailable = members.Where(m => !m.User.IsAvailable).ToList();
+        if (unavailable.Count > 0)
+        {
+            var names = string.Join(", ", unavailable.Select(m => $"{m.User.FirstName} {m.User.LastName}"));
+            throw new BusinessRuleException(
+                $"Not taking new work on at the moment: {names}. Choose somebody else, or ask them to mark "
+                + "themselves available.");
+        }
+
+        // A member id the request named but the database does not have would otherwise vanish
+        // silently, producing a committee smaller than the administrator believes they built.
+        if (members.Count != memberUserIds.Distinct().Count())
+        {
+            throw new BusinessRuleException("One or more of the people selected could not be found.");
+        }
+
+        return members.Select(m => new EligibleMember(m.User, m.Roles)).ToList();
+    }
+
+    /// <summary>Somebody who may be appointed, with the roles that classify them.</summary>
+    private record EligibleMember(ApplicationUser User, IReadOnlyList<string> Roles);
+
     private static CommitteeDto ToDto(Committee committee) => new(
         committee.Id, committee.PublicationId,
         committee.Publication is null
@@ -468,7 +623,14 @@ public class CommitteeService(
         committee.Status.ToString(), committee.MinApprovalsRequired,
         committee.Members.Select(m => new CommitteeMemberDto(
             m.UserId, m.User.FirstName + " " + m.User.LastName, m.RoleType.ToString(),
-            m.Decision.ToString(), m.DecisionComments, m.DecidedAt)).ToList());
+            m.Decision.ToString(), m.DecisionComments, m.DecidedAt)).ToList(),
+        committee.Publication?.PublicationContainer?.Student is null
+            ? null
+            : committee.Publication.PublicationContainer.Student.FirstName
+              + " " + committee.Publication.PublicationContainer.Student.LastName,
+        // A finished committee is a record of a judgement, and the coordinator has already ruled
+        // on it. Rearranging one then would rewrite what was decided and by whom.
+        committee.Status != CommitteeStatus.Completed);
 
     /// <summary>
     /// Checks the proposed committee against the composition this publication was opened under.

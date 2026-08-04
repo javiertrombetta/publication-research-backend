@@ -462,7 +462,7 @@ public class EthicsService(
         }
         else
         {
-            ApplyDocumentReviewOutcome(approval, accept: false, request.Comments);
+            ApplyDocumentReviewOutcome(approval, accept: false, request.Comments, request.DocumentIds);
             await db.SaveChangesAsync(cancellationToken);
 
             await auditService.LogActivityAsync(publicationContainerId, coordinatorId, "EthicsFinalRevisionRequested",

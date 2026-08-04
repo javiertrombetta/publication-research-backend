@@ -20,6 +20,13 @@ public interface ICommitteeService
 
     Task<CommitteeDto> AssignAsync(Guid publicationId, AssignCommitteeRequest request, Guid adminId, CancellationToken cancellationToken = default);
     Task<CommitteeDto> GetByPublicationAsync(Guid publicationId, Guid requestingUserId, CancellationToken cancellationToken = default);
+
+    /// <summary>Every committee still sitting, so an administrator can find one to change.</summary>
+    Task<PagedResult<CommitteeDto>> GetInProgressAsync(PageRequest paging, CancellationToken cancellationToken = default);
+
+    /// <summary>Changes who is on a committee, and how many approvals it needs. Refused once it has finished.</summary>
+    Task<CommitteeDto> UpdateAsync(
+        Guid committeeId, UpdateCommitteeRequest request, Guid adminId, CancellationToken cancellationToken = default);
     Task<PagedResult<CommitteeDto>> GetAssignmentsForMemberAsync(
         Guid memberUserId, PageRequest page, string? search = null, CancellationToken cancellationToken = default);
     Task MemberReviewAsync(Guid committeeId, Guid memberUserId, CommitteeMemberReviewRequest request, CancellationToken cancellationToken = default);
