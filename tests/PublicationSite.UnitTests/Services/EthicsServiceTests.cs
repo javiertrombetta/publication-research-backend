@@ -46,8 +46,31 @@ public class EthicsServiceTests : IDisposable
         TestDataBuilder.StudentProfile(_fixture.Context, student, department);
         var coordinator = TestDataBuilder.User(_fixture.Context);
         var supervisor = TestDataBuilder.User(_fixture.Context);
-        var container = TestDataBuilder.Container(_fixture.Context, student, coordinator, supervisor);
+
+        // Open at the ethics stage, which is what having a supervisor means: the coordinator has
+        // chosen a proposal and appointed one. Ethics refuses to start before that.
+        var container = TestDataBuilder.Container(
+            _fixture.Context, student, coordinator, supervisor, PipelineStage.EthicsApproval);
         return (student, supervisor, coordinator, container);
+    }
+
+    [Fact]
+    public async Task SubmitDeclarationAsync_rejects_while_the_publication_is_still_choosing_a_proposal()
+    {
+        var department = TestDataBuilder.Department(_fixture.Context);
+        var student = TestDataBuilder.User(_fixture.Context);
+        TestDataBuilder.StudentProfile(_fixture.Context, student, department);
+        var coordinator = TestDataBuilder.User(_fixture.Context);
+
+        // No supervisor, and still at the proposal stage. Declaring here used to be accepted, and
+        // produced an approval waiting on a supervisor nobody had appointed: on no queue, and
+        // holding the ethics stage open before the research had been settled.
+        var container = TestDataBuilder.Container(_fixture.Context, student, coordinator);
+
+        var act = () => _sut.SubmitDeclarationAsync(container.Id, student.Id, new EthicsDeclarationRequest("Yes"));
+
+        (await act.Should().ThrowAsync<BusinessRuleException>())
+            .Which.Message.Should().Contain("has not opened yet");
     }
 
     [Fact]

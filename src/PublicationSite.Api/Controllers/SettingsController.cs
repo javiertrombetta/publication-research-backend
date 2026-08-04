@@ -330,6 +330,16 @@ public class SettingsController(
     public async Task<IActionResult> GetInstitution()
     {
         var result = await systemSettingService.GetInstitutionSettingsAsync();
+
+        // The IT desk's address is withheld from visitors when an administrator has said it should
+        // be, rather than merely left out of the page. The site was hiding the link and this was
+        // still handing the address to anyone who asked without signing in, which makes the
+        // setting a decoration: what it is for is keeping that address off the open internet.
+        if (!result.ItSupportShownToVisitors && User.Identity?.IsAuthenticated != true)
+        {
+            result = result with { ItSupportEmail = null };
+        }
+
         return Ok(ApiResponse<InstitutionSettingsDto>.Ok(result));
     }
 
