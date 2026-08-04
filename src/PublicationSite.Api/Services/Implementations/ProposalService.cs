@@ -339,6 +339,8 @@ public class ProposalService(
 
     public async Task SendToSupervisorsAsync(SendToSupervisorsRequest request, Guid coordinatorId, CancellationToken cancellationToken = default)
     {
+        await commentPolicy.EnsureAsync(DecisionPoints.ProposalSendToSupervisors, request.Comments, cancellationToken);
+
         var proposals = await db.ResearchProposals
             .Include(p => p.PublicationContainer)
             .Where(p => request.ProposalIds.Contains(p.Id))
@@ -564,6 +566,8 @@ public class ProposalService(
 
     public async Task DeferToNextCycleAsync(Guid publicationContainerId, string comments, Guid coordinatorId, CancellationToken cancellationToken = default)
     {
+        await commentPolicy.EnsureAsync(DecisionPoints.ProposalDeferToNextCycle, comments, cancellationToken);
+
         var container = await db.PublicationContainers.FirstOrDefaultAsync(
             c => c.Id == publicationContainerId && c.CoordinatorId == coordinatorId, cancellationToken)
             ?? throw new NotFoundException(nameof(PublicationContainer), publicationContainerId);
