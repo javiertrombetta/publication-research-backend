@@ -519,10 +519,20 @@ public class PublicationService(
         var publication = await db.Publications.FirstOrDefaultAsync(p => p.Id == publicationId, cancellationToken)
             ?? throw new NotFoundException(nameof(Publication), publicationId);
 
+        // Back to accepted, and the publication stamps cleared with it. Only the flag used to be
+        // turned off, which left a record saying it was published, on a date, by somebody, and not
+        // published: the catalogue dropped it while every screen showing a status still read
+        // "Published". The outcome the paper earned is Accepted, and that is what it now says.
         publication.IsPublished = false;
+        publication.Status = PublicationStatus.Accepted;
+        publication.PublishedAt = null;
+        publication.PublishedByUserId = null;
+        publication.UpdatedAt = DateTime.UtcNow;
+
         await db.SaveChangesAsync(cancellationToken);
 
-        await auditService.LogActivityAsync(publication.PublicationContainerId, adminId, "PublishedPaperRemoved", comments);
+        await auditService.LogActivityAsync(publication.PublicationContainerId, adminId, "PublishedPaperRemoved",
+            comments, newStatus: publication.Status.ToString());
     }
 
     private async Task<PublicationVersion> GetLatestVersionAsync(Guid publicationId, CancellationToken cancellationToken)

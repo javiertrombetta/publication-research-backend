@@ -28,6 +28,18 @@ public class EthicsService(
     {
         var container = await GetOwnedContainerAsync(publicationContainerId, studentId, cancellationToken);
 
+        // The proposal stage has to be finished first. A coordinator chooses which proposal goes
+        // ahead and appoints the supervisor, and this declaration is addressed to that supervisor:
+        // made earlier it produced an approval waiting on a person who did not exist yet, on
+        // nobody's queue, and it opened the ethics stage while the publication was still deciding
+        // what the research would be. The site's own screens already refuse this; the rule belongs
+        // here, where it is a rule rather than a screen.
+        if (container.CurrentPipeline < PipelineStage.EthicsApproval)
+        {
+            throw new BusinessRuleException(
+                "The ethics stage has not opened yet. It follows the coordinator choosing a proposal and appointing a supervisor.");
+        }
+
         if (!Enum.TryParse<EthicsStudentResponse>(request.Response, true, out var response))
         {
             throw new BusinessRuleException("Response must be Yes, No or Unsure.");
