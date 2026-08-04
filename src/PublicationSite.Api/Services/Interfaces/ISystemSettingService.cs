@@ -62,6 +62,12 @@ public interface ISystemSettingService
     Task<DeadlineSettingsDto> UpdateDeadlineSettingsAsync(
         UpdateDeadlineSettingsRequest request, Guid actingAdminId, CancellationToken cancellationToken = default);
 
+    /// <summary>Which optional steps of the ethics pipeline this institution runs.</summary>
+    Task<EthicsWorkflowSettingsDto> GetEthicsWorkflowSettingsAsync(CancellationToken cancellationToken = default);
+
+    Task<EthicsWorkflowSettingsDto> UpdateEthicsWorkflowSettingsAsync(
+        UpdateEthicsWorkflowSettingsRequest request, Guid actingAdminId, CancellationToken cancellationToken = default);
+
     /// <summary>How many research proposals make up one round.</summary>
     Task<ProposalSettingsDto> GetProposalSettingsAsync(CancellationToken cancellationToken = default);
 

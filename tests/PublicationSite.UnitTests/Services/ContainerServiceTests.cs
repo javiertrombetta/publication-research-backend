@@ -19,6 +19,7 @@ public class ContainerServiceTests : IDisposable
     private readonly Mock<IDepartmentService> _departmentService = new();
     private readonly Mock<IContainerAccessService> _accessService = new();
     private readonly Mock<IAuditService> _auditService = new();
+    private readonly Mock<INotificationService> _notificationService = new();
     private readonly Mock<ISystemSettingService> _settingService = new();
     private readonly ContainerService _sut;
 
@@ -30,8 +31,13 @@ public class ContainerServiceTests : IDisposable
         _settingService.Setup(s => s.GetCommitteeSettingsAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(new CommitteeSettingsDto(2, 1, 2, RoleNames.CommitteeEligible, [], RoleNames.CommitteeEligible));
 
+        // Every listing asks whether this institution runs the Head of Department step, because
+        // the answer decides whose turn a publication says it is on.
+        _settingService.Setup(s => s.GetEthicsWorkflowSettingsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new EthicsWorkflowSettingsDto(true));
+
         _sut = new ContainerService(_fixture.Context, _departmentService.Object, _accessService.Object,
-            _auditService.Object, _settingService.Object);
+            _auditService.Object, _notificationService.Object, _settingService.Object);
     }
 
     public void Dispose() => _fixture.Dispose();
@@ -175,5 +181,107 @@ public class ContainerServiceTests : IDisposable
         await _sut.GetByIdAsync(container.Id, requester);
 
         _accessService.Verify(a => a.EnsureAccessAsync(container.Id, requester), Times.Once);
+    }
+
+    [Fact]
+    public async Task ReassignAsync_changes_both_and_tells_whoever_now_has_the_work()
+    {
+        var department = TestDataBuilder.Department(_fixture.Context);
+        var student = TestDataBuilder.User(_fixture.Context);
+        TestDataBuilder.StudentProfile(_fixture.Context, student, department);
+        var coordinator = TestDataBuilder.User(_fixture.Context);
+        var supervisor = TestDataBuilder.User(_fixture.Context);
+        var container = TestDataBuilder.Container(_fixture.Context, student, coordinator, supervisor);
+
+        var newCoordinator = TestDataBuilder.User(_fixture.Context);
+        TestDataBuilder.GrantRole(_fixture.Context, newCoordinator, RoleNames.Coordinator);
+        var newSupervisor = TestDataBuilder.User(_fixture.Context);
+        TestDataBuilder.GrantRole(_fixture.Context, newSupervisor, RoleNames.Supervisor);
+
+        var admin = Guid.NewGuid();
+        var result = await _sut.ReassignAsync(container.Id,
+            new ReassignContainerRequest(newCoordinator.Id, newSupervisor.Id, "The coordinator is on leave."), admin);
+
+        result.CoordinatorId.Should().Be(newCoordinator.Id);
+        result.AssignedSupervisorId.Should().Be(newSupervisor.Id);
+
+        _notificationService.Verify(n => n.NotifyAsync(newCoordinator.Id, NotificationType.ContainerAssigned,
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), container.Id, It.IsAny<CancellationToken>()), Times.Once);
+        _notificationService.Verify(n => n.NotifyAsync(newSupervisor.Id, NotificationType.ContainerAssigned,
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), container.Id, It.IsAny<CancellationToken>()), Times.Once);
+        _auditService.Verify(a => a.LogActivityAsync(container.Id, admin, "AssignmentsChanged",
+            It.Is<string>(d => d.Contains("The coordinator is on leave."))), Times.Once);
+    }
+
+    [Fact]
+    public async Task ReassignAsync_throws_without_a_reason()
+    {
+        var department = TestDataBuilder.Department(_fixture.Context);
+        var student = TestDataBuilder.User(_fixture.Context);
+        TestDataBuilder.StudentProfile(_fixture.Context, student, department);
+        var container = TestDataBuilder.Container(
+            _fixture.Context, student, TestDataBuilder.User(_fixture.Context));
+
+        var newCoordinator = TestDataBuilder.User(_fixture.Context);
+        TestDataBuilder.GrantRole(_fixture.Context, newCoordinator, RoleNames.Coordinator);
+
+        var act = () => _sut.ReassignAsync(container.Id,
+            new ReassignContainerRequest(newCoordinator.Id, null, "   "), Guid.NewGuid());
+
+        await act.Should().ThrowAsync<BusinessRuleException>();
+    }
+
+    [Fact]
+    public async Task ReassignAsync_throws_once_the_publication_has_finished()
+    {
+        var department = TestDataBuilder.Department(_fixture.Context);
+        var student = TestDataBuilder.User(_fixture.Context);
+        TestDataBuilder.StudentProfile(_fixture.Context, student, department);
+        var container = TestDataBuilder.Container(
+            _fixture.Context, student, TestDataBuilder.User(_fixture.Context),
+            status: ContainerStatus.Completed);
+
+        var newCoordinator = TestDataBuilder.User(_fixture.Context);
+        TestDataBuilder.GrantRole(_fixture.Context, newCoordinator, RoleNames.Coordinator);
+
+        var act = () => _sut.ReassignAsync(container.Id,
+            new ReassignContainerRequest(newCoordinator.Id, null, "Tidying up the record."), Guid.NewGuid());
+
+        await act.Should().ThrowAsync<BusinessRuleException>();
+    }
+
+    [Fact]
+    public async Task ReassignAsync_refuses_somebody_who_does_not_hold_the_role()
+    {
+        var department = TestDataBuilder.Department(_fixture.Context);
+        var student = TestDataBuilder.User(_fixture.Context);
+        TestDataBuilder.StudentProfile(_fixture.Context, student, department);
+        var container = TestDataBuilder.Container(
+            _fixture.Context, student, TestDataBuilder.User(_fixture.Context));
+
+        var somebody = TestDataBuilder.User(_fixture.Context);
+
+        var act = () => _sut.ReassignAsync(container.Id,
+            new ReassignContainerRequest(somebody.Id, null, "Covering the vacancy."), Guid.NewGuid());
+
+        await act.Should().ThrowAsync<BusinessRuleException>();
+    }
+
+    [Fact]
+    public async Task ReassignAsync_refuses_to_appoint_the_first_supervisor()
+    {
+        var department = TestDataBuilder.Department(_fixture.Context);
+        var student = TestDataBuilder.User(_fixture.Context);
+        TestDataBuilder.StudentProfile(_fixture.Context, student, department);
+        var container = TestDataBuilder.Container(
+            _fixture.Context, student, TestDataBuilder.User(_fixture.Context));
+
+        var supervisor = TestDataBuilder.User(_fixture.Context);
+        TestDataBuilder.GrantRole(_fixture.Context, supervisor, RoleNames.Supervisor);
+
+        var act = () => _sut.ReassignAsync(container.Id,
+            new ReassignContainerRequest(null, supervisor.Id, "Nobody is supervising this."), Guid.NewGuid());
+
+        await act.Should().ThrowAsync<BusinessRuleException>();
     }
 }

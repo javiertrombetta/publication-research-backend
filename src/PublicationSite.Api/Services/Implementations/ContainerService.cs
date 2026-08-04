@@ -16,6 +16,7 @@ public class ContainerService(
     IDepartmentService departmentService,
     IContainerAccessService accessService,
     IAuditService auditService,
+    INotificationService notificationService,
     ISystemSettingService settingService) : IContainerService
 {
     public async Task<PublicationContainerDto> CreateAsync(Guid studentUserId, CancellationToken cancellationToken = default)
@@ -222,27 +223,37 @@ public class ContainerService(
         };
 
     public async Task<PagedResult<PublicationContainerDto>> GetMineAsync(
-        Guid studentUserId, PageRequest page, CancellationToken cancellationToken = default) =>
+        Guid studentUserId, PageRequest page, CancellationToken cancellationToken = default)
+    {
+        var hodReviews = await HeadOfDepartmentReviewsAsync(cancellationToken);
+
         // Order before projecting: the DTO carries a correlated sub-query for Title, and EF Core
         // cannot translate an OrderBy applied on top of that projection.
-        await ProjectToDto(
+        return await ProjectToDto(
                 db.PublicationContainers
                     .Where(c => c.StudentId == studentUserId)
-                    .SortBy(page, c => c.CreatedAt, SortColumns))
+                    .SortBy(page, c => c.CreatedAt, SortColumns),
+                hodReviews)
             .ToPageAsync(page, cancellationToken);
+    }
 
     public async Task<PagedResult<PublicationContainerDto>> GetSupervisingAsync(
-        Guid supervisorUserId, ContainerQuery query, CancellationToken cancellationToken = default) =>
+        Guid supervisorUserId, ContainerQuery query, CancellationToken cancellationToken = default)
+    {
+        var hodReviews = await HeadOfDepartmentReviewsAsync(cancellationToken);
+
         // Ordered before projecting, as in GetMineAsync: the DTO carries correlated sub-queries
         // that EF Core cannot order on top of.
-        await ProjectToDto(
+        return await ProjectToDto(
                 WhereMatches(
                     WhereEthicsStep(
                         db.PublicationContainers.Where(c => c.AssignedSupervisorId == supervisorUserId),
-                        query.EthicsStep),
+                        query.EthicsStep, hodReviews),
                     query.Search)
-                .SortBy(query, c => c.CreatedAt, SupervisorSortColumns))
+                .SortBy(query, c => c.CreatedAt, SupervisorSortColumns),
+                hodReviews)
             .ToPageAsync(query, cancellationToken);
+    }
 
     public async Task<PagedResult<PublicationContainerDto>> GetInMyDepartmentAsync(
         Guid headOfDepartmentUserId, ContainerQuery query, CancellationToken cancellationToken = default)
@@ -263,16 +274,18 @@ public class ContainerService(
         // same handles: narrow to a student, or to the papers waiting on somebody in particular.
         // Ordered by DepartmentSortColumns, which answers "waiting on" for the department rather
         // than for whoever is reading.
+        var hodReviews = await HeadOfDepartmentReviewsAsync(cancellationToken);
+
         var department = WherePaperAwaiting(
             WhereMatches(
                 WhereEthicsStep(
                     db.PublicationContainers.Where(c => c.Student.StudentProfile != null
                                 && c.Student.StudentProfile.DepartmentId == departmentId),
-                    query.EthicsStep),
+                    query.EthicsStep, hodReviews),
                 query.Search),
             query.PaperAwaiting);
 
-        return await ProjectToDto(department.SortBy(query, c => c.CreatedAt, DepartmentSortColumns))
+        return await ProjectToDto(department.SortBy(query, c => c.CreatedAt, DepartmentSortColumns), hodReviews)
             .ToPageAsync(query, cancellationToken);
     }
 
@@ -419,8 +432,12 @@ public class ContainerService(
         containers = WherePaperAwaiting(containers, query.PaperAwaiting);
         containers = WhereMatches(containers, query.Search);
 
+        var hodReviews = await HeadOfDepartmentReviewsAsync(cancellationToken);
+
         return await ProjectToDto(
-                WhereEthicsStep(containers, query.EthicsStep).SortBy(query, c => c.CreatedAt, SortColumns))
+                WhereEthicsStep(containers, query.EthicsStep, hodReviews)
+                    .SortBy(query, c => c.CreatedAt, SortColumns),
+                hodReviews)
             .ToPageAsync(query, cancellationToken);
     }
 
@@ -514,7 +531,7 @@ public class ContainerService(
     /// parameters rather than a list the database is asked to search.
     /// </summary>
     private static IQueryable<PublicationContainer> WhereEthicsStep(
-        IQueryable<PublicationContainer> query, IReadOnlyList<string>? steps)
+        IQueryable<PublicationContainer> query, IReadOnlyList<string>? steps, bool headOfDepartmentReviews)
     {
         if (steps is null or { Count: 0 }) return query;
 
@@ -540,6 +557,7 @@ public class ContainerService(
                 && !c.EthicsApproval.Documents.Any(d => d.Status == EthicsDocumentStatus.PendingReview)
                 && c.EthicsApproval.CoordinatorDecisionAt == null)
             || (headOfDepartment
+                && headOfDepartmentReviews
                 && c.EthicsApproval.Status == EthicsStatus.PendingVerification
                 && !c.EthicsApproval.Documents.Any(d => d.Status == EthicsDocumentStatus.PendingReview)
                 && c.EthicsApproval.CoordinatorDecisionAt != null
@@ -547,7 +565,129 @@ public class ContainerService(
             || (coordinatorFinal
                 && c.EthicsApproval.Status == EthicsStatus.PendingVerification
                 && !c.EthicsApproval.Documents.Any(d => d.Status == EthicsDocumentStatus.PendingReview)
-                && c.EthicsApproval.HeadOfDepartmentReviewedAt != null)));
+                && c.EthicsApproval.CoordinatorDecisionAt != null
+                && (c.EthicsApproval.HeadOfDepartmentReviewedAt != null || !headOfDepartmentReviews))));
+    }
+
+    /// <summary>
+    /// Changes who is responsible for a publication that is still under way.
+    ///
+    /// The one lever there was for this appointed a coordinator; there was none at all for a
+    /// supervisor, which is the appointment the whole ethics and paper pipeline waits on. A
+    /// supervisor who leaves therefore stopped the publication with no way to restart it short of
+    /// the database.
+    /// </summary>
+    public async Task<PublicationContainerDto> ReassignAsync(
+        Guid containerId, ReassignContainerRequest request, Guid actingAdminId, CancellationToken cancellationToken = default)
+    {
+        var container = await db.PublicationContainers.FirstOrDefaultAsync(c => c.Id == containerId, cancellationToken)
+            ?? throw new NotFoundException(nameof(PublicationContainer), containerId);
+
+        if (container.Status == ContainerStatus.Completed)
+        {
+            throw new BusinessRuleException(
+                "This publication has finished. Changing who was responsible for it would rewrite the record of who decided what.");
+        }
+
+        // Always. This overrides a decision somebody else made, and it is the only account of why.
+        if (string.IsNullOrWhiteSpace(request.Comments))
+        {
+            throw new BusinessRuleException("Say why these assignments are being changed. It stays on the publication's history.");
+        }
+
+        if (request.CoordinatorUserId is null && request.SupervisorUserId is null)
+        {
+            throw new BusinessRuleException("Choose a coordinator or a supervisor to change.");
+        }
+
+        var changes = new List<string>();
+        Guid? notifyCoordinator = null;
+        Guid? notifySupervisor = null;
+
+        if (request.CoordinatorUserId is { } coordinatorId && coordinatorId != container.CoordinatorId)
+        {
+            await EnsureHoldsRoleAsync(coordinatorId, RoleNames.Coordinator, "coordinator", cancellationToken);
+
+            var previous = await NameOfAsync(container.CoordinatorId, cancellationToken);
+            container.CoordinatorId = coordinatorId;
+            notifyCoordinator = coordinatorId;
+            changes.Add($"coordinator changed from {previous} to {await NameOfAsync(coordinatorId, cancellationToken)}");
+        }
+
+        if (request.SupervisorUserId is { } supervisorId && supervisorId != container.AssignedSupervisorId)
+        {
+            // Only where one has already been appointed. Choosing the first supervisor is the
+            // coordinator's decision on a proposal, and doing it from here would settle which
+            // proposal goes ahead as a side effect of an administrative fix.
+            if (container.AssignedSupervisorId is null)
+            {
+                throw new BusinessRuleException(
+                    "This publication has no supervisor yet. The coordinator appoints the first one by assigning a proposal.");
+            }
+
+            await EnsureHoldsRoleAsync(supervisorId, RoleNames.Supervisor, "supervisor", cancellationToken);
+
+            var previous = await NameOfAsync(container.AssignedSupervisorId.Value, cancellationToken);
+            container.AssignedSupervisorId = supervisorId;
+            notifySupervisor = supervisorId;
+            changes.Add($"supervisor changed from {previous} to {await NameOfAsync(supervisorId, cancellationToken)}");
+        }
+
+        if (changes.Count == 0)
+        {
+            throw new BusinessRuleException("Those are the people already responsible for this publication.");
+        }
+
+        container.UpdatedAt = DateTime.UtcNow;
+        await db.SaveChangesAsync(cancellationToken);
+
+        await auditService.LogActivityAsync(container.Id, actingAdminId, "AssignmentsChanged",
+            string.Join("; ", changes) + ". " + request.Comments);
+
+        // Whoever now has the work, so it does not sit unnoticed on a queue they have never looked
+        // at. The person replaced is not told: they have nothing left to do here, and the
+        // publication's history says what happened.
+        if (notifyCoordinator is { } newCoordinator)
+        {
+            await notificationService.NotifyAsync(newCoordinator, NotificationType.ContainerAssigned,
+                "A publication has been assigned to you",
+                "An administrator has made you the coordinator for a publication. Please log in to see where it has got to.",
+                nameof(PublicationContainer), container.Id, cancellationToken);
+        }
+
+        if (notifySupervisor is { } newSupervisor)
+        {
+            await notificationService.NotifyAsync(newSupervisor, NotificationType.ContainerAssigned,
+                "A publication has been assigned to you",
+                "An administrator has made you the supervisor for a publication. Please log in to see where it has got to.",
+                nameof(PublicationContainer), container.Id, cancellationToken);
+        }
+
+        return await GetByIdInternalAsync(container.Id, cancellationToken);
+    }
+
+    /// <summary>Refuses somebody who does not hold the role the job needs.</summary>
+    private async Task EnsureHoldsRoleAsync(Guid userId, string role, string what, CancellationToken cancellationToken)
+    {
+        var holds = await db.UserRoles
+            .Where(ur => ur.UserId == userId)
+            .Join(db.Roles, ur => ur.RoleId, r => r.Id, (ur, r) => r.Name)
+            .AnyAsync(name => name == role, cancellationToken);
+
+        if (!holds)
+        {
+            throw new BusinessRuleException($"The person chosen is not a {what}. Give them the role first, in Users.");
+        }
+    }
+
+    private async Task<string> NameOfAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        var user = await db.Users
+            .Where(u => u.Id == userId)
+            .Select(u => u.FirstName + " " + u.LastName)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return user ?? "somebody no longer on record";
     }
 
     public async Task<PublicationContainerDto> AssignCoordinatorManuallyAsync(AssignCoordinatorRequest request, Guid actingUserId, CancellationToken cancellationToken = default)
@@ -597,11 +737,23 @@ public class ContainerService(
 
     private async Task<PublicationContainerDto> GetByIdInternalAsync(Guid id, CancellationToken cancellationToken)
     {
-        return await ProjectToDto(db.PublicationContainers.Where(c => c.Id == id)).SingleOrDefaultAsync(cancellationToken)
+        var hodReviews = await HeadOfDepartmentReviewsAsync(cancellationToken);
+
+        return await ProjectToDto(db.PublicationContainers.Where(c => c.Id == id), hodReviews)
+                   .SingleOrDefaultAsync(cancellationToken)
             ?? throw new NotFoundException(nameof(PublicationContainer), id);
     }
 
-    private static IQueryable<PublicationContainerDto> ProjectToDto(IQueryable<PublicationContainer> query) =>
+    /// <summary>
+    /// Whether this institution puts the Head of Department between the coordinator's approval and
+    /// their final decision. Read once per request and passed into the projections: they are
+    /// expressions the database runs, so they cannot ask a setting for themselves.
+    /// </summary>
+    private async Task<bool> HeadOfDepartmentReviewsAsync(CancellationToken cancellationToken) =>
+        (await settingService.GetEthicsWorkflowSettingsAsync(cancellationToken)).HeadOfDepartmentReviews;
+
+    private static IQueryable<PublicationContainerDto> ProjectToDto(
+        IQueryable<PublicationContainer> query, bool headOfDepartmentReviews) =>
         query.Select(c => new PublicationContainerDto(
             c.Id,
             c.StudentId,
@@ -636,7 +788,9 @@ public class ContainerService(
                         ? RoleNames.Supervisor
                         : c.EthicsApproval.CoordinatorDecisionAt == null
                             ? RoleNames.Coordinator
-                            : c.EthicsApproval.HeadOfDepartmentReviewedAt == null
+                            // Skipped where this institution does not run that step, so a
+                            // publication cannot sit on a queue nobody works.
+                            : headOfDepartmentReviews && c.EthicsApproval.HeadOfDepartmentReviewedAt == null
                                 ? RoleNames.HeadOfDepartment
                                 // Everyone has had their say; the Coordinator closes it.
                                 : RoleNames.Coordinator)
@@ -691,7 +845,7 @@ public class ContainerService(
                         ? EthicsSteps.SupervisorDocumentReview
                         : c.EthicsApproval.CoordinatorDecisionAt == null
                             ? EthicsSteps.CoordinatorDocumentReview
-                            : c.EthicsApproval.HeadOfDepartmentReviewedAt == null
+                            : headOfDepartmentReviews && c.EthicsApproval.HeadOfDepartmentReviewedAt == null
                                 ? EthicsSteps.HeadOfDepartmentReview
                                 : EthicsSteps.CoordinatorFinalDecision)
                     : null,

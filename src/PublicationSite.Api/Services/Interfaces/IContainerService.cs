@@ -49,6 +49,13 @@ public interface IContainerService
 
     Task<PagedResult<PublicationContainerDto>> GetAllAsync(ContainerQuery query, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Changes who is responsible for a publication that is still under way: its coordinator, its
+    /// supervisor, or both. Always with a reason, and refused once the publication has finished.
+    /// </summary>
+    Task<PublicationContainerDto> ReassignAsync(
+        Guid containerId, ReassignContainerRequest request, Guid actingAdminId, CancellationToken cancellationToken = default);
+
     /// <summary>Admin-only manual assignment; creates the Container if the student does not have one yet.</summary>
     Task<PublicationContainerDto> AssignCoordinatorManuallyAsync(AssignCoordinatorRequest request, Guid actingUserId, CancellationToken cancellationToken = default);
 }

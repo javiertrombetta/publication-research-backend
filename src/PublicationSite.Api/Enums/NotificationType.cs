@@ -19,5 +19,9 @@ public enum NotificationType
     CommitteeFinalReviewRequested,
     PublicationApproved,
     PublicationDecisionRequested,
+
+    /// <summary>An administrator has made somebody responsible for a publication already under way.</summary>
+    ContainerAssigned,
+
     Generic
 }

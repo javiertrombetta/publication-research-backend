@@ -572,6 +572,28 @@ public class SystemSettingService(
         return await GetDecisionCommentSettingsAsync(cancellationToken);
     }
 
+    // ---------- Steps of the ethics pipeline ----------
+
+    public async Task<EthicsWorkflowSettingsDto> GetEthicsWorkflowSettingsAsync(CancellationToken cancellationToken = default) =>
+        new(await settings.GetBoolAsync(
+            SettingKeys.EthicsHeadOfDepartmentReview, SettingKeys.DefaultEthicsHeadOfDepartmentReview, cancellationToken));
+
+    public async Task<EthicsWorkflowSettingsDto> UpdateEthicsWorkflowSettingsAsync(
+        UpdateEthicsWorkflowSettingsRequest request, Guid actingAdminId, CancellationToken cancellationToken = default)
+    {
+        await SetPendingAsync(
+            SettingKeys.EthicsHeadOfDepartmentReview, request.HeadOfDepartmentReviews, actingAdminId, cancellationToken);
+
+        await CommitAsync(actingAdminId, "EthicsWorkflowSettingsUpdated",
+            request.HeadOfDepartmentReviews
+                ? "The Head of Department comments on ethics documentation before the coordinator closes it."
+                : "The Head of Department step is off. The coordinator's approval goes straight to their final decision, "
+                  + "including for publications already waiting at that step.",
+            cancellationToken);
+
+        return await GetEthicsWorkflowSettingsAsync(cancellationToken);
+    }
+
     // ---------- Research proposals ----------
 
     public async Task<ProposalSettingsDto> GetProposalSettingsAsync(CancellationToken cancellationToken = default) =>

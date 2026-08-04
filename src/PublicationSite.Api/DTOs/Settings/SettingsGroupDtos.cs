@@ -257,3 +257,11 @@ public record DecisionCommentSettingsDto(IReadOnlyList<DecisionCommentDto> Decis
 /// decision unticked rather than one nobody mentioned.
 /// </param>
 public record UpdateDecisionCommentSettingsRequest(IReadOnlyList<string> Required);
+
+/// <summary>
+/// Which optional steps of the ethics pipeline this institution runs.
+/// </summary>
+/// <param name="HeadOfDepartmentReviews">Whether the Head of Department comments between the coordinator's approval and their final decision.</param>
+public record EthicsWorkflowSettingsDto(bool HeadOfDepartmentReviews);
+
+public record UpdateEthicsWorkflowSettingsRequest(bool HeadOfDepartmentReviews);

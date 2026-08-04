@@ -16,7 +16,8 @@ public class EthicsService(
     IAuditService auditService,
     INotificationService notificationService,
     IFileStorageService fileStorageService,
-    IDecisionCommentPolicy commentPolicy) : IEthicsService
+    IDecisionCommentPolicy commentPolicy,
+    ISystemSettingService settingService) : IEthicsService
 {
 
     public EthicsGuidanceDto GetGuidance() => new(
@@ -370,22 +371,37 @@ public class EthicsService(
         {
             await db.SaveChangesAsync(cancellationToken);
 
-            // Whoever heads the student's department. Normally one person; where the
-            // administrator has appointed more, the first is notified and the rest see it on
-            // their own queue, which is where the work actually is.
-            var headOfDepartment = await db.StudentProfiles
-                .Where(s => s.UserId == container.StudentId)
-                .SelectMany(s => s.Department.HeadsOfDepartment)
-                .FirstOrDefaultAsync(cancellationToken);
-
             await auditService.LogActivityAsync(publicationContainerId, coordinatorId, "CoordinatorApprovedEthicsDocuments",
                 request.Comments);
 
-            if (headOfDepartment is not null)
+            var workflow = await settingService.GetEthicsWorkflowSettingsAsync(cancellationToken);
+
+            if (workflow.HeadOfDepartmentReviews)
             {
-                await notificationService.NotifyAsync(headOfDepartment.UserId, NotificationType.EthicsHeadOfDepartmentReviewRequested,
-                    "Ethics documentation review requested",
-                    "The Coordinator has approved a student's ethics documentation. Please log in to review it and record your comments.",
+                // Whoever heads the student's department. Normally one person; where the
+                // administrator has appointed more, the first is notified and the rest see it on
+                // their own queue, which is where the work actually is.
+                var headOfDepartment = await db.StudentProfiles
+                    .Where(s => s.UserId == container.StudentId)
+                    .SelectMany(s => s.Department.HeadsOfDepartment)
+                    .FirstOrDefaultAsync(cancellationToken);
+
+                if (headOfDepartment is not null)
+                {
+                    await notificationService.NotifyAsync(headOfDepartment.UserId, NotificationType.EthicsHeadOfDepartmentReviewRequested,
+                        "Ethics documentation review requested",
+                        "The Coordinator has approved a student's ethics documentation. Please log in to review it and record your comments.",
+                        nameof(PublicationContainer), publicationContainerId, cancellationToken);
+                }
+            }
+            else
+            {
+                // Nobody stands between the approval and the close, so the coordinator is told
+                // the decision is now theirs rather than left waiting for a step that never comes.
+                await notificationService.NotifyAsync(coordinatorId, NotificationType.EthicsFinalDecisionRequested,
+                    "Final ethics decision requested",
+                    "You have approved this student's ethics documentation. This institution does not use a Head of "
+                    + "Department review, so the final decision is yours to make now.",
                     nameof(PublicationContainer), publicationContainerId, cancellationToken);
             }
         }
@@ -410,6 +426,14 @@ public class EthicsService(
 
         var approval = await db.EthicsApprovals.FirstOrDefaultAsync(a => a.PublicationContainerId == publicationContainerId, cancellationToken)
             ?? throw new NotFoundException(nameof(EthicsApproval), publicationContainerId);
+
+        var workflow = await settingService.GetEthicsWorkflowSettingsAsync(cancellationToken);
+
+        if (!workflow.HeadOfDepartmentReviews)
+        {
+            throw new BusinessRuleException(
+                "This institution does not put the Head of Department between the coordinator's approval and their final decision.");
+        }
 
         if (approval.Status != EthicsStatus.PendingVerification || approval.CoordinatorDecisionAt is null)
         {
@@ -440,7 +464,13 @@ public class EthicsService(
         var (container, approval) = await GetApprovalForCoordinatorAsync(
             publicationContainerId, coordinatorId, cancellationToken, includeDocuments: true);
 
-        if (approval.Status != EthicsStatus.PendingVerification || approval.HeadOfDepartmentReviewedAt is null)
+        // The Head of Department's reading is optional: some institutions have none in the loop.
+        // Where it is off, the coordinator's approval leads straight here, and publications already
+        // parked at that step move on with everything else, which is the point of the switch.
+        var workflow = await settingService.GetEthicsWorkflowSettingsAsync(cancellationToken);
+
+        if (approval.Status != EthicsStatus.PendingVerification
+            || (workflow.HeadOfDepartmentReviews && approval.HeadOfDepartmentReviewedAt is null))
         {
             throw new BusinessRuleException("This container's ethics documentation is not awaiting a final Coordinator decision.");
         }

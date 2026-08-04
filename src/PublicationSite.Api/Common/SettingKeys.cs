@@ -283,6 +283,21 @@ public static class SettingKeys
     /// <summary>A ceiling on the ceiling: a round nobody could read is not a round.</summary>
     public const int HighestProposalsPerRound = 20;
 
+    // ---------- Steps of the ethics pipeline ----------
+
+    /// <summary>
+    /// Whether the Head of Department comments on ethics documentation between the coordinator's
+    /// approval and their final decision.
+    ///
+    /// Some institutions want that reading; others have no head of department in the loop and the
+    /// step simply parks every publication on a queue nobody works. Turned off, the coordinator's
+    /// approval goes straight to their own final decision. Publications already sitting at the
+    /// step move on with everything else, which is the point: the setting exists to unstick them.
+    /// </summary>
+    public const string EthicsHeadOfDepartmentReview = "ethics.head-of-department-review";
+
+    public const bool DefaultEthicsHeadOfDepartmentReview = true;
+
     // ---------- Where uploaded files are kept ----------
 
     /// <summary>

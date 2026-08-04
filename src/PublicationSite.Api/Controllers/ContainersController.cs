@@ -195,6 +195,33 @@ public class ContainersController(IContainerService containerService, ICurrentUs
     }
 
     /// <summary>
+    /// Changes who is responsible for a publication already under way: its coordinator, its
+    /// supervisor, or both, with a reason.
+    ///
+    /// Every step of the pipeline waits on somebody named on the publication, so a person who
+    /// leaves or falls ill stops it. Without this there was no way to name somebody else.
+    /// </summary>
+    /// <response code="200">The publication, with its new assignments.</response>
+    /// <response code="400">The request did not pass validation. Which field, and why, comes back as a problem document rather than the usual envelope.</response>
+    /// <response code="401">No access token was sent, or the one sent has expired.</response>
+    /// <response code="403">Signed in, but this is not something your role may do.</response>
+    /// <response code="404">No publication with that id.</response>
+    /// <response code="422">Understood, and refused: the workflow does not allow this at the point it has reached.</response>
+    [HttpPut("{id:guid}/assignments")]
+    [Authorize(Roles = RoleNames.Admin)]
+    [ProducesResponseType(typeof(ApiResponse<PublicationContainerDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status422UnprocessableEntity)]
+    public async Task<IActionResult> Reassign(Guid id, [FromBody] ReassignContainerRequest request)
+    {
+        var result = await containerService.ReassignAsync(id, request, currentUser.UserId);
+        return Ok(ApiResponse<PublicationContainerDto>.Ok(result, "Assignments changed."));
+    }
+
+    /// <summary>
     /// Moves a publication to a different coordinator, or opens one for a student on their
     /// behalf. For when the automatic allocation got it wrong or the person it chose has gone.
     /// </summary>
