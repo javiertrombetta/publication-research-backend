@@ -297,7 +297,7 @@ public class ContainerService(
         return await ProjectToDto(
                 db.PublicationContainers
                     .Where(c => c.StudentId == studentUserId)
-                    .SortBy(page, c => c.CreatedAt, SortColumnsFor(workflow, paperWorkflow)),
+                    .SortBy(page, c => c.CreatedAt, SortColumnsFor(workflow, paperWorkflow), c => c.Id),
                 workflow, paperWorkflow)
             .ToPageAsync(page, cancellationToken);
     }
@@ -316,7 +316,7 @@ public class ContainerService(
                         db.PublicationContainers.Where(c => c.AssignedSupervisorId == supervisorUserId),
                         query.EthicsStep, workflow),
                     query.Search)
-                .SortBy(query, c => c.CreatedAt, SupervisorSortColumnsFor(workflow, paperWorkflow)),
+                .SortBy(query, c => c.CreatedAt, SupervisorSortColumnsFor(workflow, paperWorkflow), c => c.Id),
                 workflow, paperWorkflow)
             .ToPageAsync(query, cancellationToken);
     }
@@ -362,7 +362,7 @@ public class ContainerService(
                 || c.EthicsApproval.HeadOfDepartmentUserId == headOfDepartmentUserId);
         }
 
-        return await ProjectToDto(department.SortBy(query, c => c.CreatedAt, DepartmentSortColumnsFor(workflow, paperWorkflow)), workflow, paperWorkflow)
+        return await ProjectToDto(department.SortBy(query, c => c.CreatedAt, DepartmentSortColumnsFor(workflow, paperWorkflow), c => c.Id), workflow, paperWorkflow)
             .ToPageAsync(query, cancellationToken);
     }
 
@@ -443,7 +443,7 @@ public class ContainerService(
         var total = await query.CountAsync(cancellationToken);
 
         var items = await query
-            .OrderByDescending(a => a.CreatedAt)
+            .OrderByDescending(a => a.CreatedAt).ThenBy(a => a.Id)
             .Skip((paging.SafePage - 1) * paging.SafePageSize)
             .Take(paging.SafePageSize)
             .Select(a => new ActivityHistoryEntryDto(
@@ -519,7 +519,7 @@ public class ContainerService(
 
         return await ProjectToDto(
                 WhereEthicsStep(containers, query.EthicsStep, workflow)
-                    .SortBy(query, c => c.CreatedAt, SortColumnsFor(workflow, paperWorkflow)),
+                    .SortBy(query, c => c.CreatedAt, SortColumnsFor(workflow, paperWorkflow), c => c.Id),
                 workflow, paperWorkflow)
             .ToPageAsync(query, cancellationToken);
     }

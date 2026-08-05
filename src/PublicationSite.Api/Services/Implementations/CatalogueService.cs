@@ -58,7 +58,7 @@ public class CatalogueService(ApplicationDbContext db, IFileStorageService fileS
         var totalCount = await query.CountAsync(cancellationToken);
 
         var items = await query
-            .OrderByDescending(p => p.PublishedAt)
+            .OrderByDescending(p => p.PublishedAt).ThenBy(p => p.Id)
             .Skip((request.SafePage - 1) * request.SafePageSize)
             .Take(request.SafePageSize)
             .Select(p => ToDto(p))

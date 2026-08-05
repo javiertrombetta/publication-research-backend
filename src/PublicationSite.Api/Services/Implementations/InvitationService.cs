@@ -91,8 +91,8 @@ public class InvitationService(
         }
 
         var ordered = paging.SortBy is not null && InvitationSorts.TryGetValue(paging.SortBy, out var key)
-            ? paging.SortDescending ? invitations.OrderByDescending(key) : invitations.OrderBy(key)
-            : invitations.OrderByDescending(i => i.CreatedAt);
+            ? (paging.SortDescending ? invitations.OrderByDescending(key) : invitations.OrderBy(key)).ThenBy(i => i.Id)
+            : invitations.OrderByDescending(i => i.CreatedAt).ThenBy(i => i.Id);
 
         var total = await ordered.CountAsync(cancellationToken);
 
