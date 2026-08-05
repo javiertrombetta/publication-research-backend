@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using PublicationSite.Api.Common.Exceptions;
+using PublicationSite.Api.DTOs.Common;
 using PublicationSite.Api.DTOs.Publications;
 using PublicationSite.Api.Entities;
 using PublicationSite.Api.DTOs.Settings;
@@ -355,13 +356,13 @@ public class PublicationServiceTests : IDisposable
         await _sut.SubmitAsync(publication.Id, student.Id);
         await _sut.SupervisorReviewAsync(publication.Id, supervisor.Id, new PaperReviewDecisionRequest(true, "Fine"));
 
-        (await _sut.GetAwaitingCommitteeAsync()).Should().HaveCount(1);
+        (await _sut.GetAwaitingCommitteeAsync(new PageRequest())).Items.Should().HaveCount(1);
 
         _settingService.Setup(s => s.GetPaperWorkflowSettingsAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(new PaperWorkflowSettingsDto(SupervisorReviews: true, CommitteeEvaluates: false, CoordinatorDecides: true));
 
         // Offering it would be offering work the assignment itself refuses.
-        (await _sut.GetAwaitingCommitteeAsync()).Should().BeEmpty();
+        (await _sut.GetAwaitingCommitteeAsync(new PageRequest())).Items.Should().BeEmpty();
     }
 
     [Fact]
@@ -377,6 +378,6 @@ public class PublicationServiceTests : IDisposable
 
         // No supervisor approval exists, and none is coming. Asking for one regardless hid the
         // paper from the only screen that could appoint its committee.
-        (await _sut.GetAwaitingCommitteeAsync()).Should().ContainSingle(p => p.Id == publication.Id);
+        (await _sut.GetAwaitingCommitteeAsync(new PageRequest())).Items.Should().ContainSingle(p => p.Id == publication.Id);
     }
 }

@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PublicationSite.Api.Common;
 using PublicationSite.Api.DTOs.Auth;
+using PublicationSite.Api.DTOs.Common;
 using PublicationSite.Api.Services.Interfaces;
 
 namespace PublicationSite.Api.Controllers;
@@ -18,17 +19,25 @@ public class InvitationsController(IInvitationService invitationService, ICurren
     /// <summary>
     /// Every invitation and where it stands: pending, accepted, expired or withdrawn.
     /// </summary>
-    /// <response code="200">The matching user invitations, all of them.</response>
+    /// <remarks>
+    /// <paramref name="state"/> narrows it to <c>Pending</c> or <c>Settled</c>, which is how the
+    /// screen draws its two blocks as two listings rather than one split after the fact. Ordered
+    /// newest first, or by <c>person</c>, <c>email</c>, <c>role</c>, <c>department</c>,
+    /// <c>invitedby</c>, <c>sent</c> or <c>expires</c>. The search term covers the invited
+    /// person's name and their address.
+    /// </remarks>
+    /// <response code="200">One page of invitations, with the total count alongside it so a pager can be drawn without a second request.</response>
     /// <response code="401">No access token was sent, or the one sent has expired.</response>
     /// <response code="403">Signed in, but this is not something your role may do.</response>
     [HttpGet]
-    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<UserInvitationDto>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<PagedResult<UserInvitationDto>>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    public async Task<IActionResult> GetAll()
+    public async Task<IActionResult> GetAll(
+        [FromQuery] PageRequest paging, [FromQuery] string? state = null, [FromQuery] string? search = null)
     {
-        var result = await invitationService.GetAllAsync();
-        return Ok(ApiResponse<IReadOnlyList<UserInvitationDto>>.Ok(result));
+        var result = await invitationService.GetAllAsync(paging, state, search);
+        return Ok(ApiResponse<PagedResult<UserInvitationDto>>.Ok(result));
     }
 
     /// <summary>

@@ -1,4 +1,5 @@
 using PublicationSite.Api.DTOs.Auth;
+using PublicationSite.Api.DTOs.Common;
 
 namespace PublicationSite.Api.Services.Interfaces;
 
@@ -12,7 +13,14 @@ namespace PublicationSite.Api.Services.Interfaces;
 /// </summary>
 public interface IInvitationService
 {
-    Task<IReadOnlyList<UserInvitationDto>> GetAllAsync(CancellationToken cancellationToken = default);
+    /// <param name="state">
+    /// <c>Pending</c> for the ones still outstanding, <c>Settled</c> for those accepted, withdrawn
+    /// or expired. Anything else returns both.
+    /// </param>
+    /// <param name="search">A word to look for in the invited person's name or address.</param>
+    Task<PagedResult<UserInvitationDto>> GetAllAsync(
+        PageRequest paging, string? state = null, string? search = null,
+        CancellationToken cancellationToken = default);
 
     Task<UserInvitationDto> CreateAsync(
         CreateInvitationRequest request, Guid actingAdminId, CancellationToken cancellationToken = default);

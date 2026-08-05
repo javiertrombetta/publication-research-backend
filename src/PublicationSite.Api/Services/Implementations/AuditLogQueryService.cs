@@ -11,13 +11,28 @@ namespace PublicationSite.Api.Services.Implementations;
 
 public class AuditLogQueryService(ApplicationDbContext db) : IAuditLogQueryService
 {
+    /// <summary>
+    /// What the trail can be ordered by, one per column of the screen that reads it.
+    ///
+    /// The change column is missing on purpose: it is two values drawn as one, and there is no
+    /// single thing to compare. Its neighbours are what anybody actually orders this by.
+    /// </summary>
+    private static readonly Dictionary<string, Expression<Func<Entities.AuditLogEntry, object?>>> TrailSorts =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["when"] = a => a.Timestamp,
+            ["who"] = a => a.ActorUser.LastName,
+            ["action"] = a => a.ActionType,
+            ["entity"] = a => a.EntityType,
+            ["comments"] = a => a.Comments
+        };
+
     public async Task<PagedResult<AuditLogEntryDto>> GetAsync(AuditLogQuery query, CancellationToken cancellationToken = default)
     {
         var filtered = Filter(query);
         var totalCount = await filtered.CountAsync(cancellationToken);
 
-        var items = await filtered
-            .OrderByDescending(a => a.Timestamp)
+        var items = await Order(filtered, query)
             .Skip((query.SafePage - 1) * query.SafePageSize)
             .Take(query.SafePageSize)
             .Select(ToDto)
@@ -26,9 +41,21 @@ public class AuditLogQueryService(ApplicationDbContext db) : IAuditLogQueryServi
         return new PagedResult<AuditLogEntryDto>(items, query.SafePage, query.SafePageSize, totalCount);
     }
 
+    /// <summary>
+    /// Newest first unless a column was asked for, and then in the order the reader chose. The
+    /// export takes the same ordering as the screen, because it is meant to be the thing on the
+    /// screen in a file: handing somebody a CSV sorted differently from the page they exported it
+    /// from is handing them a second document to reconcile.
+    /// </summary>
+    private static IOrderedQueryable<Entities.AuditLogEntry> Order(
+        IQueryable<Entities.AuditLogEntry> query, AuditLogQuery request) =>
+        request.SortBy is not null && TrailSorts.TryGetValue(request.SortBy, out var key)
+            ? request.SortDescending ? query.OrderByDescending(key) : query.OrderBy(key)
+            : query.OrderByDescending(a => a.Timestamp);
+
     public async Task<byte[]> ExportCsvAsync(AuditLogQuery query, CancellationToken cancellationToken = default)
     {
-        var items = await Filter(query).OrderByDescending(a => a.Timestamp).Select(ToDto).ToListAsync(cancellationToken);
+        var items = await Order(Filter(query), query).Select(ToDto).ToListAsync(cancellationToken);
 
         var sb = new StringBuilder();
         sb.AppendLine("Timestamp,Actor,OnBehalfOf,ActionType,EntityType,EntityId,Comments");

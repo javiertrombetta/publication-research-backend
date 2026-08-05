@@ -437,13 +437,26 @@ public class PublicationService(
             page.SafePage, page.SafePageSize, total);
     }
 
-    public async Task<IReadOnlyList<AwaitingCommitteeDto>> GetAwaitingCommitteeAsync(CancellationToken cancellationToken = default)
+    /// <summary>What the administrator's committee queue may be ordered by.</summary>
+    private static readonly Dictionary<string, Expression<Func<Publication, object?>>> AwaitingCommitteeSorts =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["title"] = p => p.Title,
+            ["student"] = p => p.PublicationContainer.Student.LastName,
+            ["waiting"] = p => p.UpdatedAt
+        };
+
+    public async Task<PagedResult<AwaitingCommitteeDto>> GetAwaitingCommitteeAsync(
+        PageRequest paging, string? search = null, CancellationToken cancellationToken = default)
     {
         var workflow = await settingService.GetPaperWorkflowSettingsAsync(cancellationToken);
 
         // Nothing at all where this institution appoints no committees: offering a paper here
         // would be offering work the assignment itself refuses.
-        if (!workflow.CommitteeEvaluates) return [];
+        if (!workflow.CommitteeEvaluates)
+        {
+            return new PagedResult<AwaitingCommitteeDto>([], paging.SafePage, paging.SafePageSize, 0);
+        }
 
         var papers = db.Publications
             .Where(p => p.Status == PublicationStatus.UnderReview && p.Committee == null);
@@ -456,8 +469,28 @@ public class PublicationService(
             papers = papers.WhereLatestVersionApprovedBySupervisor();
         }
 
-        return await papers
-            .OrderBy(p => p.UpdatedAt)
+        // Applied before the page is cut, so it searches the whole queue rather than the rows in
+        // hand. One term across the paper and its author, as the other queues take it.
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim();
+            papers = papers.Where(p =>
+                p.Title.Contains(term)
+                || p.PublicationContainer.Student.FirstName.Contains(term)
+                || p.PublicationContainer.Student.LastName.Contains(term));
+        }
+
+        // Longest waiting first by default: this is a queue, and the paper nobody has dealt with
+        // for a fortnight is the one holding a coordinator up.
+        var ordered = paging.SortBy is not null && AwaitingCommitteeSorts.TryGetValue(paging.SortBy, out var key)
+            ? paging.SortDescending ? papers.OrderByDescending(key) : papers.OrderBy(key)
+            : papers.OrderBy(p => p.UpdatedAt);
+
+        var total = await ordered.CountAsync(cancellationToken);
+
+        var items = await ordered
+            .Skip((paging.SafePage - 1) * paging.SafePageSize)
+            .Take(paging.SafePageSize)
             .Select(p => new AwaitingCommitteeDto(
                 p.Id,
                 p.PublicationContainerId,
@@ -467,6 +500,8 @@ public class PublicationService(
                 p.PublicationContainer.RequiredReviewerMembers,
                 p.PublicationContainer.RequiredExternalCommitteeMembers))
             .ToListAsync(cancellationToken);
+
+        return new PagedResult<AwaitingCommitteeDto>(items, paging.SafePage, paging.SafePageSize, total);
     }
 
     public async Task SupervisorReviewAsync(Guid publicationId, Guid supervisorId, PaperReviewDecisionRequest request, CancellationToken cancellationToken = default)

@@ -50,7 +50,8 @@ public interface IPublicationService
         Guid publicationId, Guid versionId, Guid requestingUserId, CancellationToken cancellationToken = default);
 
     /// <summary>Papers a Supervisor has approved that still have no evaluation committee.</summary>
-    Task<IReadOnlyList<AwaitingCommitteeDto>> GetAwaitingCommitteeAsync(CancellationToken cancellationToken = default);
+    Task<PagedResult<AwaitingCommitteeDto>> GetAwaitingCommitteeAsync(
+        PageRequest paging, string? search = null, CancellationToken cancellationToken = default);
     Task SupervisorReviewAsync(Guid publicationId, Guid supervisorId, PaperReviewDecisionRequest request, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<ReviewDto>> GetReviewsAsync(Guid publicationId, Guid requestingUserId, CancellationToken cancellationToken = default);

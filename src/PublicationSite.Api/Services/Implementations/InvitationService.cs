@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.AspNetCore.Identity;
@@ -8,6 +9,7 @@ using PublicationSite.Api.Common.Exceptions;
 using PublicationSite.Api.Common.Options;
 using PublicationSite.Api.Data;
 using PublicationSite.Api.DTOs.Auth;
+using PublicationSite.Api.DTOs.Common;
 using PublicationSite.Api.DTOs.Users;
 using PublicationSite.Api.Entities;
 using PublicationSite.Api.Enums;
@@ -36,16 +38,71 @@ public class InvitationService(
         RoleNames.Student, RoleNames.Supervisor, RoleNames.Coordinator, RoleNames.HeadOfDepartment
     ];
 
-    public async Task<IReadOnlyList<UserInvitationDto>> GetAllAsync(CancellationToken cancellationToken = default)
+    /// <summary>The two states the listing can be narrowed to. Anything else means both.</summary>
+    public const string PendingState = "Pending";
+
+    /// <inheritdoc cref="PendingState"/>
+    public const string SettledState = "Settled";
+
+    /// <summary>What the invitation listing may be ordered by, matching its columns.</summary>
+    private static readonly Dictionary<string, Expression<Func<UserInvitation, object?>>> InvitationSorts =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["person"] = i => i.LastName,
+            ["email"] = i => i.Email,
+            ["role"] = i => i.Role,
+            ["department"] = i => i.Department!.Name,
+            ["invitedby"] = i => i.InvitedByUser!.LastName,
+            ["sent"] = i => i.CreatedAt,
+            ["expires"] = i => i.ExpiresAt
+        };
+
+    public async Task<PagedResult<UserInvitationDto>> GetAllAsync(
+        PageRequest paging, string? state = null, string? search = null,
+        CancellationToken cancellationToken = default)
     {
-        var invitations = await db.UserInvitations
+        var invitations = db.UserInvitations
             .AsNoTracking()
             .Include(i => i.Department)
             .Include(i => i.InvitedByUser)
-            .OrderByDescending(i => i.CreatedAt)
+            .AsQueryable();
+
+        // Outstanding or dealt with, told apart here rather than after the rows arrive. The status
+        // on the DTO is worked out in memory, which is fine for one row and useless for a filter:
+        // a page cut before the state was known would hold whatever mixture the ordering happened
+        // to produce, and the two blocks on the screen are two listings, not one split in half.
+        var now = DateTime.UtcNow;
+        if (string.Equals(state, PendingState, StringComparison.OrdinalIgnoreCase))
+        {
+            invitations = invitations.Where(i => i.AcceptedAt == null && i.RevokedAt == null && i.ExpiresAt > now);
+        }
+        else if (string.Equals(state, SettledState, StringComparison.OrdinalIgnoreCase))
+        {
+            invitations = invitations.Where(i => i.AcceptedAt != null || i.RevokedAt != null || i.ExpiresAt <= now);
+        }
+
+        // One term across the name and the address, which is what an administrator has to hand
+        // when somebody asks why they never received their invitation.
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim();
+            invitations = invitations.Where(i =>
+                i.Email.Contains(term) || i.FirstName.Contains(term) || i.LastName.Contains(term));
+        }
+
+        var ordered = paging.SortBy is not null && InvitationSorts.TryGetValue(paging.SortBy, out var key)
+            ? paging.SortDescending ? invitations.OrderByDescending(key) : invitations.OrderBy(key)
+            : invitations.OrderByDescending(i => i.CreatedAt);
+
+        var total = await ordered.CountAsync(cancellationToken);
+
+        var page = await ordered
+            .Skip((paging.SafePage - 1) * paging.SafePageSize)
+            .Take(paging.SafePageSize)
             .ToListAsync(cancellationToken);
 
-        return [.. invitations.Select(ToDto)];
+        return new PagedResult<UserInvitationDto>(
+            [.. page.Select(ToDto)], paging.SafePage, paging.SafePageSize, total);
     }
 
     public async Task<UserInvitationDto> CreateAsync(
