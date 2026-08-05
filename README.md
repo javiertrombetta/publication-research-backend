@@ -33,9 +33,8 @@ src/PublicationSite.Api/
 ```
 
 **Database schema:** see [docs/erd.md](docs/erd.md) for the full entity–relationship diagram (renders
-natively on GitHub) and a table-by-table data dictionary. The diagram predates three tables added since,
-`EthicsDocumentRequirements`, `EthicsApprovalRequirements` and `UserInvitations`, so the schema is currently
-41 tables against the 38 documented there.
+natively on GitHub) and a table-by-table data dictionary. All 43 tables are documented there, checked
+against `SHOW TABLES` on a live database rather than against the last time somebody remembered to look.
 
 ## Getting started
 
@@ -111,9 +110,12 @@ reference settles into: the endpoints somebody happened to explain are described
 method name and a bare `Success`, and a reader cannot tell which they are looking at until they
 have read it.
 
-- **16 of 16 groups** carry a description, on the controller class.
-- **128 of 128 operations** carry a summary.
-- **519 responses** are declared, and none of them is left showing only its reason phrase.
+- **18 of 18 groups** carry a description, on the controller class.
+- **165 of 165 operations** carry a summary.
+- **671 responses** are declared, and none of them is left showing only its reason phrase.
+
+Read off `/swagger/v1.1/swagger.json` rather than counted by hand, so the figures can be checked
+against the running API instead of being believed.
 
 The error responses are not guesswork. `ExceptionHandlingMiddleware` maps five exception types onto
 five statuses, so the question "which can this endpoint answer with?" has an answer in the code:
@@ -366,7 +368,7 @@ docker compose up -d          # mysql + the containerised API itself, for a loca
 [docs/postman/](docs/postman/) has a ready-to-import collection (one folder per controller) generated from the
 live OpenAPI spec, plus an environment pointing at the deployed Render instance. Import both, run
 **Auth > Login**, and the access/refresh tokens are saved into collection variables automatically, and every
-other request already inherits Bearer auth from them. It covers all 128 endpoints and is checked against
+other request already inherits Bearer auth from them. It covers all 165 endpoints and is checked against
 the live spec; if you add one, add it here too or regenerate from `/swagger/v1.1/swagger.json`.
 
 ## Testing
@@ -382,7 +384,7 @@ Run everything:
 dotnet test
 ```
 
-137 tests: 130 unit, 7 integration.
+226 tests: 219 unit, 7 integration.
 
 - **Unit tests** exercise the service layer directly against a fresh SQLite in-memory database per test
   (relational/FK-enforcing, unlike the EF Core InMemory provider), with `UserManager`/`SignInManager` mocked via

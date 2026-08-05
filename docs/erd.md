@@ -1,6 +1,6 @@
 # Entity–Relationship Diagram
 
-39 tables in MySQL 8. 38 are shown below as entities, `UserRoles` drawn as a direct many-to-many, and
+43 tables in MySQL 8. 42 are shown below as entities, `UserRoles` drawn as a direct many-to-many, and
 `__EFMigrationsHistory` left out as EF Core's own migration bookkeeping, not part of the data model.
 Verified column-for-column against `SHOW TABLES` / `DESCRIBE` on the live database.
 
@@ -258,8 +258,38 @@ erDiagram
         text Value
         char36 UpdatedByUserId FK
     }
+    SupervisorGroups {
+        char36 Id PK
+        char36 OwnerId FK
+        varchar Name
+        datetime CreatedAt
+        datetime UpdatedAt
+    }
+    SupervisorGroupMembers {
+        char36 SupervisorGroupId PK
+        char36 SupervisorId PK
+    }
+    DepartmentMemberships {
+        char36 Id PK
+        char36 UserId FK
+        char36 DepartmentId FK
+        datetime CreatedAt
+    }
+    StoredFileContents {
+        char36 Id PK
+        varchar SubFolder
+        varchar FileName
+        longblob Content
+        bigint Length
+        datetime CreatedAt
+    }
 
     Users }o--o{ Roles : "UserRoles"
+    Users ||--o{ SupervisorGroups : "owns"
+    SupervisorGroups ||--o{ SupervisorGroupMembers : ""
+    Users ||--o{ SupervisorGroupMembers : ""
+    Users ||--o{ DepartmentMemberships : ""
+    Departments ||--o{ DepartmentMemberships : ""
     Users ||--o{ UserClaims : ""
     Users ||--o{ UserLogins : ""
     Users ||--o{ UserTokens : ""
@@ -338,7 +368,7 @@ line = the foreign key also carries a unique index (one-to-one).
 
 ## Data dictionary
 
-### 🟦 Identity & academic structure (17 tables)
+### 🟦 Identity & academic structure (20 tables)
 
 | Table | Description | Keys |
 | --- | --- | --- |
@@ -358,6 +388,10 @@ line = the foreign key also carries a unique index (one-to-one).
 | `StudentResearchAreas` | Join table: which research areas a student lists on their profile. | PK `ResearchAreasId+StudentsId` |
 | `Keywords` | Free-text tags attached to published papers. | PK `Id` · UK `Name` |
 | `RefreshTokens` | JWT refresh tokens; rotated on use, revocable. | PK `Id` · FK `UserId` |
+| `UserInvitations` | An administrator's invitation to open an account, with the role it will carry and when it expires. | PK `Id` · FK `InvitedByUserId` |
+| `SupervisorGroups` | A coordinator's named set of supervisors, so a batch that goes out together is chosen once rather than reassembled each time. | PK `Id` · FK `OwnerId` |
+| `SupervisorGroupMembers` | Who is in one of those sets. | PK `SupervisorGroupId+SupervisorId` |
+| `DepartmentMemberships` | The departments a supervisor or reviewer belongs to, beyond the single one their profile names: both can serve more than one. | PK `Id` · FK `UserId`, `DepartmentId` |
 
 ### 🟩 Container core (2 tables)
 
@@ -397,10 +431,11 @@ line = the foreign key also carries a unique index (one-to-one).
 | `PublicationKeywords` | Join table: which keywords are attached to a published paper. | PK `KeywordsId+PublicationsId` |
 | `PublicationResearchAreas` | Join table: which research areas a publication is tagged with. | PK `PublicationsId+ResearchAreasId` |
 
-### 🟫 Cross-cutting (3 tables)
+### 🟫 Cross-cutting (4 tables)
 
 | Table | Description | Keys |
 | --- | --- | --- |
 | `Notifications` | In-app inbox; every row also triggers an email via `SmtpEmailSender`. | PK `Id` · FK `UserId` |
 | `AuditLogEntries` | Append-only, system-wide trail. FKs to `Users` are `RESTRICT`, so they are never orphaned by a deletion. | PK `Id` · FK `ActorUserId` |
 | `SystemSettings` | Admin-editable key/value store for workflow parameters. | PK `Id` · UK `Key` |
+| `StoredFileContents` | The uploaded files themselves, where the deployment keeps them in the database rather than on a disk it does not have. | PK `Id` |

@@ -247,15 +247,16 @@ public class ContainersController(IContainerService containerService, ICurrentUs
     }
 
     /// <summary>
-    /// Moves a publication to a different coordinator, or opens one for a student on their
-    /// behalf. For when the automatic allocation got it wrong or the person it chose has gone.
+    /// Opens a publication for a student and names its coordinator, for when nobody was allocated
+    /// automatically. Moving one that already exists to somebody else belongs to its assignments,
+    /// which checks the same things and records the reason; a container id sent here is refused.
     /// </summary>
     /// <response code="200">The publication.</response>
     /// <response code="400">The request did not pass validation. Which field, and why, comes back as a problem document rather than the usual envelope.</response>
     /// <response code="401">No access token was sent, or the one sent has expired.</response>
     /// <response code="403">Signed in, but this is not something your role may do.</response>
     /// <response code="404">No publication container with that id.</response>
-    /// <response code="422">Understood, and refused: the workflow does not allow this at the point it has reached.</response>
+    /// <response code="422">Understood, and refused: a container id was sent, or the person named does not hold the coordinator role in the student's department.</response>
     [HttpPost("assign-coordinator")]
     [Authorize(Roles = RoleNames.Admin)]
     [ProducesResponseType(typeof(ApiResponse<PublicationContainerDto>), StatusCodes.Status200OK)]

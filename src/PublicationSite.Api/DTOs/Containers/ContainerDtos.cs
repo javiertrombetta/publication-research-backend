@@ -117,8 +117,13 @@ public record MoveContainerRequest(
     string? PaperStatus = null);
 
 /// <summary>
-/// Admin manual assignment. <paramref name="PublicationContainerId"/> selects which of the
-/// student's containers to reassign; omit it to create an additional container for them.
+/// Admin manual assignment: opens a publication for a student and names its coordinator.
+///
+/// <paramref name="PublicationContainerId"/> is refused. It used to select one of the student's
+/// publications and move it to another coordinator, which is what the assignments endpoint does,
+/// with the role and department checks and the reason on the record that this one never had. It
+/// stays on the request so that a caller still sending it is told where that change belongs
+/// rather than having it silently ignored.
 /// </summary>
 public record AssignCoordinatorRequest(
     Guid StudentUserId,
