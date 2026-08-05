@@ -247,6 +247,32 @@ public class ProposalServiceTests : IDisposable
             It.IsAny<string?>(), It.IsAny<Guid?>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
+    /// <summary>
+    /// A round is one decision with one explanation, so it is recorded once. Written inside the
+    /// loop over the proposals, the coordinator's paragraph landed on the publication's history
+    /// three times in a row, and a reader months later cannot tell that from three separate
+    /// dispatches that happened to be worded the same way.
+    /// </summary>
+    [Fact]
+    public async Task SendToSupervisorsAsync_records_the_round_once_however_many_proposals_it_holds()
+    {
+        var (student, coordinator, container) = SeedContainer();
+        var first = await _sut.CreateAsync(container.Id, student.Id, new SaveProposalRequest("A", "Abstract A"));
+        var second = await _sut.CreateAsync(container.Id, student.Id, new SaveProposalRequest("B", "Abstract B"));
+        var third = await _sut.CreateAsync(container.Id, student.Id, new SaveProposalRequest("C", "Abstract C"));
+        await _sut.FinishSubmissionAsync(container.Id, student.Id);
+
+        var supervisor = TestDataBuilder.User(_fixture.Context);
+
+        await _sut.SendToSupervisorsAsync(
+            new SendToSupervisorsRequest([first.Id, second.Id, third.Id], [supervisor.Id], "All three are worth a look."),
+            coordinator.Id);
+
+        _auditService.Verify(a => a.LogActivityAsync(
+            container.Id, coordinator.Id, "ProposalsSentToSupervisors", "All three are worth a look.",
+            It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<Guid?>()), Times.Once);
+    }
+
     [Fact]
     public async Task SendToSupervisorsAsync_goes_through_without_a_message_when_the_institution_asks_for_none()
     {
