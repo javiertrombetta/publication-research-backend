@@ -97,6 +97,24 @@ public record ReassignContainerRequest(
     Guid? HeadOfDepartmentUserId = null);
 
 /// <summary>
+/// Where a publication should stand, set by an administrator.
+///
+/// Correcting what a publication holds and correcting where it stands are separate acts, and the
+/// second is the one that lets people carry on: a document put right is no use while the stage
+/// still says the person who needed it has already had their turn. So attaching or removing a
+/// file never moves the stage, and this does nothing else.
+/// </summary>
+/// <param name="Stage">1 research proposals, 2 ethics approval, 3 research paper.</param>
+/// <param name="EthicsStep">Which ethics step it should be waiting at, by the names in EthicsSteps. Ignored outside the ethics stage.</param>
+/// <param name="PaperStatus">What the paper's status should be. Ignored outside the paper stage, and Published is refused: publishing is the student's decision and has its own trail.</param>
+/// <param name="Comments">Why. Required, and recorded on the publication's history.</param>
+public record MoveContainerRequest(
+    int Stage,
+    string Comments,
+    string? EthicsStep = null,
+    string? PaperStatus = null);
+
+/// <summary>
 /// Admin manual assignment. <paramref name="PublicationContainerId"/> selects which of the
 /// student's containers to reassign; omit it to create an additional container for them.
 /// </summary>

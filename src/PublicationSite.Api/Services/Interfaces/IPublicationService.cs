@@ -16,6 +16,23 @@ public interface IPublicationService
     Task<PublicationDto> UpdateMetadataAsync(Guid publicationId, Guid studentId, UpdatePublicationMetadataRequest request, CancellationToken cancellationToken = default);
 
     Task<PublicationVersionDto> UploadVersionAsync(Guid publicationId, Guid studentId, Stream content, string fileName, Stream? supplementary, string? supplementaryFileName, string? reviewerNotes, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Admin-initiated: adds a version to a paper on a publication that is still running, whatever
+    /// step it has reached. Always with a reason, and it never advances the stage on its own.
+    /// </summary>
+    Task<PublicationVersionDto> AdminUploadVersionAsync(
+        Guid publicationId, Guid adminId, Stream content, string fileName, string comments,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Admin-initiated: removes a version from a paper on a publication that is still running,
+    /// file and all. Refused on the only version there is, because a paper with none is not a
+    /// state the pipeline has. Always with a reason.
+    /// </summary>
+    Task AdminRemoveVersionAsync(
+        Guid publicationId, Guid adminId, Guid versionId, string comments,
+        CancellationToken cancellationToken = default);
     Task<IReadOnlyList<PublicationVersionDto>> GetVersionsAsync(Guid publicationId, Guid requestingUserId, CancellationToken cancellationToken = default);
 
     Task SubmitAsync(Guid publicationId, Guid studentId, CancellationToken cancellationToken = default);

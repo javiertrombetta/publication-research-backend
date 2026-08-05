@@ -17,7 +17,8 @@ public class EthicsService(
     INotificationService notificationService,
     IFileStorageService fileStorageService,
     IDecisionCommentPolicy commentPolicy,
-    ISystemSettingService settingService) : IEthicsService
+    ISystemSettingService settingService,
+    ILogger<EthicsService> logger) : IEthicsService
 {
 
     public EthicsGuidanceDto GetGuidance() => new(
@@ -144,6 +145,113 @@ public class EthicsService(
                 "A Supervisor has determined ethics approval is not required. Please log in to review this decision.",
                 nameof(PublicationContainer), publicationContainerId, cancellationToken);
         }
+    }
+
+    public async Task<EthicsDocumentDto> AdminUploadDocumentAsync(
+        Guid publicationContainerId, Guid adminId, string documentType, Stream content, string fileName,
+        string comments, CancellationToken cancellationToken = default)
+    {
+        var (container, approval) = await LoadForAdminAsync(publicationContainerId, comments, cancellationToken);
+
+        // The master list, not this approval's own snapshot. An administrator putting a file on a
+        // publication is often correcting the snapshot itself, so matching against it would refuse
+        // exactly the case this exists for.
+        var requirement = await db.EthicsDocumentRequirements
+            .FirstOrDefaultAsync(r => r.Id.ToString() == documentType || r.Name == documentType, cancellationToken)
+            ?? throw new BusinessRuleException($"'{documentType}' is not a document this institution asks for.");
+
+        var stored = await fileStorageService.SaveAsync(
+            content, fileName, $"ethics/{container.Id}", cancellationToken: cancellationToken);
+
+        var version = approval.Documents
+            .Where(d => d.EthicsDocumentRequirementId == requirement.Id)
+            .Select(d => d.Version).DefaultIfEmpty(0).Max() + 1;
+
+        var document = new EthicsDocument
+        {
+            EthicsApprovalId = approval.Id,
+            EthicsDocumentRequirementId = requirement.Id,
+            FileName = stored.FileName,
+            FilePath = stored.RelativePath,
+            Version = version,
+            UploadedByUserId = adminId,
+            Status = EthicsDocumentStatus.PendingReview
+        };
+
+        db.EthicsDocuments.Add(document);
+        await db.SaveChangesAsync(cancellationToken);
+
+        // Nothing here sets the stage. It goes on unread, like any other upload, so the step
+        // derived from the documents may well change; where the publication should actually stand
+        // is the administrator's next decision rather than a side effect of attaching a file.
+        await auditService.LogActivityAsync(container.Id, adminId, "EthicsDocumentAddedByAdmin",
+            $"Added '{requirement.Name}' (version {version}). {comments}");
+
+        return new EthicsDocumentDto(document.Id, requirement.Name, document.FileName,
+            document.Version, document.Status.ToString(), document.UploadedAt, document.ReviewComments);
+    }
+
+    public async Task AdminRemoveDocumentAsync(
+        Guid publicationContainerId, Guid adminId, Guid documentId, string comments,
+        CancellationToken cancellationToken = default)
+    {
+        var (container, approval) = await LoadForAdminAsync(publicationContainerId, comments, cancellationToken);
+
+        var document = approval.Documents.FirstOrDefault(d => d.Id == documentId)
+            ?? throw new NotFoundException(nameof(EthicsDocument), documentId);
+
+        var name = await db.EthicsDocumentRequirements
+            .Where(r => r.Id == document.EthicsDocumentRequirementId)
+            .Select(r => r.Name)
+            .FirstOrDefaultAsync(cancellationToken) ?? "a document";
+
+        // The file goes with the row. Left behind it is unreachable storage nobody will ever
+        // account for; a failure to delete it must not stop the record being corrected.
+        try
+        {
+            await fileStorageService.DeleteAsync(document.FilePath, cancellationToken);
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(exception,
+                "Removed ethics document {DocumentId} but could not delete its file at {Path}.",
+                document.Id, document.FilePath);
+        }
+
+        db.EthicsDocuments.Remove(document);
+        await db.SaveChangesAsync(cancellationToken);
+
+        await auditService.LogActivityAsync(container.Id, adminId, "EthicsDocumentRemovedByAdmin",
+            $"Removed '{name}' (version {document.Version}). {comments}");
+    }
+
+    /// <summary>
+    /// The container and its approval, for an administrator correcting either. Refused once the
+    /// publication has finished: its documents are the record of what was judged.
+    /// </summary>
+    private async Task<(PublicationContainer Container, EthicsApproval Approval)> LoadForAdminAsync(
+        Guid publicationContainerId, string comments, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(comments))
+        {
+            throw new BusinessRuleException("Say why. It stays on the publication's history.");
+        }
+
+        var container = await db.PublicationContainers
+            .FirstOrDefaultAsync(c => c.Id == publicationContainerId, cancellationToken)
+            ?? throw new NotFoundException(nameof(PublicationContainer), publicationContainerId);
+
+        if (container.Status == ContainerStatus.Completed)
+        {
+            throw new BusinessRuleException(
+                "This publication has finished. Its documents are the record of what was judged.");
+        }
+
+        var approval = await db.EthicsApprovals.Include(a => a.Documents)
+            .FirstOrDefaultAsync(a => a.PublicationContainerId == container.Id, cancellationToken)
+            ?? throw new BusinessRuleException("This publication has not reached its ethics stage.");
+
+        return (container, approval);
     }
 
     public async Task<EthicsDocumentDto> UploadDocumentAsync(Guid publicationContainerId, Guid studentId, string documentType, Stream content, string fileName, CancellationToken cancellationToken = default)

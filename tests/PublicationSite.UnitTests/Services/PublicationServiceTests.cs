@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using PublicationSite.Api.Common.Exceptions;
 using PublicationSite.Api.DTOs.Publications;
@@ -31,7 +32,8 @@ public class PublicationServiceTests : IDisposable
                 new StoredFile($"stored/{fileName}", fileName));
 
         _sut = new PublicationService(_fixture.Context, _accessService.Object, _auditService.Object, _notificationService.Object, _fileStorageService.Object,
-            new DecisionCommentPolicy(new SystemSettingsProvider(_fixture.Context, new MemoryCache(new MemoryCacheOptions()))));
+            new DecisionCommentPolicy(new SystemSettingsProvider(_fixture.Context, new MemoryCache(new MemoryCacheOptions()))),
+            NullLogger<PublicationService>.Instance);
     }
 
     public void Dispose() => _fixture.Dispose();

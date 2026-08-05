@@ -195,6 +195,31 @@ public class ContainersController(IContainerService containerService, ICurrentUs
     }
 
     /// <summary>
+    /// Sets which step of which stage a publication is waiting at, so whoever should act next
+    /// actually sees it. Its own endpoint rather than a side effect of correcting a document,
+    /// because the two are separate decisions.
+    /// </summary>
+    /// <response code="200">The publication.</response>
+    /// <response code="400">The request did not pass validation. Which field, and why, comes back as a problem document rather than the usual envelope.</response>
+    /// <response code="401">No access token was sent, or the one sent has expired.</response>
+    /// <response code="403">Signed in, but this is not something your role may do.</response>
+    /// <response code="404">No publication with that id.</response>
+    /// <response code="422">Understood, and refused: the workflow does not allow this at the point it has reached.</response>
+    [HttpPut("{id:guid}/position")]
+    [Authorize(Roles = RoleNames.Admin)]
+    [ProducesResponseType(typeof(ApiResponse<PublicationContainerDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status422UnprocessableEntity)]
+    public async Task<IActionResult> Move(Guid id, [FromBody] MoveContainerRequest request)
+    {
+        var result = await containerService.MoveToAsync(id, request, currentUser.UserId);
+        return Ok(ApiResponse<PublicationContainerDto>.Ok(result, "Moved."));
+    }
+
+    /// <summary>
     /// Changes who is responsible for a publication already under way: its coordinator, its
     /// supervisor, or both, with a reason.
     ///

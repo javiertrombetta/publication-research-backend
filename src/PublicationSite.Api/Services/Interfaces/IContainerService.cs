@@ -56,6 +56,13 @@ public interface IContainerService
     Task<PublicationContainerDto> ReassignAsync(
         Guid containerId, ReassignContainerRequest request, Guid actingAdminId, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Admin-only: sets which step of which stage a publication is waiting at, so that whoever
+    /// should act next actually sees it. Refused once the publication has finished.
+    /// </summary>
+    Task<PublicationContainerDto> MoveToAsync(
+        Guid containerId, MoveContainerRequest request, Guid actingAdminId, CancellationToken cancellationToken = default);
+
     /// <summary>Admin-only manual assignment; creates the Container if the student does not have one yet.</summary>
     Task<PublicationContainerDto> AssignCoordinatorManuallyAsync(AssignCoordinatorRequest request, Guid actingUserId, CancellationToken cancellationToken = default);
 }

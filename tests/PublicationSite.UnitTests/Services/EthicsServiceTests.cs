@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using PublicationSite.Api.Common.Exceptions;
 using PublicationSite.Api.DTOs.Ethics;
@@ -44,7 +45,8 @@ public class EthicsServiceTests : IDisposable
 
         _sut = new EthicsService(_fixture.Context, _accessService.Object, _auditService.Object, _notificationService.Object, _fileStorageService.Object,
             new DecisionCommentPolicy(new SystemSettingsProvider(_fixture.Context, new MemoryCache(new MemoryCacheOptions()))),
-            _settingService.Object);
+            _settingService.Object,
+            NullLogger<EthicsService>.Instance);
     }
 
     public void Dispose() => _fixture.Dispose();

@@ -599,6 +599,239 @@ public class ContainerService(
                 && c.EthicsApproval.HeadOfDepartmentReviewedAt != null)));
     }
 
+    public async Task<PublicationContainerDto> MoveToAsync(
+        Guid containerId, MoveContainerRequest request, Guid actingAdminId, CancellationToken cancellationToken = default)
+    {
+        var container = await db.PublicationContainers
+            .Include(c => c.EthicsApproval).ThenInclude(a => a!.Documents)
+            .Include(c => c.Publication)
+            .FirstOrDefaultAsync(c => c.Id == containerId, cancellationToken)
+            ?? throw new NotFoundException(nameof(PublicationContainer), containerId);
+
+        if (container.Status == ContainerStatus.Completed)
+        {
+            throw new BusinessRuleException(
+                "This publication has finished. Moving it back would reopen decisions already made.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Comments))
+        {
+            throw new BusinessRuleException("Say why this publication is being moved. It stays on its history.");
+        }
+
+        if (request.Stage is < (int)PipelineStage.ResearchProposals or > (int)PipelineStage.ResearchPaper)
+        {
+            throw new BusinessRuleException("That is not one of the three stages.");
+        }
+
+        var stage = (PipelineStage)request.Stage;
+        var changes = new List<string>();
+
+        if (container.CurrentPipeline != stage)
+        {
+            changes.Add($"stage moved from {container.CurrentPipeline} to {stage}");
+            container.CurrentPipeline = stage;
+        }
+
+        if (stage == PipelineStage.EthicsApproval && request.EthicsStep is { Length: > 0 } step)
+        {
+            var approval = container.EthicsApproval
+                ?? throw new BusinessRuleException(
+                    "This publication has no ethics approval yet, so there is no step to put it at. "
+                    + "The student makes their declaration first.");
+
+            MoveEthicsTo(approval, step);
+            changes.Add($"ethics set to {step}");
+        }
+
+        if (stage == PipelineStage.ResearchPaper && request.PaperStatus is { Length: > 0 } wanted)
+        {
+            var publication = container.Publication
+                ?? throw new BusinessRuleException(
+                    "This publication has no research paper yet, so there is no status to set.");
+
+            if (!Enum.TryParse<PublicationStatus>(wanted, ignoreCase: true, out var status))
+            {
+                throw new BusinessRuleException($"'{wanted}' is not a status a research paper can have.");
+            }
+
+            // Publishing is the student's own decision and carries its own trail, so it is not one
+            // of the positions this can drop a paper into.
+            if (status == PublicationStatus.Published)
+            {
+                throw new BusinessRuleException(
+                    "A paper is published by its author, or on their behalf from the paper's own screen, not by moving it here.");
+            }
+
+            if (publication.Status != status)
+            {
+                changes.Add($"paper set from {publication.Status} to {status}");
+                publication.Status = status;
+                publication.IsPublished = false;
+                publication.PublishedAt = null;
+            }
+        }
+
+        if (changes.Count == 0)
+        {
+            throw new BusinessRuleException("That is where this publication already stands.");
+        }
+
+        container.UpdatedAt = DateTime.UtcNow;
+        await db.SaveChangesAsync(cancellationToken);
+
+        await auditService.LogActivityAsync(container.Id, actingAdminId, "PublicationMovedByAdmin",
+            string.Join("; ", changes) + ". " + request.Comments,
+            newStatus: container.CurrentPipeline.ToString());
+
+        // Whoever now has it. Told rather than left to notice, which is the whole point of moving
+        // a publication: somebody is meant to pick it up.
+        foreach (var userId in await WhoIsWaitingAsync(container, cancellationToken))
+        {
+            await notificationService.NotifyAsync(userId, NotificationType.ContainerAssigned,
+                "A publication is waiting on you",
+                "An administrator has moved a publication to a step that is yours. Please log in to see where it stands.",
+                nameof(PublicationContainer), container.Id, cancellationToken);
+        }
+
+        return await ProjectToDto(db.PublicationContainers.Where(c => c.Id == container.Id),
+                await EthicsWorkflowAsync(cancellationToken))
+            .FirstAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Rewinds or advances an ethics approval to the step named, by setting exactly the marks that
+    /// step is defined by and clearing every later one. The steps are told apart by which
+    /// timestamps are set, so putting one back means unsetting what came after it; leaving those
+    /// behind would land the approval on a later step than the one asked for.
+    /// </summary>
+    private static void MoveEthicsTo(EthicsApproval approval, string step)
+    {
+        var now = DateTime.UtcNow;
+
+        // Everything after the step being set is cleared, then the step's own marks are written.
+        approval.FinalDecisionAt = null;
+        approval.HeadOfDepartmentReviewedAt = null;
+        approval.HeadOfDepartmentUserId = null;
+
+        switch (step)
+        {
+            case EthicsSteps.SupervisorDecision:
+                approval.Status = EthicsStatus.PendingSupervisorDecision;
+                approval.SupervisorDecisionAt = null;
+                approval.IsRequiredPerSupervisor = null;
+                approval.CoordinatorDecisionAt = null;
+                approval.IsRequiredPerCoordinator = null;
+                break;
+
+            case EthicsSteps.CoordinatorConfirmation:
+                approval.Status = EthicsStatus.NotRequired;
+                approval.IsRequiredPerSupervisor = false;
+                approval.SupervisorDecisionAt ??= now;
+                approval.CoordinatorDecisionAt = null;
+                approval.IsRequiredPerCoordinator = null;
+                break;
+
+            case EthicsSteps.StudentUpload:
+                approval.Status = EthicsStatus.PendingUpload;
+                approval.IsRequiredPerSupervisor = true;
+                approval.SupervisorDecisionAt ??= now;
+                approval.CoordinatorDecisionAt = null;
+                break;
+
+            case EthicsSteps.SupervisorDocumentReview:
+                RequireDocuments(approval);
+                approval.Status = EthicsStatus.PendingVerification;
+                approval.SupervisorDecisionAt ??= now;
+                approval.CoordinatorDecisionAt = null;
+
+                // The supervisor's step is defined by there being something they have not read.
+                foreach (var document in NewestPerRequirement(approval))
+                {
+                    document.Status = EthicsDocumentStatus.PendingReview;
+                }
+                break;
+
+            case EthicsSteps.CoordinatorDocumentReview:
+                RequireDocuments(approval);
+                approval.Status = EthicsStatus.PendingVerification;
+                approval.SupervisorDecisionAt ??= now;
+                approval.CoordinatorDecisionAt = null;
+
+                // Past the supervisor means nothing of theirs is still pending.
+                foreach (var document in NewestPerRequirement(approval))
+                {
+                    document.Status = EthicsDocumentStatus.Accepted;
+                }
+                break;
+
+            case EthicsSteps.HeadOfDepartmentReview:
+                RequireDocuments(approval);
+                approval.Status = EthicsStatus.PendingVerification;
+                approval.SupervisorDecisionAt ??= now;
+                approval.CoordinatorDecisionAt ??= now;
+                foreach (var document in NewestPerRequirement(approval))
+                {
+                    document.Status = EthicsDocumentStatus.Accepted;
+                }
+                break;
+
+            case EthicsSteps.CoordinatorFinalDecision:
+                RequireDocuments(approval);
+                approval.Status = EthicsStatus.PendingVerification;
+                approval.SupervisorDecisionAt ??= now;
+                approval.CoordinatorDecisionAt ??= now;
+                approval.HeadOfDepartmentReviewedAt = now;
+                foreach (var document in NewestPerRequirement(approval))
+                {
+                    document.Status = EthicsDocumentStatus.Accepted;
+                }
+                break;
+
+            default:
+                throw new BusinessRuleException($"'{step}' is not a step of the ethics stage.");
+        }
+
+        static void RequireDocuments(EthicsApproval approval)
+        {
+            if (approval.Documents.Count == 0)
+            {
+                throw new BusinessRuleException(
+                    "There is no ethics documentation on this publication, so it cannot wait at a step that reads it. "
+                    + "Put it at the student's upload step, or add the documents first.");
+            }
+        }
+
+        static IEnumerable<EthicsDocument> NewestPerRequirement(EthicsApproval approval) =>
+            approval.Documents
+                .GroupBy(d => d.EthicsDocumentRequirementId)
+                .Select(versions => versions.OrderByDescending(d => d.Version).First());
+    }
+
+    /// <summary>Who the publication now waits on, so they can be told rather than left to find it.</summary>
+    private async Task<IReadOnlyList<Guid>> WhoIsWaitingAsync(
+        PublicationContainer container, CancellationToken cancellationToken)
+    {
+        var moved = await ProjectToDto(db.PublicationContainers.Where(c => c.Id == container.Id),
+                await EthicsWorkflowAsync(cancellationToken))
+            .FirstAsync(cancellationToken);
+
+        var role = moved.EthicsAwaitingRole ?? moved.PaperAwaitingRole;
+
+        return role switch
+        {
+            RoleNames.Student => [container.StudentId],
+            RoleNames.Coordinator => [container.CoordinatorId],
+            RoleNames.Supervisor when container.AssignedSupervisorId is { } supervisor => [supervisor],
+            RoleNames.HeadOfDepartment => await db.StudentProfiles
+                .Where(s => s.UserId == container.StudentId)
+                .SelectMany(s => s.Department.HeadsOfDepartment)
+                .Select(h => h.UserId)
+                .ToListAsync(cancellationToken),
+            _ => []
+        };
+    }
+
     /// <summary>
     /// Changes who is responsible for a publication that is still under way.
     ///
