@@ -114,11 +114,13 @@ public static class DemoDataSeeder
         var businessSupervisor = await CreateAsync(userManager, "supervisor.business@ais.ac.nz", "Aroha", "Bennett", RoleNames.Supervisor);
         var businessSupervisorTwo = await CreateAsync(userManager, "supervisor.business.second@ais.ac.nz", "Marcus", "Toledo", RoleNames.Supervisor);
 
-        // Two of each kind, because the default composition asks for two reviewers and one
-        // external. A single one of each would make the standard committee impossible to build,
-        // and whoever tried would meet a rule they could not satisfy rather than a working system.
+        // Three reviewers and two externals, against a default composition of two reviewers and one
+        // external. Two of each would satisfy the rule and produce the same committee every time,
+        // which is how the dataset ended up with one committee membership repeated across every
+        // paper: enough people that committees can differ is the point, not enough to be legal.
         var reviewerOne = await CreateAsync(userManager, "reviewer.test@ais.ac.nz", "Sofia", "Marchetti", RoleNames.Reviewer);
         var reviewerTwo = await CreateAsync(userManager, "reviewer.second@ais.ac.nz", "Hemi", "Walker", RoleNames.Reviewer);
+        var reviewerThree = await CreateAsync(userManager, "reviewer.third@ais.ac.nz", "Anika", "Sharma", RoleNames.Reviewer);
         var externalOne = await CreateAsync(userManager, "external.test@ais.ac.nz", "Jonathan", "Reyes", RoleNames.ExternalCommitteeMember);
         var externalTwo = await CreateAsync(userManager, "external.second@ais.ac.nz", "Ingrid", "Halvorsen", RoleNames.ExternalCommitteeMember);
 
@@ -130,7 +132,9 @@ public static class DemoDataSeeder
         var studentTwo = await CreateAsync(userManager, "student.second@aisstudent.ac.nz", "Fatima", "Al-Rashid", RoleNames.Student);
         var studentThree = await CreateAsync(userManager, "student.third@aisstudent.ac.nz", "Noah", "Kingi", RoleNames.Student);
         var studentFour = await CreateAsync(userManager, "student.fourth@aisstudent.ac.nz", "Yuki", "Tanaka", RoleNames.Student);
+        var studentFive = await CreateAsync(userManager, "student.fifth@aisstudent.ac.nz", "Mateo", "Rossi", RoleNames.Student);
         var studentBusiness = await CreateAsync(userManager, "student.business@aisstudent.ac.nz", "Lucas", "Ferreira", RoleNames.Student);
+        var studentBusinessTwo = await CreateAsync(userManager, "student.business.second@aisstudent.ac.nz", "Amara", "Okafor", RoleNames.Student);
 
         db.HeadOfDepartmentProfiles.AddRange(
             new HeadOfDepartmentProfile { UserId = infoTechHead.Id, DepartmentId = infoTech.Id },
@@ -179,11 +183,14 @@ public static class DemoDataSeeder
             new DepartmentMembership { UserId = businessSupervisorTwo.Id, DepartmentId = business.Id },
             new DepartmentMembership { UserId = reviewerOne.Id, DepartmentId = infoTech.Id },
             new DepartmentMembership { UserId = reviewerTwo.Id, DepartmentId = infoTech.Id },
-            new DepartmentMembership { UserId = reviewerTwo.Id, DepartmentId = business.Id });
+            new DepartmentMembership { UserId = reviewerTwo.Id, DepartmentId = business.Id },
+            new DepartmentMembership { UserId = reviewerThree.Id, DepartmentId = infoTech.Id },
+            new DepartmentMembership { UserId = reviewerThree.Id, DepartmentId = business.Id });
 
         db.CommitteeMemberProfiles.AddRange(
             new CommitteeMemberProfile { UserId = reviewerOne.Id, Type = CommitteeMemberRoleType.Reviewer, Affiliation = "Auckland Institute of Studies" },
             new CommitteeMemberProfile { UserId = reviewerTwo.Id, Type = CommitteeMemberRoleType.Reviewer, Affiliation = "Auckland Institute of Studies" },
+            new CommitteeMemberProfile { UserId = reviewerThree.Id, Type = CommitteeMemberRoleType.Reviewer, Affiliation = "Auckland Institute of Studies" },
             new CommitteeMemberProfile { UserId = externalOne.Id, Type = CommitteeMemberRoleType.External, Affiliation = "University of Otago" },
             new CommitteeMemberProfile { UserId = externalTwo.Id, Type = CommitteeMemberRoleType.External, Affiliation = "Massey University" });
 
@@ -196,7 +203,9 @@ public static class DemoDataSeeder
             StudentProfileFor(studentTwo, infoTech, "20260217", "MSc Information Technology", "2026 Semester 1"),
             StudentProfileFor(studentThree, infoTech, "20250731", "MSc Information Technology", "2025 Semester 2"),
             StudentProfileFor(studentFour, infoTech, "20250742", "MSc Information Technology", "2025 Semester 2"),
-            StudentProfileFor(studentBusiness, business, "20260209", "Master of Business Administration", "2026 Semester 1"));
+            StudentProfileFor(studentFive, infoTech, "20250718", "MSc Information Technology", "2025 Semester 2"),
+            StudentProfileFor(studentBusiness, business, "20260209", "Master of Business Administration", "2026 Semester 1"),
+            StudentProfileFor(studentBusinessTwo, business, "20250726", "Master of Business Administration", "2025 Semester 2"));
 
         // admin.test holds no profile, matching a real Admin: the role is an administrative
         // capability rather than a place in a department.
@@ -210,7 +219,20 @@ public static class DemoDataSeeder
             services.GetRequiredService<IProposalService>(),
             services.GetRequiredService<IEthicsService>(),
             services.GetRequiredService<IPublicationService>(),
-            services.GetRequiredService<ICommitteeService>());
+            services.GetRequiredService<ICommitteeService>(),
+            services.GetRequiredService<ISystemSettingService>());
+
+        // Everybody who can be put on a committee, by the seat a plan names them by. Shared between
+        // the departments, which is what these people are: reviewers sit across the institution and
+        // externals belong to another one entirely.
+        var seats = new Dictionary<DemoSeat, Guid>
+        {
+            [DemoSeat.ReviewerOne] = reviewerOne.Id,
+            [DemoSeat.ReviewerTwo] = reviewerTwo.Id,
+            [DemoSeat.ReviewerThree] = reviewerThree.Id,
+            [DemoSeat.ExternalOne] = externalOne.Id,
+            [DemoSeat.ExternalTwo] = externalTwo.Id
+        };
 
         var infoTechCast = new DemoCast(
             StudentId: Guid.Empty,
@@ -219,20 +241,30 @@ public static class DemoDataSeeder
             AlternateSupervisorId: infoTechSupervisorTwo.Id,
             HeadOfDepartmentId: infoTechHead.Id,
             AdminId: admin.Id,
-            CommitteeMemberIds: [reviewerOne.Id, reviewerTwo.Id, externalOne.Id]);
+            Seats: seats);
 
         var businessCast = infoTechCast with
         {
             CoordinatorId = businessCoordinator.Id,
             PrimarySupervisorId = businessSupervisor.Id,
             AlternateSupervisorId = businessSupervisorTwo.Id,
-            HeadOfDepartmentId = businessHead.Id,
-            CommitteeMemberIds = [reviewerOne.Id, reviewerTwo.Id, externalTwo.Id]
+            HeadOfDepartmentId = businessHead.Id
         };
 
-        foreach (var (student, plans) in PlansByStudent(studentOne, studentTwo, studentThree, studentFour, studentBusiness))
+        (ApplicationUser Student, DemoCast Cast, DemoPublicationPlan[] Plans)[] work =
+        [
+            (studentOne, infoTechCast, DemoPlans.ForAlexMoreau),
+            (studentTwo, infoTechCast, DemoPlans.ForFatimaAlRashid),
+            (studentThree, infoTechCast, DemoPlans.ForNoahKingi),
+            (studentFour, infoTechCast, DemoPlans.ForYukiTanaka),
+            (studentFive, infoTechCast, DemoPlans.ForMateoRossi),
+            (studentBusiness, businessCast, DemoPlans.ForLucasFerreira),
+            (studentBusinessTwo, businessCast, DemoPlans.ForAmaraOkafor)
+        ];
+
+        foreach (var (student, template, plans) in work)
         {
-            var cast = (student == studentBusiness ? businessCast : infoTechCast) with { StudentId = student.Id };
+            var cast = template with { StudentId = student.Id };
 
             foreach (var plan in plans)
             {
@@ -258,120 +290,6 @@ public static class DemoDataSeeder
             "account sharing one published password. This deployment must never hold real work.",
             await db.Users.CountAsync(cancellationToken),
             await db.PublicationContainers.CountAsync(cancellationToken));
-    }
-
-    /// <summary>
-    /// Which publication sits where. Every stage appears at least once, so each role signs in to
-    /// find something of theirs waiting, and the first student carries the stages a student acts
-    /// on so one account can be walked from an empty publication to a published paper.
-    /// </summary>
-    private static IEnumerable<(ApplicationUser Student, DemoPublicationPlan[] Plans)> PlansByStudent(
-        ApplicationUser one, ApplicationUser two, ApplicationUser three, ApplicationUser four, ApplicationUser business)
-    {
-        yield return (one,
-        [
-            new("Automated accessibility testing in continuous integration",
-                "Whether accessibility checks running on every build change what developers fix, and when.",
-                DemoStage.ProposalsDrafted),
-
-            new("Pair programming and defect density in student projects",
-                "A comparison of defect rates between paired and solo work across one teaching semester.",
-                DemoStage.SupervisorAssigned),
-
-            new("Interview study of code review practice in small teams",
-                "What reviewers in teams of fewer than ten people actually look for, in their own words.",
-                DemoStage.EthicsDocumentsRequested),
-
-            new("Latency perception in progressive web applications",
-                "How long an interface can take to respond before people report it as slow.",
-                DemoStage.EthicsCompleted, EthicsRequired: false),
-
-            new("Onboarding documentation and time to first contribution",
-                "Measuring how documentation quality affects how quickly new contributors ship something.",
-                DemoStage.PaperAccepted, EthicsRequired: false),
-
-            new("Static analysis adoption in New Zealand software teams",
-                "A survey of which static analysis tools are adopted, which are abandoned, and why.",
-                DemoStage.Published, Keywords: ["static analysis", "software quality", "developer practice"], Year: 2026)
-        ]);
-
-        yield return (two,
-        [
-            new("Energy cost of client-side rendering on low-end devices",
-                "Measuring battery consumption of comparable interfaces rendered on the client and on the server.",
-                DemoStage.ProposalsSubmitted),
-
-            new("Test flakiness and developer trust in build pipelines",
-                "Whether intermittent test failures change how teams respond to a red build.",
-                DemoStage.ProposalsWithSupervisors),
-
-            new("Data minimisation in student information systems",
-                "An audit of what personal data teaching systems collect against what they demonstrably use.",
-                DemoStage.ProposalSelected),
-
-            new("Consent fatigue in mobile application permissions",
-                "Whether repeated permission prompts change what people agree to, and what they remember agreeing to.",
-                DemoStage.ProposalsReturnedUnwanted),
-
-            new("Retrieval practice in introductory programming courses",
-                "A controlled comparison of retrieval practice against re-reading in a first programming paper.",
-                DemoStage.Published, Keywords: ["infoTech education", "retrieval practice", "assessment"], Year: 2025)
-        ]);
-
-        yield return (three,
-        [
-            new("Screen reader compatibility of learning management systems",
-                "An evaluation of three widely deployed platforms against WCAG 2.2 success criteria.",
-                DemoStage.EthicsDeclared),
-
-            new("Open data reuse in institutional research repositories",
-                "How often deposited datasets are cited, and by whom, across five years of deposits.",
-                DemoStage.EthicsNotRequiredAwaitingCoordinator, EthicsRequired: false),
-
-            new("Wellbeing and workload in postgraduate research cohorts",
-                "A mixed-methods study of reported workload against supervision arrangements.",
-                DemoStage.EthicsDocumentsUploaded),
-
-            new("Peer feedback quality in online group assessment",
-                "Whether structured prompts improve the specificity of feedback students give one another.",
-                DemoStage.EthicsDocumentsWithCoordinator),
-
-            new("Digital literacy on entry to postgraduate study",
-                "Establishing a baseline of incoming digital skills and where the gaps cluster.",
-                DemoStage.EthicsWithHeadOfDepartment),
-
-            new("Attendance patterns and outcomes in blended delivery",
-                "Relating attendance in blended courses to final outcomes, controlling for prior attainment.",
-                DemoStage.EthicsAwaitingFinalDecision)
-        ]);
-
-        yield return (four,
-        [
-            new("Version control practice among first-year students",
-                "What students do with version control when nobody is grading how they use it.",
-                DemoStage.PaperWithSupervisor, EthicsRequired: false),
-
-            new("Continuous deployment in regulated environments",
-                "How teams under audit requirements reconcile them with deploying several times a day.",
-                DemoStage.PaperAwaitingCommittee, EthicsRequired: false),
-
-            new("Technical debt reporting and its effect on planning",
-                "Whether making technical debt visible in planning changes what teams schedule.",
-                DemoStage.CommitteeReviewing, EthicsRequired: false),
-
-            new("Search behaviour in institutional publication catalogues",
-                "Log analysis of how readers actually search a research catalogue, against how it is designed.",
-                DemoStage.PaperAwaitingFinalDecision, EthicsRequired: false)
-        ]);
-
-        // In the other department, so the Head of Department's view can be seen to be limited to
-        // their own students rather than to everyone's.
-        yield return (business,
-        [
-            new("Succession planning in owner-operated New Zealand firms",
-                "How firms without a designated successor plan, or avoid planning, for the owner's exit.",
-                DemoStage.EthicsWithHeadOfDepartment)
-        ]);
     }
 
     /// <summary>

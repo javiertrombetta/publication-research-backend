@@ -73,8 +73,8 @@ erDiagram
     SupervisorProfiles {
         char36 Id PK
         char36 UserId FK
-        char36 DepartmentId FK
         text AreasOfExpertise
+        text ResearchInterests
     }
     CoordinatorProfiles {
         char36 Id PK
@@ -295,7 +295,6 @@ erDiagram
     Users ||--o{ UserTokens : ""
     Roles ||--o{ RoleClaims : ""
     Departments ||--o{ StudentProfiles : ""
-    Departments ||--o{ SupervisorProfiles : ""
     Departments ||--o{ CoordinatorProfiles : ""
     Departments ||--o| HeadOfDepartmentProfiles : ""
     Users ||--o| StudentProfiles : ""
@@ -380,7 +379,7 @@ line = the foreign key also carries a unique index (one-to-one).
 | `RoleClaims` | Claims attached to a role rather than a user. Unused today, framework-managed. | PK `Id` · FK `RoleId` |
 | `Departments` | Academic departments; scopes coordinators, supervisors and the HoD. | PK `Id` · UK `Code` |
 | `StudentProfiles` | Student-specific fields: programme, cohort, ORCID, preferred supervisor. | PK `Id` · FK `UserId`, `DepartmentId` |
-| `SupervisorProfiles` | Expertise and research interests for supervisors. | PK `Id` · FK `UserId`, `DepartmentId` |
+| `SupervisorProfiles` | Expertise and research interests for supervisors. No department: a supervisor may belong to several, which is what `DepartmentMemberships` holds. | PK `Id` · FK `UserId` |
 | `CoordinatorProfiles` | Tracks availability for the fewest-students auto-assignment rule. | PK `Id` · FK `UserId`, `DepartmentId` |
 | `HeadOfDepartmentProfiles` | Exactly one per department (unique on `DepartmentId`). | PK `Id` · FK `UserId`, `DepartmentId` |
 | `CommitteeMemberProfiles` | Marks a user Internal or External for committee eligibility. | PK `Id` · FK `UserId` |

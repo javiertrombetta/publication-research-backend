@@ -4,6 +4,7 @@ using PublicationSite.Api.DTOs.Committees;
 using PublicationSite.Api.DTOs.Ethics;
 using PublicationSite.Api.DTOs.Proposals;
 using PublicationSite.Api.DTOs.Publications;
+using PublicationSite.Api.Entities;
 using PublicationSite.Api.Services.Interfaces;
 
 namespace PublicationSite.Api.Data;
@@ -79,6 +80,32 @@ public enum DemoStage
     Published
 }
 
+/// <summary>
+/// A seat on an evaluation committee, named rather than numbered so a plan can say who sat on it
+/// and a reader can tell one committee from another.
+/// </summary>
+public enum DemoSeat
+{
+    ReviewerOne,
+    ReviewerTwo,
+    ReviewerThree,
+    ExternalOne,
+    ExternalTwo
+}
+
+/// <summary>Which Supervisors a round of proposals went out to.</summary>
+public enum DemoDispatch
+{
+    /// <summary>Both of the department's Supervisors, which is the usual thing to do.</summary>
+    Both,
+
+    /// <summary>Only the one whose area it plainly falls in.</summary>
+    PrimaryOnly,
+
+    /// <summary>Only the other one, because the first is not taking work on.</summary>
+    AlternateOnly
+}
+
 /// <summary>Everyone a single demonstration publication needs, resolved to user ids.</summary>
 public record DemoCast(
     Guid StudentId,
@@ -87,16 +114,109 @@ public record DemoCast(
     Guid AlternateSupervisorId,
     Guid HeadOfDepartmentId,
     Guid AdminId,
-    IReadOnlyList<Guid> CommitteeMemberIds);
+    IReadOnlyDictionary<DemoSeat, Guid> Seats);
 
-/// <summary>One demonstration publication: what it is about, and how far it has got.</summary>
-public record DemoPublicationPlan(
-    string Title,
-    string Abstract,
-    DemoStage Stage,
-    bool EthicsRequired = true,
-    string[]? Keywords = null,
-    int? Year = null);
+/// <summary>One of the proposals a student wrote, in their own words.</summary>
+public record DemoProposal(string Title, string Abstract);
+
+/// <summary>How one committee member voted, and what they said about it.</summary>
+public record DemoVote(DemoSeat Seat, bool Approve, string Comments);
+
+/// <summary>
+/// What each person said about this publication.
+///
+/// Every one of these was a single shared constant until the whole dataset read as one person
+/// writing the same sentence about twenty different pieces of research. They are per publication
+/// now, and unset rather than defaulted: a plan that reaches a step without words for it fails
+/// while the seed is being written, which is the only moment anybody can fix it.
+/// </summary>
+public record DemoWords
+{
+    /// <summary>The Coordinator, sending the proposals out.</summary>
+    public string? Dispatch { get; init; }
+
+    /// <summary>The Supervisors, saying what they would take on.</summary>
+    public string? PrimaryOffer { get; init; }
+    public string? AlternateOffer { get; init; }
+
+    /// <summary>The Coordinator, refusing the offers and sending the round back.</summary>
+    public string? Discard { get; init; }
+
+    /// <summary>The Coordinator, allocating the Supervisor.</summary>
+    public string? Allocation { get; init; }
+
+    /// <summary>The Supervisor, on whether ethics documentation is needed.</summary>
+    public string? EthicsRequirement { get; init; }
+
+    /// <summary>The Coordinator, agreeing that none is needed.</summary>
+    public string? EthicsNotRequired { get; init; }
+
+    /// <summary>The Supervisor, then the Coordinator, then the Head of Department, on the documents.</summary>
+    public string? EthicsDocuments { get; init; }
+    public string? EthicsCoordinator { get; init; }
+    public string? EthicsHead { get; init; }
+
+    /// <summary>The Coordinator, closing the ethics stage.</summary>
+    public string? EthicsFinal { get; init; }
+
+    /// <summary>The student, on the draft they are submitting.</summary>
+    public string? PaperNotes { get; init; }
+
+    /// <summary>The Supervisor, on the paper itself.</summary>
+    public string? PaperSupervisor { get; init; }
+
+    /// <summary>The Administrator, appointing the committee.</summary>
+    public string? CommitteeAppointment { get; init; }
+
+    /// <summary>The Coordinator's decision once the committee has finished.</summary>
+    public string? PaperDecision { get; init; }
+
+    /// <summary>The author, deciding whether it appears in the catalogue.</summary>
+    public string? PublishDecision { get; init; }
+}
+
+/// <summary>One demonstration publication: what it is about, how far it has got, and who said what.</summary>
+public record DemoPublicationPlan
+{
+    public required string Title { get; init; }
+    public required string Abstract { get; init; }
+    public required DemoStage Stage { get; init; }
+
+    /// <summary>
+    /// The proposals this student submitted. Three of them, as the institution asks for, and three
+    /// separate ideas rather than one title with two suffixes stuck on it.
+    /// </summary>
+    public DemoProposal[] Proposals { get; init; } = [];
+
+    /// <summary>Which of those the Supervisors backed and the publication went ahead with.</summary>
+    public int Chosen { get; init; } = 1;
+
+    /// <summary>Whether the other Supervisor is the one who ends up with it.</summary>
+    public bool AlternateSupervises { get; init; }
+
+    public DemoDispatch Dispatch { get; init; } = DemoDispatch.Both;
+
+    public bool EthicsRequired { get; init; } = true;
+
+    public string[]? Keywords { get; init; }
+    public int? Year { get; init; }
+
+    /// <summary>
+    /// How long ago this publication was opened. Everything it holds is dated back by this, so the
+    /// dataset spans a couple of academic years instead of arriving in the same second: dates that
+    /// are all equal make every listing ordered by one look broken, because reversing it changes
+    /// nothing.
+    /// </summary>
+    public int StartedDaysAgo { get; init; } = 7;
+
+    /// <summary>Who sat on the evaluation committee.</summary>
+    public DemoSeat[] Committee { get; init; } = [];
+
+    /// <summary>How they voted, once they have. Not every committee agrees.</summary>
+    public DemoVote[] Votes { get; init; } = [];
+
+    public DemoWords Words { get; init; } = new();
+}
 
 /// <summary>
 /// Walks a publication from nothing to wherever its plan says it stops, by calling the same service
@@ -115,7 +235,8 @@ public class DemoPipelineBuilder(
     IProposalService proposals,
     IEthicsService ethics,
     IPublicationService publications,
-    ICommitteeService committees)
+    ICommitteeService committees,
+    ISystemSettingService settings)
 {
     /// <summary>
     /// When the step currently running began. Everything a publication generated before its last
@@ -139,6 +260,7 @@ public class DemoPipelineBuilder(
 
         await WalkAsync(containerId, cast, plan, cancellationToken);
         await MarkEarlierNotificationsReadAsync(startedAt, cancellationToken);
+        await BackdateAsync(containerId, plan.StartedDaysAgo, cancellationToken);
 
         return containerId;
     }
@@ -149,12 +271,19 @@ public class DemoPipelineBuilder(
 
         // ---------- Research proposals ----------
 
+        if (plan.Proposals.Length == 0)
+        {
+            throw new InvalidOperationException(
+                $"The demonstration plan '{plan.Title}' reaches {plan.Stage} and carries no proposals.");
+        }
+
         var written = new List<ProposalDto>();
         await StepAsync(async () =>
         {
-            foreach (var (title, summary) in ProposalIdeasFor(plan))
+            foreach (var idea in plan.Proposals)
             {
-                written.Add(await proposals.CreateAsync(containerId, cast.StudentId, new SaveProposalRequest(title, summary), ct));
+                written.Add(await proposals.CreateAsync(containerId, cast.StudentId,
+                    new SaveProposalRequest(idea.Title, idea.Abstract), ct));
             }
 
             await proposals.FinishSubmissionAsync(containerId, cast.StudentId, ct);
@@ -166,53 +295,69 @@ public class DemoPipelineBuilder(
         // screen fills in. Dated rather than left open so the demonstration shows the badge the
         // coordinator reads and the date the supervisor is held to, and so a round that goes
         // nowhere expires the way a real one would.
+        var sentTo = plan.Dispatch switch
+        {
+            DemoDispatch.PrimaryOnly => new[] { cast.PrimarySupervisorId },
+            DemoDispatch.AlternateOnly => [cast.AlternateSupervisorId],
+            _ => [cast.PrimarySupervisorId, cast.AlternateSupervisorId]
+        };
+
         await StepAsync(() => proposals.SendToSupervisorsAsync(
             new SendToSupervisorsRequest(
                 written.Select(p => p.Id).ToList(),
-                [cast.PrimarySupervisorId, cast.AlternateSupervisorId],
-                "Sent to both Supervisors in the department for consideration.",
+                sentTo,
+                Say(plan, plan.Words.Dispatch, nameof(DemoWords.Dispatch)),
                 DateTime.UtcNow.AddDays(SettingKeys.DefaultSupervisorResponseDays)),
             cast.CoordinatorId, ct));
 
         if (plan.Stage == DemoStage.ProposalsWithSupervisors) return;
 
-        // Nobody was interested, so the whole set went back to the dispatch queue. The coordinator
-        // either sends it to different supervisors or asks the student for new proposals, and both
-        // of those are on the Send proposals screen waiting to be tried.
+        var chosen = written[plan.Chosen];
+
+        // A round that found nobody worth allocating. One Supervisor did offer, because the rule
+        // is that a round can only be sent back once there is an offer to refuse, and the
+        // Coordinator judged that offer not good enough for the student.
         if (plan.Stage == DemoStage.ProposalsReturnedUnwanted)
         {
             await StepAsync(async () =>
             {
                 await proposals.SelectAsFeasibleAsync(written[0].Id, cast.PrimarySupervisorId,
-                    new SupervisorSelectionRequest("Interesting, but not close enough to what I supervise."), ct);
+                    new SupervisorSelectionRequest(Say(plan, plan.Words.PrimaryOffer, nameof(DemoWords.PrimaryOffer))), ct);
 
                 // Turning that one offer down empties the round, which is the rule: a student comes
                 // back only when nothing of theirs has anybody willing.
                 await proposals.DiscardSelectionsAsync(written[0].Id,
-                    "Neither reply engaged with the question the student is actually asking.",
-                    cast.CoordinatorId, ct);
+                    Say(plan, plan.Words.Discard, nameof(DemoWords.Discard)), cast.CoordinatorId, ct);
             });
 
             return;
         }
 
-        // Two Supervisors answer, each backing a different proposal, so the Coordinator has a
-        // genuine choice to make rather than a single option to rubber-stamp.
-        var chosen = written[1];
+        // The Supervisors answer, each backing a different proposal where both were asked, so the
+        // Coordinator has a genuine choice to make rather than a single option to rubber-stamp.
         await StepAsync(async () =>
         {
-            await proposals.SelectAsFeasibleAsync(chosen.Id, cast.PrimarySupervisorId,
-                new SupervisorSelectionRequest("This sits squarely within my area and I have capacity this cycle."), ct);
+            if (plan.Dispatch != DemoDispatch.AlternateOnly)
+            {
+                await proposals.SelectAsFeasibleAsync(chosen.Id, cast.PrimarySupervisorId,
+                    new SupervisorSelectionRequest(Say(plan, plan.Words.PrimaryOffer, nameof(DemoWords.PrimaryOffer))), ct);
+            }
 
-            await proposals.SelectAsFeasibleAsync(written[0].Id, cast.AlternateSupervisorId,
-                new SupervisorSelectionRequest("Feasible, though the scope would need narrowing before it starts."), ct);
+            if (plan.Dispatch != DemoDispatch.PrimaryOnly)
+            {
+                var alternateTakes = plan.AlternateSupervises ? chosen : written[0];
+                await proposals.SelectAsFeasibleAsync(alternateTakes.Id, cast.AlternateSupervisorId,
+                    new SupervisorSelectionRequest(Say(plan, plan.Words.AlternateOffer, nameof(DemoWords.AlternateOffer))), ct);
+            }
         });
 
         if (plan.Stage == DemoStage.ProposalSelected) return;
 
+        var supervisorId = plan.AlternateSupervises ? cast.AlternateSupervisorId : cast.PrimarySupervisorId;
+
         await StepAsync(() => proposals.AssignSupervisorAsync(chosen.Id,
-            new AssignSupervisorRequest(cast.PrimarySupervisorId,
-                "Allocated on the strength of the Supervisor's expertise and current workload."),
+            new AssignSupervisorRequest(supervisorId,
+                Say(plan, plan.Words.Allocation, nameof(DemoWords.Allocation))),
             cast.CoordinatorId, ct));
 
         if (plan.Stage == DemoStage.SupervisorAssigned) return;
@@ -226,21 +371,42 @@ public class DemoPipelineBuilder(
 
         if (!plan.EthicsRequired)
         {
-            await StepAsync(() => ethics.SubmitSupervisorRequirementDecisionAsync(containerId, cast.PrimarySupervisorId,
+            await StepAsync(() => ethics.SubmitSupervisorRequirementDecisionAsync(containerId, supervisorId,
                 new SupervisorRequirementDecisionRequest(false,
-                    "The study works entirely from published, anonymised data, so no approval is needed."), ct));
+                    Say(plan, plan.Words.EthicsRequirement, nameof(DemoWords.EthicsRequirement))), ct));
 
             if (plan.Stage == DemoStage.EthicsNotRequiredAwaitingCoordinator) return;
 
             await StepAsync(() => ethics.CoordinatorReviewNotRequiredAsync(containerId, cast.CoordinatorId,
                 new CoordinatorNotRequiredReviewRequest(false,
-                    "Reviewed and agreed: no human participants and no identifiable data."), ct));
+                    Say(plan, plan.Words.EthicsNotRequired, nameof(DemoWords.EthicsNotRequired))), ct));
+
+            // Agreeing that no approval is needed is a decision, and by default this institution
+            // has its Head of Department see it before the stage closes. So the coordinator has
+            // handed on rather than finished, and the stage is still open: walking straight to the
+            // research paper from here asked for a stage nothing had opened yet.
+            var workflow = await settings.GetEthicsWorkflowSettingsAsync(ct);
+
+            if (workflow.HeadOfDepartmentReviewsWhenNotRequired)
+            {
+                if (plan.Stage == DemoStage.EthicsWithHeadOfDepartment) return;
+
+                await StepAsync(() => ethics.HeadOfDepartmentReviewAsync(containerId, cast.HeadOfDepartmentId,
+                    new HeadOfDepartmentReviewRequest(
+                        Say(plan, plan.Words.EthicsHead, nameof(DemoWords.EthicsHead))), ct));
+
+                if (plan.Stage == DemoStage.EthicsAwaitingFinalDecision) return;
+
+                await StepAsync(() => ethics.CoordinatorFinalDecisionAsync(containerId, cast.CoordinatorId,
+                    new CoordinatorFinalDecisionRequest(true,
+                        Say(plan, plan.Words.EthicsFinal, nameof(DemoWords.EthicsFinal))), ct));
+            }
         }
         else
         {
-            await StepAsync(() => ethics.SubmitSupervisorRequirementDecisionAsync(containerId, cast.PrimarySupervisorId,
+            await StepAsync(() => ethics.SubmitSupervisorRequirementDecisionAsync(containerId, supervisorId,
                 new SupervisorRequirementDecisionRequest(true,
-                    "The study interviews participants, so full ethics documentation is required."), ct));
+                    Say(plan, plan.Words.EthicsRequirement, nameof(DemoWords.EthicsRequirement))), ct));
 
             if (plan.Stage == DemoStage.EthicsDocumentsRequested) return;
 
@@ -257,26 +423,27 @@ public class DemoPipelineBuilder(
 
             if (plan.Stage == DemoStage.EthicsDocumentsUploaded) return;
 
-            await StepAsync(() => ethics.SupervisorReviewDocumentsAsync(containerId, cast.PrimarySupervisorId,
+            await StepAsync(() => ethics.SupervisorReviewDocumentsAsync(containerId, supervisorId,
                 new DocumentReviewDecisionRequest(true,
-                    "Complete and consistent with the study as described. Passed to the Coordinator."), ct));
+                    Say(plan, plan.Words.EthicsDocuments, nameof(DemoWords.EthicsDocuments))), ct));
 
             if (plan.Stage == DemoStage.EthicsDocumentsWithCoordinator) return;
 
             await StepAsync(() => ethics.CoordinatorReviewDocumentsAsync(containerId, cast.CoordinatorId,
                 new CoordinatorDocumentReviewRequest(true,
-                    "Checked against the institutional policy. Referred to the Head of Department."), ct));
+                    Say(plan, plan.Words.EthicsCoordinator, nameof(DemoWords.EthicsCoordinator))), ct));
 
             if (plan.Stage == DemoStage.EthicsWithHeadOfDepartment) return;
 
             await StepAsync(() => ethics.HeadOfDepartmentReviewAsync(containerId, cast.HeadOfDepartmentId,
                 new HeadOfDepartmentReviewRequest(
-                    "No concerns from the department. The consent wording is clear and the data plan is proportionate."), ct));
+                    Say(plan, plan.Words.EthicsHead, nameof(DemoWords.EthicsHead))), ct));
 
             if (plan.Stage == DemoStage.EthicsAwaitingFinalDecision) return;
 
             await StepAsync(() => ethics.CoordinatorFinalDecisionAsync(containerId, cast.CoordinatorId,
-                new CoordinatorFinalDecisionRequest(true, "Ethics approval granted. The research paper stage is now open."), ct));
+                new CoordinatorFinalDecisionRequest(true,
+                    Say(plan, plan.Words.EthicsFinal, nameof(DemoWords.EthicsFinal))), ct));
         }
 
         if (plan.Stage == DemoStage.EthicsCompleted) return;
@@ -295,28 +462,36 @@ public class DemoPipelineBuilder(
                     plan.Abstract,
                     "Research paper",
                     plan.Year ?? DateTime.UtcNow.Year,
-                    plan.Keywords ?? ["research methods", "higher education"],
+                    plan.Keywords ?? throw new InvalidOperationException(
+                        $"The demonstration plan '{plan.Title}' reaches a research paper and names no keywords."),
                     areaIds), ct);
 
             using var content = new MemoryStream(DemoDocuments.Pdf(plan.Title, plan.Abstract));
             await publications.UploadVersionAsync(paper.Id, cast.StudentId, content, $"{Slug(plan.Title)}.pdf",
                 supplementary: null, supplementaryFileName: null,
-                reviewerNotes: "First complete draft, following the structure agreed with my Supervisor.", ct);
+                reviewerNotes: Say(plan, plan.Words.PaperNotes, nameof(DemoWords.PaperNotes)), ct);
 
             await publications.SubmitAsync(paper.Id, cast.StudentId, ct);
         });
 
         if (plan.Stage == DemoStage.PaperWithSupervisor) return;
 
-        await StepAsync(() => publications.SupervisorReviewAsync(paper.Id, cast.PrimarySupervisorId,
+        await StepAsync(() => publications.SupervisorReviewAsync(paper.Id, supervisorId,
             new PaperReviewDecisionRequest(true,
-                "The argument holds and the methodology is sound. Ready for the evaluation committee."), ct));
+                Say(plan, plan.Words.PaperSupervisor, nameof(DemoWords.PaperSupervisor))), ct));
 
         if (plan.Stage == DemoStage.PaperAwaitingCommittee) return;
 
+        if (plan.Committee.Length == 0)
+        {
+            throw new InvalidOperationException(
+                $"The demonstration plan '{plan.Title}' reaches {plan.Stage} and names nobody to sit on its committee.");
+        }
+
         await StepAsync(() => committees.AssignAsync(paper.Id,
-            new AssignCommitteeRequest(cast.CommitteeMemberIds, 0,
-                "Committee appointed to the composition this publication was opened under."),
+            new AssignCommitteeRequest(
+                [.. plan.Committee.Select(seat => cast.Seats[seat])], 0,
+                Say(plan, plan.Words.CommitteeAppointment, nameof(DemoWords.CommitteeAppointment))),
             cast.AdminId, ct));
 
         if (plan.Stage == DemoStage.CommitteeReviewing) return;
@@ -324,25 +499,39 @@ public class DemoPipelineBuilder(
         var committee = await committees.GetByPublicationAsync(paper.Id, cast.AdminId, ct);
         await StepAsync(async () =>
         {
-            foreach (var member in committee.Members)
+            foreach (var vote in plan.Votes)
             {
-                await committees.MemberReviewAsync(committee.Id, member.UserId,
-                    new CommitteeMemberReviewRequest(true,
-                        "A solid contribution. My comments are minor and editorial rather than substantive."), ct);
+                await committees.MemberReviewAsync(committee.Id, cast.Seats[vote.Seat],
+                    new CommitteeMemberReviewRequest(vote.Approve, vote.Comments), ct);
             }
         });
 
         if (plan.Stage == DemoStage.PaperAwaitingFinalDecision) return;
 
         await StepAsync(() => publications.CoordinatorFinalDecisionAsync(paper.Id, cast.CoordinatorId,
-            new PaperReviewDecisionRequest(true, "Accepted. The author may now decide whether to publish it."), ct));
+            new PaperReviewDecisionRequest(true,
+                Say(plan, plan.Words.PaperDecision, nameof(DemoWords.PaperDecision))), ct));
 
         if (plan.Stage == DemoStage.PaperAccepted) return;
 
         await StepAsync(() => publications.PublishDecisionAsync(paper.Id, cast.StudentId,
-            new PublishDecisionRequest(true, "I am happy for this to appear in the public catalogue."),
+            new PublishDecisionRequest(true, Say(plan, plan.Words.PublishDecision, nameof(DemoWords.PublishDecision))),
             cancellationToken: ct));
     }
+
+    /// <summary>
+    /// What somebody said at this step, or a failure naming the plan and the sentence it lacks.
+    ///
+    /// Loud on purpose. A missing sentence used to be impossible because every step had a shared
+    /// default, which is exactly how the dataset ended up with one sentence repeated across
+    /// eighteen publications; the price of removing the defaults is that a gap has to stop the
+    /// seed rather than be quietly filled.
+    /// </summary>
+    private static string Say(DemoPublicationPlan plan, string? words, string name) =>
+        string.IsNullOrWhiteSpace(words)
+            ? throw new InvalidOperationException(
+                $"The demonstration plan '{plan.Title}' reaches {plan.Stage} without anything for {name}.")
+            : words;
 
     private async Task StepAsync(Func<Task> step)
     {
@@ -363,17 +552,123 @@ public class DemoPipelineBuilder(
     }
 
     /// <summary>
-    /// Three proposals, as a student submits them: the one the plan is named after, and two
-    /// alternatives that read as real alternatives rather than filler.
+    /// Moves everything this publication holds back in time by the same amount.
+    ///
+    /// The services stamp the moment they run, so a dataset built in one pass has every date within
+    /// a second of every other. That is not a cosmetic problem: a column of identical dates sorts
+    /// the same ascending as descending, so the control that orders by it looks broken, a queue
+    /// worked oldest-first has no oldest, and nothing is ever near a deadline. Dating each
+    /// publication back by its own amount gives the set the couple of academic years it describes.
+    ///
+    /// One shift for the whole publication, so the order its own steps happened in survives: the
+    /// paper is still submitted after the ethics approval that opened the stage.
     /// </summary>
-    private static (string Title, string Abstract)[] ProposalIdeasFor(DemoPublicationPlan plan) =>
-    [
-        ($"{plan.Title}: a preliminary scoping study",
-            $"An initial scoping of the same question, narrower in scope than the main proposal. {plan.Abstract}"),
-        (plan.Title, plan.Abstract),
-        ($"{plan.Title}: a comparative approach",
-            $"The same question approached comparatively across two cohorts rather than one. {plan.Abstract}")
-    ];
+    private async Task BackdateAsync(Guid containerId, int days, CancellationToken ct)
+    {
+        if (days <= 0) return;
+
+        // AddDays with a negative number, rather than subtracting a TimeSpan, because that is the
+        // form the provider translates; and each nullable date is guarded in the expression itself,
+        // since a step this publication never reached has no date to move.
+        var back = -(double)days;
+
+        await db.PublicationContainers.Where(c => c.Id == containerId)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(c => c.CreatedAt, c => c.CreatedAt.AddDays(back))
+                .SetProperty(c => c.UpdatedAt, c => c.UpdatedAt.AddDays(back)), ct);
+
+        await db.ActivityHistoryEntries.Where(e => e.PublicationContainerId == containerId)
+            .ExecuteUpdateAsync(s => s.SetProperty(e => e.CreatedAt, e => e.CreatedAt.AddDays(back)), ct);
+
+        await db.ResearchProposals.Where(p => p.PublicationContainerId == containerId)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(p => p.CreatedAt, p => p.CreatedAt.AddDays(back))
+                .SetProperty(p => p.UpdatedAt, p => p.UpdatedAt.AddDays(back))
+                .SetProperty(p => p.SubmittedAt, p => p.SubmittedAt == null
+                    ? null
+                    : (DateTime?)p.SubmittedAt.Value.AddDays(back))
+                .SetProperty(p => p.ReturnedToDispatchAt, p => p.ReturnedToDispatchAt == null
+                    ? null
+                    : (DateTime?)p.ReturnedToDispatchAt.Value.AddDays(back)), ct);
+
+        await db.ProposalSupervisorSelections
+            .Where(x => x.Proposal.PublicationContainerId == containerId)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(x => x.InvitedAt, x => x.InvitedAt.AddDays(back))
+                .SetProperty(x => x.SelectedAt, x => x.SelectedAt == null
+                    ? null
+                    : (DateTime?)x.SelectedAt.Value.AddDays(back))
+                .SetProperty(x => x.RespondBy, x => x.RespondBy == null
+                    ? null
+                    : (DateTime?)x.RespondBy.Value.AddDays(back)), ct);
+
+        await db.ProposalAssignments
+            .Where(a => a.Proposal.PublicationContainerId == containerId)
+            .ExecuteUpdateAsync(s => s.SetProperty(a => a.AssignedAt, a => a.AssignedAt.AddDays(back)), ct);
+
+        await db.EthicsDeclarations.Where(d => d.PublicationContainerId == containerId)
+            .ExecuteUpdateAsync(s => s.SetProperty(d => d.DecidedAt, d => d.DecidedAt.AddDays(back)), ct);
+
+        await db.EthicsApprovals.Where(a => a.PublicationContainerId == containerId)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(a => a.CreatedAt, a => a.CreatedAt.AddDays(back))
+                .SetProperty(a => a.StepEnteredAt, a => a.StepEnteredAt == null
+                    ? null
+                    : (DateTime?)a.StepEnteredAt.Value.AddDays(back))
+                .SetProperty(a => a.SupervisorDecisionAt, a => a.SupervisorDecisionAt == null
+                    ? null
+                    : (DateTime?)a.SupervisorDecisionAt.Value.AddDays(back))
+                .SetProperty(a => a.SupervisorDocumentsReviewedAt, a => a.SupervisorDocumentsReviewedAt == null
+                    ? null
+                    : (DateTime?)a.SupervisorDocumentsReviewedAt.Value.AddDays(back))
+                .SetProperty(a => a.CoordinatorDecisionAt, a => a.CoordinatorDecisionAt == null
+                    ? null
+                    : (DateTime?)a.CoordinatorDecisionAt.Value.AddDays(back))
+                .SetProperty(a => a.HeadOfDepartmentReviewedAt, a => a.HeadOfDepartmentReviewedAt == null
+                    ? null
+                    : (DateTime?)a.HeadOfDepartmentReviewedAt.Value.AddDays(back))
+                .SetProperty(a => a.FinalDecisionAt, a => a.FinalDecisionAt == null
+                    ? null
+                    : (DateTime?)a.FinalDecisionAt.Value.AddDays(back))
+                .SetProperty(a => a.ApprovalDate, a => a.ApprovalDate == null
+                    ? null
+                    : (DateTime?)a.ApprovalDate.Value.AddDays(back)), ct);
+
+        await db.EthicsDocuments.Where(d => d.EthicsApproval.PublicationContainerId == containerId)
+            .ExecuteUpdateAsync(s => s.SetProperty(d => d.UploadedAt, d => d.UploadedAt.AddDays(back)), ct);
+
+        await db.Publications.Where(p => p.PublicationContainerId == containerId)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(p => p.CreatedAt, p => p.CreatedAt.AddDays(back))
+                .SetProperty(p => p.UpdatedAt, p => p.UpdatedAt.AddDays(back))
+                .SetProperty(p => p.PublishedAt, p => p.PublishedAt == null
+                    ? null
+                    : (DateTime?)p.PublishedAt.Value.AddDays(back)), ct);
+
+        await db.PublicationVersions.Where(v => v.Publication.PublicationContainerId == containerId)
+            .ExecuteUpdateAsync(s => s.SetProperty(v => v.UploadedAt, v => v.UploadedAt.AddDays(back)), ct);
+
+        await db.Reviews.Where(r => r.PublicationVersion.Publication.PublicationContainerId == containerId)
+            .ExecuteUpdateAsync(s => s.SetProperty(r => r.ReviewedAt, r => r.ReviewedAt.AddDays(back)), ct);
+
+        await db.Committees.Where(c => c.Publication.PublicationContainerId == containerId)
+            .ExecuteUpdateAsync(s => s.SetProperty(c => c.CreatedAt, c => c.CreatedAt.AddDays(back)), ct);
+
+        await db.CommitteeMembers.Where(m => m.Committee.Publication.PublicationContainerId == containerId)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(m => m.InvitedAt, m => m.InvitedAt.AddDays(back))
+                .SetProperty(m => m.DecidedAt, m => m.DecidedAt == null
+                    ? null
+                    : (DateTime?)m.DecidedAt.Value.AddDays(back)), ct);
+
+        // Both of these carry the container as a loose reference rather than a foreign key, which
+        // is why they are matched by id rather than joined.
+        await db.Notifications.Where(n => n.RelatedEntityId == containerId)
+            .ExecuteUpdateAsync(s => s.SetProperty(n => n.CreatedAt, n => n.CreatedAt.AddDays(back)), ct);
+
+        await db.AuditLogEntries.Where(e => e.EntityId == containerId)
+            .ExecuteUpdateAsync(s => s.SetProperty(e => e.Timestamp, e => e.Timestamp.AddDays(back)), ct);
+    }
 
     private static string Slug(string text)
     {
