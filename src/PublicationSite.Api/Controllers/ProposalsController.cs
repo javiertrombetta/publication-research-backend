@@ -340,25 +340,4 @@ public class ProposalsController(IProposalService proposalService, ICurrentUserS
         await proposalService.AssignSupervisorAsync(proposalId, request, currentUser.UserId);
         return Ok(ApiResponse.Ok("Supervisor assigned."));
     }
-    /// <summary>
-    /// Holds a publication over to the next cycle when no supervisor could take it, which is better
-    /// than refusing work nobody was available for.
-    /// </summary>
-    /// <response code="200">Done. The envelope carries a message saying what changed; there is no data with it.</response>
-    /// <response code="400">The request did not pass validation. Which field, and why, comes back as a problem document rather than the usual envelope.</response>
-    /// <response code="401">No access token was sent, or the one sent has expired.</response>
-    /// <response code="403">Signed in, but this is not something your role may do.</response>
-    /// <response code="404">No publication container with that id.</response>
-    [HttpPost("api/containers/{containerId:guid}/proposals/defer-to-next-cycle")]
-    [Authorize(Roles = RoleNames.Coordinator)]
-    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> DeferToNextCycle(Guid containerId, [FromBody] CommentsRequest request)
-    {
-        await proposalService.DeferToNextCycleAsync(containerId, request.Comments, currentUser.UserId);
-        return Ok(ApiResponse.Ok("Proposals deferred to next cycle."));
-    }
 }

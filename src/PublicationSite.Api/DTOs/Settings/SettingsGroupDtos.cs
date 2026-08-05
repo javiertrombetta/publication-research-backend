@@ -197,7 +197,6 @@ public record InstitutionSettingsDto(
     string? ItSupportEmail,
     string? ResearchEnquiriesEmail,
     string? PrivacyPolicyUrl,
-    string? CurrentAcademicCycle,
     string? WebsiteUrl = null,
     bool SelfRegistrationOpen = false,
     bool PublicCatalogueEnabled = true,
@@ -211,7 +210,6 @@ public record UpdateInstitutionSettingsRequest(
     string? ItSupportEmail,
     string? ResearchEnquiriesEmail,
     string? PrivacyPolicyUrl,
-    string? CurrentAcademicCycle,
     string? WebsiteUrl = null,
     int RowsPerPage = SettingKeys.DefaultRowsPerPage,
     bool ItSupportShownToVisitors = SettingKeys.DefaultItSupportShownToVisitors);
@@ -220,15 +218,24 @@ public record UpdateInstitutionSettingsRequest(
 /// How long each stage is expected to take. Zero means nothing is ever reported late for it.
 /// These mark work as overdue; they never stop it being done.
 /// </summary>
+/// <param name="SupervisorResponseWarningDays">Days before the supervisor's answer-by date that a reminder goes out. Zero sends none.</param>
+/// <param name="EthicsReviewWarningDays">The same for the ethics review.</param>
+/// <param name="CommitteeReviewWarningDays">The same for a committee's review.</param>
 public record DeadlineSettingsDto(
     int SupervisorResponseDays,
     int EthicsReviewDays,
-    int CommitteeReviewDays);
+    int CommitteeReviewDays,
+    int SupervisorResponseWarningDays = SettingKeys.DefaultSupervisorResponseWarningDays,
+    int EthicsReviewWarningDays = SettingKeys.DefaultEthicsReviewWarningDays,
+    int CommitteeReviewWarningDays = SettingKeys.DefaultCommitteeReviewWarningDays);
 
 public record UpdateDeadlineSettingsRequest(
     int SupervisorResponseDays,
     int EthicsReviewDays,
-    int CommitteeReviewDays);
+    int CommitteeReviewDays,
+    int SupervisorResponseWarningDays = SettingKeys.DefaultSupervisorResponseWarningDays,
+    int EthicsReviewWarningDays = SettingKeys.DefaultEthicsReviewWarningDays,
+    int CommitteeReviewWarningDays = SettingKeys.DefaultCommitteeReviewWarningDays);
 
 /// <summary>
 /// How many research proposals a student submits in one round, and so how many a supervisor is
@@ -267,10 +274,8 @@ public record DecisionCommentSettingsDto(IReadOnlyList<DecisionCommentDto> Decis
 public record UpdateDecisionCommentSettingsRequest(IReadOnlyList<string> Required);
 
 /// <summary>
-/// Which optional steps of the ethics pipeline this institution runs.
+/// Which of the research paper's readings this institution runs, and where ethics sits.
 /// </summary>
-/// <param name="HeadOfDepartmentReviews">Whether the Head of Department comments between the coordinator's approval of the documents and their final decision.</param>
-/// <param name="HeadOfDepartmentReviewsWhenNotRequired">The same, on the route where no documentation was needed and the coordinator agreed.</param>
 /// <param name="SupervisorReviews">Whether the supervisor reads a submitted paper.</param>
 /// <param name="CommitteeEvaluates">Whether an evaluation committee judges it.</param>
 /// <param name="CoordinatorDecides">Whether the coordinator makes the final decision on it.</param>

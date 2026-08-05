@@ -143,6 +143,36 @@ public class EthicsServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task Each_ethics_decision_starts_the_next_step_clock_from_scratch()
+    {
+        var (student, supervisor, _, container) = SeedAssignedContainer();
+        await _sut.SubmitDeclarationAsync(container.Id, student.Id, new EthicsDeclarationRequest("Yes"));
+
+        var atDeclaration = await StepEnteredAtAsync(container.Id);
+        atDeclaration.Should().NotBeNull("a review the supervisor has to answer is on a clock from the moment it lands");
+
+        // Backdated, and marked as already reported, so the assertions below can only pass if the
+        // supervisor's decision genuinely restarted the step rather than leaving it as it was.
+        var approval = await _fixture.Context.EthicsApprovals.FirstAsync(a => a.PublicationContainerId == container.Id);
+        approval.StepEnteredAt = DateTime.UtcNow.AddDays(-40);
+        approval.OverdueReportedAt = DateTime.UtcNow.AddDays(-10);
+        await _fixture.Context.SaveChangesAsync();
+
+        await _sut.SubmitSupervisorRequirementDecisionAsync(container.Id, supervisor.Id,
+            new SupervisorRequirementDecisionRequest(true, "Needs approval"));
+
+        // The student now owes the upload, and owes it from today. What was reported about the
+        // supervisor's step goes with the step.
+        approval = await _fixture.Context.EthicsApprovals.FirstAsync(a => a.PublicationContainerId == container.Id);
+        approval.StepEnteredAt.Should().BeAfter(DateTime.UtcNow.AddMinutes(-1));
+        approval.OverdueReportedAt.Should().BeNull();
+        approval.DueSoonWarnedAt.Should().BeNull();
+    }
+
+    private async Task<DateTime?> StepEnteredAtAsync(Guid containerId) =>
+        (await _fixture.Context.EthicsApprovals.FirstAsync(a => a.PublicationContainerId == containerId)).StepEnteredAt;
+
+    [Fact]
     public async Task SupervisorRequirementDecision_not_required_notifies_coordinator()
     {
         var (student, supervisor, coordinator, container) = SeedAssignedContainer();

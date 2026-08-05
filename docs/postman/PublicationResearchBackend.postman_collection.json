@@ -2350,49 +2350,6 @@
             "description": "The coordinator allocates the proposal to one supervisor. That settles which proposal\r\nthe publication proceeds with, and the student moves on to ethics."
           },
           "response": []
-        },
-        {
-          "name": "Holds a publication over to the next cycle when no supervisor could take it, which is better\r\nthan refusing work nobody was available for",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/api/containers/:containerId/proposals/defer-to-next-cycle",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "api",
-                "containers",
-                ":containerId",
-                "proposals",
-                "defer-to-next-cycle"
-              ],
-              "variable": [
-                {
-                  "key": "containerId",
-                  "value": "",
-                  "description": ""
-                }
-              ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"comments\": \"\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "description": "Holds a publication over to the next cycle when no supervisor could take it, which is better\r\nthan refusing work nobody was available for."
-          },
-          "response": []
         }
       ]
     },

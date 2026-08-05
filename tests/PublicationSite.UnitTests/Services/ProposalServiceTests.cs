@@ -355,19 +355,6 @@ public class ProposalServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task DeferToNextCycleAsync_marks_open_proposals_as_deferred()
-    {
-        var (student, coordinator, container) = SeedContainer();
-        var proposal = await _sut.CreateAsync(container.Id, student.Id, new SaveProposalRequest("A", "Abstract"));
-        await _sut.FinishSubmissionAsync(container.Id, student.Id);
-
-        await _sut.DeferToNextCycleAsync(container.Id, "No match this cycle", coordinator.Id);
-
-        var proposals = await _sut.GetByContainerAsync(container.Id, student.Id);
-        proposals.Single(p => p.Id == proposal.Id).Status.Should().Be(ProposalStatus.DeferredToNextCycle.ToString());
-    }
-
-    [Fact]
     public async Task Assigning_a_supervisor_opens_the_paper_first_where_the_institution_runs_it_that_way()
     {
         _settingService.Setup(s => s.GetPaperWorkflowSettingsAsync(It.IsAny<CancellationToken>()))

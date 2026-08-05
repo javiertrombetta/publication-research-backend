@@ -345,6 +345,43 @@ public class ContainerServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task MoveToAsync_restarts_the_ethics_clock_and_forgets_what_was_reported_about_the_old_step()
+    {
+        var department = TestDataBuilder.Department(_fixture.Context);
+        var student = TestDataBuilder.User(_fixture.Context);
+        TestDataBuilder.StudentProfile(_fixture.Context, student, department);
+        var container = TestDataBuilder.Container(
+            _fixture.Context, student, TestDataBuilder.User(_fixture.Context),
+            stage: PipelineStage.EthicsApproval);
+
+        // A review that has been sitting on somebody for two months, and has already been reported
+        // late and warned about.
+        var longAgo = DateTime.UtcNow.AddDays(-60);
+        _fixture.Context.EthicsApprovals.Add(new EthicsApproval
+        {
+            PublicationContainerId = container.Id,
+            Status = EthicsStatus.PendingSupervisorDecision,
+            StepEnteredAt = longAgo,
+            OverdueReportedAt = longAgo,
+            DueSoonWarnedAt = longAgo
+        });
+        await _fixture.Context.SaveChangesAsync();
+
+        await _sut.MoveToAsync(container.Id,
+            new MoveContainerRequest((int)PipelineStage.EthicsApproval, "Starting this one again.",
+                EthicsSteps.StudentUpload),
+            Guid.NewGuid());
+
+        var approval = await _fixture.Context.EthicsApprovals.FirstAsync(a => a.PublicationContainerId == container.Id);
+
+        // Whoever has it now gets the whole review period, and is warned about their own deadline
+        // rather than passed over because the person before them had already been warned.
+        approval.StepEnteredAt.Should().BeAfter(longAgo);
+        approval.OverdueReportedAt.Should().BeNull();
+        approval.DueSoonWarnedAt.Should().BeNull();
+    }
+
+    [Fact]
     public async Task MoveToAsync_lands_on_the_reading_asked_for_when_the_coordinator_reads_first()
     {
         _settingService.Setup(s => s.GetEthicsWorkflowSettingsAsync(It.IsAny<CancellationToken>()))

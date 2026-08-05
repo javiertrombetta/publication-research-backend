@@ -11,6 +11,7 @@ namespace PublicationSite.Api.DTOs.Containers;
 /// <param name="PaperAwaitingRole">Whose turn it is on the research paper, as a role name, or null when nothing is pending, which covers the time before a paper exists and the time after it is published. UnderReview alone cannot answer this: it covers the Supervisor still reading the paper, an Admin appointing a committee, the committee voting and the Coordinator's decision, told apart only by what has been recorded against it. RoleNames.EvaluationCommittee is returned where the wait belongs to the committee as a body rather than to one role.</param>
 /// <param name="EthicsDocumentsReturned">True while the student is being asked to upload an ethics document again, as opposed to for the first time. The stage reads PendingUpload either way, so without this a listing cannot tell a publication that has been sent back from one that has not started, and both look like ordinary work in progress.</param>
 /// <param name="RequiredReviewerMembers">The evaluation committee this publication needs, as agreed when it was opened rather than as configured today, so an administrator assigning a committee months later is told the figures this piece of research was actually started under. Null on containers created before the figures were recorded; the current settings apply to those.</param>
+/// <param name="PaperId">The research paper's own id, where one exists. The endpoints that act on a paper take it, and a screen listing publications otherwise has to fetch each one to find it.</param>
 public record PublicationContainerDto(
     Guid Id,
     Guid StudentId,
@@ -36,7 +37,6 @@ public record PublicationContainerDto(
     string? StudentDepartmentName = null,
     Guid? EthicsHeadOfDepartmentId = null,
     string? EthicsHeadOfDepartmentName = null,
-    /// <param name="PaperId">The research paper's own id, where one exists. The endpoints that act on a paper take it, and a screen listing publications otherwise has to fetch each one to find it.</param>
     Guid? PaperId = null);
 
 /// <summary>
