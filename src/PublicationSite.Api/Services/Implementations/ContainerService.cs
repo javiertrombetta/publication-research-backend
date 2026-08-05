@@ -68,65 +68,85 @@ public class ContainerService(
     /// projection: the DTO carries correlated sub-queries for its title and its waiting-on fields,
     /// and EF Core cannot order on top of those. Applied before the page is cut, too, so "oldest
     /// first" means the oldest of the whole list rather than of the ten rows already in hand.
+    ///
+    /// Built per request rather than held as a static table, because "waiting on" depends on which
+    /// steps this institution runs. As a fixed table it ranked by the sequence as it ships, so an
+    /// institution that had switched a step off saw its listings ordered by a pipeline it does not
+    /// use: rows with nothing outstanding sorted above rows that were somebody's turn.
     /// </summary>
-    private static readonly Dictionary<string, Expression<Func<PublicationContainer, object?>>> SortColumns = new()
+    private static Dictionary<string, Expression<Func<PublicationContainer, object?>>> SortColumnsFor(
+        EthicsWorkflowSettingsDto workflow, PaperWorkflowSettingsDto paper)
     {
-        ["student"] = c => c.Student.LastName,
-        // The title the listing prints, which is the paper's once there is a paper and the
-        // assigned proposal's until then. Ordering by the paper's title alone left every
-        // publication still choosing a topic tied on an empty string, in the order they happened
-        // to come back.
-        ["title"] = c => c.Publication != null && c.Publication.Title != ""
-            ? c.Publication.Title
-            : c.Proposals.Where(p => p.Status == ProposalStatus.Assigned).Select(p => p.Title).FirstOrDefault(),
-        ["coordinator"] = c => c.Coordinator!.LastName,
-        ["supervisor"] = c => c.AssignedSupervisor!.LastName,
-        ["stage"] = c => c.CurrentPipeline,
-        // Ordered by the status the listing shows, which is the paper's once there is a paper and
-        // the container's only until then. Ordering by the container's own status sorted by a value
-        // that is not on screen: almost every row on a working queue is InProgress, so every row
-        // tied and the column appeared to do nothing at all.
-        //
-        // Ranked in workflow order rather than alphabetically. These are stages, and a reader
-        // clicking this column is asking how far along things are, not for Accepted before Draft.
-        ["status"] = c =>
-            c.Status == ContainerStatus.Completed ? 7
-            : c.Publication == null ? 0
-            : c.Publication.Status == PublicationStatus.Draft ? 1
-            : c.Publication.Status == PublicationStatus.RevisionsRequested ? 2
-            : c.Publication.Status == PublicationStatus.Resubmitted ? 3
-            : c.Publication.Status == PublicationStatus.UnderReview ? 4
-            : c.Publication.Status == PublicationStatus.Accepted ? 5
-            : 6,
-        ["started"] = c => c.CreatedAt,
-        // What the Coordinator has to do next, ordered so that ascending puts the work first and
-        // the publications waiting on somebody else last. It restates the two conditions the
-        // dashboard reads off EthicsAwaitingRole and PaperStatus, because ordering has to happen
-        // on the entity, before the projection those two fields are computed in. Grouping the two
-        // kinds of work apart is deliberate: a coordinator clearing ethics decisions and one
-        // clearing paper decisions are on different screens.
-        ["waiting"] = c =>
-            c.Status == ContainerStatus.Completed
-                ? 2
-            : c.EthicsApproval != null
-              && ((c.EthicsApproval.Status == EthicsStatus.NotRequired && c.EthicsApproval.FinalDecisionAt == null)
-                  || (c.EthicsApproval.Status == EthicsStatus.PendingVerification
-                      && !c.EthicsApproval.Documents.Any(d => d.Status == EthicsDocumentStatus.PendingReview)
-                      && (c.EthicsApproval.CoordinatorDecisionAt == null
-                          || c.EthicsApproval.HeadOfDepartmentReviewedAt != null)))
-                ? 0
-            : c.Publication != null
-              && c.Publication.Status == PublicationStatus.UnderReview
-              && c.Publication.Versions
-                    .OrderByDescending(v => v.VersionNumber)
-                    .Take(1)
-                    .SelectMany(v => v.Reviews)
-                    .Any(r => r.ReviewerType == ReviewerType.Supervisor && r.Decision == ReviewDecision.Approve)
-              && c.Publication.Committee != null
-              && c.Publication.Committee.Status == CommitteeStatus.Completed
-                ? 1
-            : 2
-    };
+        var supervisorReads = workflow.SupervisorReviewsDocuments;
+        var coordinatorReads = workflow.CoordinatorReviewsDocuments;
+        var headReviews = workflow.HeadOfDepartmentReviews;
+        var headReviewsNotRequired = workflow.HeadOfDepartmentReviewsWhenNotRequired;
+        var supervisorReadsPapers = paper.SupervisorReviews;
+        var committeeEvaluates = paper.CommitteeEvaluates;
+        var coordinatorDecides = paper.CoordinatorDecides;
+
+        return new Dictionary<string, Expression<Func<PublicationContainer, object?>>>
+        {
+            ["student"] = c => c.Student.LastName,
+            // The title the listing prints, which is the paper's once there is a paper and the
+            // assigned proposal's until then. Ordering by the paper's title alone left every
+            // publication still choosing a topic tied on an empty string, in the order they
+            // happened to come back.
+            ["title"] = c => c.Publication != null && c.Publication.Title != ""
+                ? c.Publication.Title
+                : c.Proposals.Where(pr => pr.Status == ProposalStatus.Assigned).Select(pr => pr.Title).FirstOrDefault(),
+            ["status"] = c =>
+                c.Status == ContainerStatus.Completed ? 0
+                : c.Publication == null ? 7
+                : c.Publication.Status == PublicationStatus.Published ? 0
+                : c.Publication.Status == PublicationStatus.Draft ? 1
+                : c.Publication.Status == PublicationStatus.RevisionsRequested ? 2
+                : c.Publication.Status == PublicationStatus.Resubmitted ? 3
+                : c.Publication.Status == PublicationStatus.UnderReview ? 4
+                : c.Publication.Status == PublicationStatus.Accepted ? 5
+                : 6,
+            ["started"] = c => c.CreatedAt,
+            // What the coordinator has to do next, ordered so that ascending puts their work first
+            // and the publications waiting on somebody else last. It restates what the projection
+            // reads out as EthicsAwaitingRole and PaperAwaitingRole, because ordering happens on
+            // the entity, before those are computed. Grouping the two kinds of work apart is
+            // deliberate: a coordinator clearing ethics decisions and one clearing paper decisions
+            // are on different screens.
+            ["waiting"] = c =>
+                c.Status == ContainerStatus.Completed
+                    ? 2
+                // Ethics: their confirmation on the route with no documents, their reading of the
+                // documents on the other, and the close of the stage on either.
+                : c.EthicsApproval != null
+                  && ((c.EthicsApproval.Status == EthicsStatus.NotRequired
+                       && c.EthicsApproval.FinalDecisionAt == null
+                       && (c.EthicsApproval.CoordinatorDecisionAt == null
+                           || c.EthicsApproval.HeadOfDepartmentReviewedAt != null
+                           || !headReviewsNotRequired))
+                      || (c.EthicsApproval.Status == EthicsStatus.PendingVerification
+                          && ((coordinatorReads && c.EthicsApproval.CoordinatorDecisionAt == null
+                               && (c.EthicsApproval.SupervisorDocumentsReviewedAt != null || !supervisorReads))
+                              || ((c.EthicsApproval.SupervisorDocumentsReviewedAt != null || !supervisorReads)
+                                  && (c.EthicsApproval.CoordinatorDecisionAt != null || !coordinatorReads)
+                                  && (c.EthicsApproval.HeadOfDepartmentReviewedAt != null || !headReviews)))))
+                    ? 0
+                // The paper: their decision, once everybody before them has had their turn.
+                : coordinatorDecides
+                  && c.Publication != null
+                  && c.Publication.Status == PublicationStatus.UnderReview
+                  && (!supervisorReadsPapers
+                      || c.Publication.Versions
+                            .OrderByDescending(v => v.VersionNumber)
+                            .Take(1)
+                            .SelectMany(v => v.Reviews)
+                            .Any(r => r.ReviewerType == ReviewerType.Supervisor && r.Decision == ReviewDecision.Approve))
+                  && (!committeeEvaluates
+                      || (c.Publication.Committee != null
+                          && c.Publication.Committee.Status == CommitteeStatus.Completed))
+                    ? 1
+                : 2
+        };
+    }
 
     /// <summary>
     /// The same columns, with "waiting on you" answered for a supervisor instead of a coordinator.
@@ -137,19 +157,27 @@ public class ContainerService(
     /// looked broken. Ascending puts their work first, ethics before papers, matching how the
     /// screen groups it.
     /// </summary>
-    private static readonly Dictionary<string, Expression<Func<PublicationContainer, object?>>> SupervisorSortColumns =
-        new(SortColumns)
+    private static Dictionary<string, Expression<Func<PublicationContainer, object?>>> SupervisorSortColumnsFor(
+        EthicsWorkflowSettingsDto workflow, PaperWorkflowSettingsDto paper)
+    {
+        var supervisorReads = workflow.SupervisorReviewsDocuments;
+        var coordinatorReads = workflow.CoordinatorReviewsDocuments;
+        var coordinatorFirst = workflow.CoordinatorReadsFirst;
+        var supervisorReadsPapers = paper.SupervisorReviews;
+
+        return new Dictionary<string, Expression<Func<PublicationContainer, object?>>>(SortColumnsFor(workflow, paper))
         {
-            // The two conditions restate what the projection reads out as EthicsAwaitingRole and
-            // PaperAwaitingRole for a supervisor. Restated rather than reused because ordering
-            // happens on the entity, before those fields are computed.
             ["waiting"] = c =>
                 c.EthicsApproval != null
                 && (c.EthicsApproval.Status == EthicsStatus.PendingSupervisorDecision
-                    || (c.EthicsApproval.Status == EthicsStatus.PendingVerification
-                        && c.EthicsApproval.Documents.Any(d => d.Status == EthicsDocumentStatus.PendingReview)))
+                    || (supervisorReads
+                        && c.EthicsApproval.Status == EthicsStatus.PendingVerification
+                        && c.EthicsApproval.SupervisorDocumentsReviewedAt == null
+                        && (!coordinatorFirst || !coordinatorReads
+                            || c.EthicsApproval.CoordinatorDecisionAt != null)))
                     ? 0
-                : c.Publication != null
+                : supervisorReadsPapers
+                  && c.Publication != null
                   && (c.Publication.Status == PublicationStatus.Resubmitted
                       || (c.Publication.Status == PublicationStatus.UnderReview
                           && !c.Publication.Versions
@@ -161,6 +189,7 @@ public class ContainerService(
                     ? 1
                 : 2
         };
+    }
 
     /// <summary>
     /// The same columns again, with "waiting on" answered for a whole department rather than for
@@ -176,8 +205,19 @@ public class ContainerService(
     /// dropdown agree, and with nobody's turn last: a row nobody owes anything on is the one a
     /// reader scanning for hold-ups wants furthest away.
     /// </summary>
-    private static readonly Dictionary<string, Expression<Func<PublicationContainer, object?>>> DepartmentSortColumns =
-        new(SortColumns)
+    private static Dictionary<string, Expression<Func<PublicationContainer, object?>>> DepartmentSortColumnsFor(
+        EthicsWorkflowSettingsDto workflow, PaperWorkflowSettingsDto paper)
+    {
+        var supervisorReads = workflow.SupervisorReviewsDocuments;
+        var coordinatorReads = workflow.CoordinatorReviewsDocuments;
+        var coordinatorFirst = workflow.CoordinatorReadsFirst;
+        var headReviews = workflow.HeadOfDepartmentReviews;
+        var headReviewsNotRequired = workflow.HeadOfDepartmentReviewsWhenNotRequired;
+        var supervisorReadsPapers = paper.SupervisorReviews;
+        var committeeEvaluates = paper.CommitteeEvaluates;
+        var coordinatorDecides = paper.CoordinatorDecides;
+
+        return new Dictionary<string, Expression<Func<PublicationContainer, object?>>>(SortColumnsFor(workflow, paper))
         {
             // The same chain the projection uses to name the role, as a rank instead. Restated
             // rather than shared because ordering happens on the entity, before the projection
@@ -189,39 +229,54 @@ public class ContainerService(
                     ? 1
                 : c.EthicsApproval != null && c.EthicsApproval.Status == EthicsStatus.NotRequired
                   && c.EthicsApproval.FinalDecisionAt == null
-                    ? 2
+                    ? (c.EthicsApproval.CoordinatorDecisionAt == null
+                        ? 2
+                        : headReviewsNotRequired && c.EthicsApproval.HeadOfDepartmentReviewedAt == null
+                            ? 3
+                            : 2)
                 : c.EthicsApproval != null && c.EthicsApproval.Status == EthicsStatus.PendingUpload
                     ? 0
                 : c.EthicsApproval != null && c.EthicsApproval.Status == EthicsStatus.PendingVerification
-                    ? (c.EthicsApproval.Documents.Any(d => d.Status == EthicsDocumentStatus.PendingReview)
-                        ? 1
-                        : c.EthicsApproval.CoordinatorDecisionAt == null
+                    ? (coordinatorFirst
+                        ? (coordinatorReads && c.EthicsApproval.CoordinatorDecisionAt == null
                             ? 2
-                            : c.EthicsApproval.HeadOfDepartmentReviewedAt == null
-                                ? 3
-                                : 2)
+                            : supervisorReads && c.EthicsApproval.SupervisorDocumentsReviewedAt == null
+                                ? 1
+                                : headReviews && c.EthicsApproval.HeadOfDepartmentReviewedAt == null
+                                    ? 3
+                                    : 2)
+                        : (supervisorReads && c.EthicsApproval.SupervisorDocumentsReviewedAt == null
+                            ? 1
+                            : coordinatorReads && c.EthicsApproval.CoordinatorDecisionAt == null
+                                ? 2
+                                : headReviews && c.EthicsApproval.HeadOfDepartmentReviewedAt == null
+                                    ? 3
+                                    : 2))
                 : c.Publication == null
                     ? 6
                 : c.Publication.Status == PublicationStatus.Draft
                   || c.Publication.Status == PublicationStatus.RevisionsRequested
                   || c.Publication.Status == PublicationStatus.Accepted
                     ? 0
-                : c.Publication.Status == PublicationStatus.Resubmitted
+                : c.Publication.Status == PublicationStatus.Resubmitted && supervisorReadsPapers
                     ? 1
                 : c.Publication.Status == PublicationStatus.UnderReview
-                    ? (!c.Publication.Versions
+                  || c.Publication.Status == PublicationStatus.Resubmitted
+                    ? (supervisorReadsPapers
+                       && !c.Publication.Versions
                             .OrderByDescending(v => v.VersionNumber)
                             .Take(1)
                             .SelectMany(v => v.Reviews)
                             .Any(r => r.ReviewerType == ReviewerType.Supervisor && r.Decision == ReviewDecision.Approve)
                         ? 1
-                        : c.Publication.Committee == null
+                        : committeeEvaluates && c.Publication.Committee == null
                             ? 4
-                            : c.Publication.Committee.Status != CommitteeStatus.Completed
+                            : committeeEvaluates && c.Publication.Committee!.Status != CommitteeStatus.Completed
                                 ? 5
-                                : 2)
+                                : coordinatorDecides ? 2 : 6)
                 : 6
         };
+    }
 
     public async Task<PagedResult<PublicationContainerDto>> GetMineAsync(
         Guid studentUserId, PageRequest page, CancellationToken cancellationToken = default)
@@ -234,7 +289,7 @@ public class ContainerService(
         return await ProjectToDto(
                 db.PublicationContainers
                     .Where(c => c.StudentId == studentUserId)
-                    .SortBy(page, c => c.CreatedAt, SortColumns),
+                    .SortBy(page, c => c.CreatedAt, SortColumnsFor(workflow, paperWorkflow)),
                 workflow, paperWorkflow)
             .ToPageAsync(page, cancellationToken);
     }
@@ -253,7 +308,7 @@ public class ContainerService(
                         db.PublicationContainers.Where(c => c.AssignedSupervisorId == supervisorUserId),
                         query.EthicsStep, workflow),
                     query.Search)
-                .SortBy(query, c => c.CreatedAt, SupervisorSortColumns),
+                .SortBy(query, c => c.CreatedAt, SupervisorSortColumnsFor(workflow, paperWorkflow)),
                 workflow, paperWorkflow)
             .ToPageAsync(query, cancellationToken);
     }
@@ -299,7 +354,7 @@ public class ContainerService(
                 || c.EthicsApproval.HeadOfDepartmentUserId == headOfDepartmentUserId);
         }
 
-        return await ProjectToDto(department.SortBy(query, c => c.CreatedAt, DepartmentSortColumns), workflow, paperWorkflow)
+        return await ProjectToDto(department.SortBy(query, c => c.CreatedAt, DepartmentSortColumnsFor(workflow, paperWorkflow)), workflow, paperWorkflow)
             .ToPageAsync(query, cancellationToken);
     }
 
@@ -444,6 +499,7 @@ public class ContainerService(
         }
 
         containers = WherePaperAwaiting(containers, query.PaperAwaiting);
+        containers = WherePaperStatus(containers, query.PaperStatus);
         containers = WhereMatches(containers, query.Search);
 
         var workflow = await EthicsWorkflowAsync(cancellationToken);
@@ -451,7 +507,7 @@ public class ContainerService(
 
         return await ProjectToDto(
                 WhereEthicsStep(containers, query.EthicsStep, workflow)
-                    .SortBy(query, c => c.CreatedAt, SortColumns),
+                    .SortBy(query, c => c.CreatedAt, SortColumnsFor(workflow, paperWorkflow)),
                 workflow, paperWorkflow)
             .ToPageAsync(query, cancellationToken);
     }
@@ -464,6 +520,21 @@ public class ContainerService(
     /// DTO is a CASE built during projection, and EF Core cannot filter on it afterwards. The two
     /// stay in step by construction, because both are written from the same conditions.
     /// </summary>
+    /// <summary>
+    /// Narrows to publications whose paper is at the status named. An unknown name returns
+    /// nothing rather than everything: a screen asking for one particular status and being handed
+    /// the whole list would offer decisions on papers that are not in that state.
+    /// </summary>
+    private static IQueryable<PublicationContainer> WherePaperStatus(
+        IQueryable<PublicationContainer> query, string? status)
+    {
+        if (string.IsNullOrWhiteSpace(status)) return query;
+
+        return Enum.TryParse<PublicationStatus>(status, ignoreCase: true, out var wanted)
+            ? query.Where(c => c.Publication != null && c.Publication.Status == wanted)
+            : query.Where(_ => false);
+    }
+
     private static IQueryable<PublicationContainer> WherePaperAwaiting(
         IQueryable<PublicationContainer> query, string? role)
     {
@@ -1269,6 +1340,7 @@ public class ContainerService(
             c.EthicsApproval == null ? null : c.EthicsApproval.HeadOfDepartmentUserId,
             c.EthicsApproval == null || c.EthicsApproval.HeadOfDepartmentUser == null
                 ? null
-                : c.EthicsApproval.HeadOfDepartmentUser.FirstName + " " + c.EthicsApproval.HeadOfDepartmentUser.LastName));
+                : c.EthicsApproval.HeadOfDepartmentUser.FirstName + " " + c.EthicsApproval.HeadOfDepartmentUser.LastName,
+            c.Publication == null ? null : c.Publication.Id));
     }
 }

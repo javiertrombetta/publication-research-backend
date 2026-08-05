@@ -680,7 +680,9 @@ public class SystemSettingService(
     public async Task<ProposalSettingsDto> GetProposalSettingsAsync(CancellationToken cancellationToken = default) =>
         new(
             await settings.GetIntAsync(SettingKeys.ProposalsMinimumPerRound, SettingKeys.DefaultProposalsMinimumPerRound, cancellationToken),
-            await settings.GetIntAsync(SettingKeys.ProposalsMaximumPerRound, SettingKeys.DefaultProposalsMaximumPerRound, cancellationToken));
+            await settings.GetIntAsync(SettingKeys.ProposalsMaximumPerRound, SettingKeys.DefaultProposalsMaximumPerRound, cancellationToken),
+            await settings.GetBoolAsync(SettingKeys.ProposalsSupervisorsExpressInterest,
+                SettingKeys.DefaultProposalsSupervisorsExpressInterest, cancellationToken));
 
     public async Task<ProposalSettingsDto> UpdateProposalSettingsAsync(
         UpdateProposalSettingsRequest request, Guid actingAdminId, CancellationToken cancellationToken = default)
@@ -699,10 +701,15 @@ public class SystemSettingService(
 
         await SetPendingAsync(SettingKeys.ProposalsMinimumPerRound, request.MinimumPerRound, actingAdminId, cancellationToken);
         await SetPendingAsync(SettingKeys.ProposalsMaximumPerRound, request.MaximumPerRound, actingAdminId, cancellationToken);
+        await SetPendingAsync(SettingKeys.ProposalsSupervisorsExpressInterest, request.SupervisorsExpressInterest,
+            actingAdminId, cancellationToken);
 
         await CommitAsync(actingAdminId, "ProposalSettingsUpdated",
             $"A round of research proposals is now {request.MinimumPerRound} to {request.MaximumPerRound}. "
-            + "It applies to rounds asked for again as well as to first ones.",
+            + (request.SupervisorsExpressInterest
+                ? "Proposals go out to supervisors, who say which they are willing to take on, before the coordinator appoints one."
+                : "The coordinator appoints a supervisor directly, without sending the proposals out first.")
+            + " These apply to rounds asked for again as well as to first ones.",
             cancellationToken);
 
         return await GetProposalSettingsAsync(cancellationToken);

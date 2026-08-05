@@ -41,6 +41,10 @@ public class ProposalServiceTests : IDisposable
         _settingService.Setup(s => s.GetPaperWorkflowSettingsAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(new PaperWorkflowSettingsDto(true, true, true, true));
 
+        // The proposals stage as it ships: supervisors say which they are willing to take on.
+        _settingService.Setup(s => s.GetProposalSettingsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ProposalSettingsDto(1, 3, SupervisorsExpressInterest: true));
+
         _sut = new ProposalService(_fixture.Context, _accessService.Object, _auditService.Object,
             _notificationService.Object, _settings, _settingService.Object, new DecisionCommentPolicy(new SystemSettingsProvider(_fixture.Context, new MemoryCache(new MemoryCacheOptions()))));
     }

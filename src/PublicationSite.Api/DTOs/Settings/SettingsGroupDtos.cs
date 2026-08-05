@@ -235,9 +235,16 @@ public record UpdateDeadlineSettingsRequest(
 /// given to choose between. Applies to a round a coordinator has asked for again as well as to
 /// the first.
 /// </summary>
-public record ProposalSettingsDto(int MinimumPerRound, int MaximumPerRound);
+/// <param name="SupervisorsExpressInterest">Whether proposals go out to supervisors, who say which they are willing to take on, before the coordinator appoints one.</param>
+public record ProposalSettingsDto(
+    int MinimumPerRound,
+    int MaximumPerRound,
+    bool SupervisorsExpressInterest = true);
 
-public record UpdateProposalSettingsRequest(int MinimumPerRound, int MaximumPerRound);
+public record UpdateProposalSettingsRequest(
+    int MinimumPerRound,
+    int MaximumPerRound,
+    bool SupervisorsExpressInterest = true);
 
 /// <summary>
 /// One decision in the pipeline, and whether this institution asks for a comment on it.

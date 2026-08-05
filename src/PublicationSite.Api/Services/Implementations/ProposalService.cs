@@ -189,6 +189,13 @@ public class ProposalService(
         Guid coordinatorId, PageRequest page, string? search = null, bool returnedOnly = false,
         CancellationToken cancellationToken = default)
     {
+        // Nothing where this institution appoints supervisors directly: the send itself is
+        // refused, so a queue of things to send would only be a queue of dead ends.
+        if (!(await settingService.GetProposalSettingsAsync(cancellationToken)).SupervisorsExpressInterest)
+        {
+            return new PagedResult<ProposalWithInvitationsDto>([], page.SafePage, page.SafePageSize, 0);
+        }
+
         var query = ApplySearch(AwaitingDispatch(coordinatorId), search);
 
         if (returnedOnly) query = query.Where(p => p.ReturnedToDispatchAt != null);
@@ -243,11 +250,17 @@ public class ProposalService(
 
         if (awaitingAllocation)
         {
-            // A Supervisor has offered to take it on and nobody has been allocated yet: exactly
-            // the rows the Coordinator's selection screen can do something about.
+            // Exactly the rows the coordinator's selection screen can do something about. Where
+            // supervisors express interest that means somebody has offered; where they do not, no
+            // offer is ever made, so it is every submitted proposal instead. Asking for an offer
+            // regardless left that screen permanently empty and the stage with no way forward.
+            var byInterest = (await settingService.GetProposalSettingsAsync(cancellationToken)).SupervisorsExpressInterest;
+
             query = query.Where(p => p.PublicationContainer.CurrentPipeline == PipelineStage.ResearchProposals
                                      && p.PublicationContainer.Status != ContainerStatus.Completed
-                                     && p.SupervisorSelections.Any(s => s.IsSelected));
+                                     && (byInterest
+                                         ? p.SupervisorSelections.Any(s => s.IsSelected)
+                                         : p.Status == ProposalStatus.Submitted));
         }
 
         query = ApplySearch(query, search);
@@ -340,6 +353,13 @@ public class ProposalService(
 
     public async Task SendToSupervisorsAsync(SendToSupervisorsRequest request, Guid coordinatorId, CancellationToken cancellationToken = default)
     {
+        if (!(await settingService.GetProposalSettingsAsync(cancellationToken)).SupervisorsExpressInterest)
+        {
+            throw new BusinessRuleException(
+                "This institution does not send proposals out for supervisors to choose between. "
+                + "The coordinator appoints a supervisor directly.");
+        }
+
         await commentPolicy.EnsureAsync(DecisionPoints.ProposalSendToSupervisors, request.Comments, cancellationToken);
 
         var proposals = await db.ResearchProposals
@@ -517,7 +537,11 @@ public class ProposalService(
             throw new ForbiddenException();
         }
 
-        var wasSelected = await db.ProposalSupervisorSelections.AnyAsync(
+        // Only where the institution asks supervisors first. Where it does not, no offer is ever
+        // made and requiring one would leave the coordinator unable to appoint anybody at all.
+        var byInterest = (await settingService.GetProposalSettingsAsync(cancellationToken)).SupervisorsExpressInterest;
+
+        var wasSelected = !byInterest || await db.ProposalSupervisorSelections.AnyAsync(
             s => s.ProposalId == proposalId && s.SupervisorId == request.SupervisorId && s.IsSelected, cancellationToken);
 
         if (!wasSelected)

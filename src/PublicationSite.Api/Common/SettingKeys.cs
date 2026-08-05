@@ -363,6 +363,20 @@ public static class SettingKeys
 
     public const bool DefaultPipelineEthicsBeforePaper = true;
 
+    // ---------- Steps of the research proposals stage ----------
+
+    /// <summary>
+    /// Whether proposals go out to supervisors, who say which they are willing to take on, before
+    /// the coordinator appoints one.
+    ///
+    /// Off, the coordinator appoints a supervisor to a proposal directly. Some institutions decide
+    /// that between themselves and want the round trip; others have the coordinator place students
+    /// and do not.
+    /// </summary>
+    public const string ProposalsSupervisorsExpressInterest = "proposals.supervisors-express-interest";
+
+    public const bool DefaultProposalsSupervisorsExpressInterest = true;
+
     // ---------- Where uploaded files are kept ----------
 
     /// <summary>
