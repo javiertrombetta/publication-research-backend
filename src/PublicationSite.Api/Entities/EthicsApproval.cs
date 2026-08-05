@@ -19,6 +19,16 @@ public class EthicsApproval
     public string? SupervisorDecisionComments { get; set; }
     public DateTime? SupervisorDecisionAt { get; set; }
 
+    /// <summary>
+    /// When the supervisor finished reading the uploaded documents.
+    ///
+    /// A mark of their own, rather than reading it off the documents' status. While the supervisor
+    /// always went first, "nothing is still PendingReview" meant "the supervisor has read it", and
+    /// that only holds while they are the first reader: an institution that puts the coordinator
+    /// first needs the two readings told apart by something belonging to each of them.
+    /// </summary>
+    public DateTime? SupervisorDocumentsReviewedAt { get; set; }
+
     public bool? IsRequiredPerCoordinator { get; set; }
     public string? CoordinatorDecisionComments { get; set; }
     public DateTime? CoordinatorDecisionAt { get; set; }

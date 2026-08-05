@@ -3,6 +3,7 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
+using PublicationSite.Api.Common;
 using PublicationSite.Api.Common.Exceptions;
 using PublicationSite.Api.DTOs.Ethics;
 using PublicationSite.Api.DTOs.Settings;
@@ -439,15 +440,36 @@ public class EthicsServiceTests : IDisposable
 
         var (student, _, coordinator, container) = await AllDocumentsUploadedAsync();
 
-        // Nothing is left unread, which is what the supervisor's step is defined by, so the set is
-        // already the coordinator's.
-        var approval = await _fixture.Context.EthicsApprovals
-            .Include(a => a.Documents)
-            .FirstAsync(a => a.PublicationContainerId == container.Id);
-        approval.Documents.Should().OnlyContain(d => d.Status != EthicsDocumentStatus.PendingReview);
-
+        // No reading of the supervisor's to wait for, so the coordinator can read it straight away
+        // rather than being told the supervisor goes first.
         await _sut.CoordinatorReviewDocumentsAsync(container.Id, coordinator.Id,
             new CoordinatorDocumentReviewRequest(true, "Read and in order"));
+
+        (await _sut.GetApprovalAsync(container.Id, student.Id)).Status.Should().Be(EthicsStatus.PendingVerification.ToString());
+    }
+
+    [Fact]
+    public async Task The_coordinator_reads_first_where_the_institution_says_so()
+    {
+        _settingService.Setup(s => s.GetEthicsWorkflowSettingsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new EthicsWorkflowSettingsDto(true, true, true, true, SettingKeys.CoordinatorFirst));
+
+        var (student, supervisor, coordinator, container) = await AllDocumentsUploadedAsync();
+
+        // The supervisor is second now, so their reading is refused until the coordinator has read.
+        var tooSoon = () => _sut.SupervisorReviewDocumentsAsync(container.Id, supervisor.Id,
+            new DocumentReviewDecisionRequest(true, "Looks fine"));
+        await tooSoon.Should().ThrowAsync<BusinessRuleException>();
+
+        await _sut.CoordinatorReviewDocumentsAsync(container.Id, coordinator.Id,
+            new CoordinatorDocumentReviewRequest(true, "Paperwork in order"));
+
+        await _sut.SupervisorReviewDocumentsAsync(container.Id, supervisor.Id,
+            new DocumentReviewDecisionRequest(true, "The work itself is sound"));
+
+        var approval = await _fixture.Context.EthicsApprovals.FirstAsync(a => a.PublicationContainerId == container.Id);
+        approval.SupervisorDocumentsReviewedAt.Should().NotBeNull();
+        approval.CoordinatorDecisionAt.Should().NotBeNull();
 
         (await _sut.GetApprovalAsync(container.Id, student.Id)).Status.Should().Be(EthicsStatus.PendingVerification.ToString());
     }

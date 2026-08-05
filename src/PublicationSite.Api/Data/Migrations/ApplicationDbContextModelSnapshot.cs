@@ -638,6 +638,9 @@ namespace PublicationSite.Api.Data.Migrations
                     b.Property<string>("SupervisorDecisionComments")
                         .HasColumnType("text");
 
+                    b.Property<DateTime?>("SupervisorDocumentsReviewedAt")
+                        .HasColumnType("datetime(6)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("HeadOfDepartmentUserId");

@@ -269,10 +269,22 @@ public record EthicsWorkflowSettingsDto(
     bool HeadOfDepartmentReviews,
     bool HeadOfDepartmentReviewsWhenNotRequired,
     bool SupervisorReviewsDocuments = true,
-    bool CoordinatorReviewsDocuments = true);
+    bool CoordinatorReviewsDocuments = true,
+    string DocumentReviewOrder = SettingKeys.SupervisorFirst)
+{
+    /// <summary>Whether the coordinator is the one who reads first.</summary>
+    public bool CoordinatorReadsFirst =>
+        string.Equals(DocumentReviewOrder, SettingKeys.CoordinatorFirst, StringComparison.OrdinalIgnoreCase);
+}
 
 public record UpdateEthicsWorkflowSettingsRequest(
     bool HeadOfDepartmentReviews,
     bool HeadOfDepartmentReviewsWhenNotRequired,
     bool SupervisorReviewsDocuments = true,
-    bool CoordinatorReviewsDocuments = true);
+    bool CoordinatorReviewsDocuments = true,
+    string DocumentReviewOrder = SettingKeys.SupervisorFirst)
+{
+    /// <summary>Whether the coordinator is the one who reads first.</summary>
+    public bool CoordinatorReadsFirst =>
+        string.Equals(DocumentReviewOrder, SettingKeys.CoordinatorFirst, StringComparison.OrdinalIgnoreCase);
+}

@@ -586,7 +586,9 @@ public class SystemSettingService(
                 SettingKeys.DefaultEthicsSupervisorReviewsDocuments, cancellationToken),
             await settings.GetBoolAsync(
                 SettingKeys.EthicsCoordinatorReviewsDocuments,
-                SettingKeys.DefaultEthicsCoordinatorReviewsDocuments, cancellationToken));
+                SettingKeys.DefaultEthicsCoordinatorReviewsDocuments, cancellationToken),
+            await settings.GetStringAsync(SettingKeys.EthicsDocumentReviewOrder, cancellationToken)
+                ?? SettingKeys.DefaultEthicsDocumentReviewOrder);
 
     public async Task<EthicsWorkflowSettingsDto> UpdateEthicsWorkflowSettingsAsync(
         UpdateEthicsWorkflowSettingsRequest request, Guid actingAdminId, CancellationToken cancellationToken = default)
@@ -614,6 +616,14 @@ public class SystemSettingService(
         await SetPendingAsync(
             SettingKeys.EthicsCoordinatorReviewsDocuments, request.CoordinatorReviewsDocuments,
             actingAdminId, cancellationToken);
+
+        if (request.DocumentReviewOrder is not (SettingKeys.SupervisorFirst or SettingKeys.CoordinatorFirst))
+        {
+            throw new BusinessRuleException("The documents are read either supervisor first or coordinator first.");
+        }
+
+        await SetPendingAsync(
+            SettingKeys.EthicsDocumentReviewOrder, request.DocumentReviewOrder, actingAdminId, cancellationToken);
 
         await CommitAsync(actingAdminId, "EthicsWorkflowSettingsUpdated",
             $"Head of Department reviews ethics documentation: {Word(request.HeadOfDepartmentReviews)}. "

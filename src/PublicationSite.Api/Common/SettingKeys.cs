@@ -324,6 +324,17 @@ public static class SettingKeys
     public const bool DefaultEthicsSupervisorReviewsDocuments = true;
     public const bool DefaultEthicsCoordinatorReviewsDocuments = true;
 
+    /// <summary>
+    /// Which of the two reads the documents first. Both readings are the same act on the same
+    /// files, so either order is coherent; which one an institution wants depends on whether the
+    /// supervisor is checking the work or the coordinator is checking the paperwork.
+    /// </summary>
+    public const string EthicsDocumentReviewOrder = "ethics.document-review-order";
+
+    public const string SupervisorFirst = "SupervisorFirst";
+    public const string CoordinatorFirst = "CoordinatorFirst";
+    public const string DefaultEthicsDocumentReviewOrder = SupervisorFirst;
+
     // ---------- Where uploaded files are kept ----------
 
     /// <summary>
