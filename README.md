@@ -257,12 +257,12 @@ default rather than failing.
 | --- | --- |
 | `committees` | Required internal/external members and minimum approvals |
 | `ethics-documents` | Which documents the ethics stage asks students for |
-| `deadlines` | Expected days for supervisor response, ethics review and committee review |
+| `deadlines` | Expected days for supervisor response, ethics review and committee review, and how far ahead of each a reminder goes out |
 | `uploads` | Maximum file size and permitted extensions |
 | `passwords` | Length, character classes, expiry, lockout threshold and duration |
 | `access` | Registration mode, single sign-on, invitation validity, token lifetimes |
 | `notifications` | SMTP server and the master email switch |
-| `institution` | Name, email domains, contact addresses, privacy policy, academic cycle |
+| `institution` | Name, email domains, contact addresses, privacy policy, rows per page |
 
 Three of these needed the code that reads them to change, because ASP.NET Core binds the equivalent options
 once at startup and so cannot follow a value edited at runtime:

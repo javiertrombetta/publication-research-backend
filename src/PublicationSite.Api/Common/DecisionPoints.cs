@@ -34,7 +34,6 @@ public static class DecisionPoints
     // ---------- Research proposals ----------
 
     public const string ProposalSendToSupervisors = "proposal.send-to-supervisors";
-    public const string ProposalDeferToNextCycle = "proposal.defer-to-next-cycle";
     public const string ProposalSupervisorSelection = "proposal.supervisor-selection";
     public const string ProposalCoordinatorAssign = "proposal.coordinator-assign";
     public const string ProposalCoordinatorDiscard = "proposal.coordinator-discard";
@@ -78,7 +77,6 @@ public static class DecisionPoints
         new(ProposalCoordinatorAssign, ProposalStage, "Coordinator: appoint the supervisor", false),
         new(ProposalCoordinatorDiscard, ProposalStage, "Coordinator: turn down every offer on a proposal", true),
         new(ProposalRequestNewRound, ProposalStage, "Coordinator: ask the student for a new round of proposals", true),
-        new(ProposalDeferToNextCycle, ProposalStage, "Coordinator: hold a round over to the next cycle", true),
 
         new(EthicsSupervisorRuling, EthicsStage, "Supervisor: rule whether ethics documentation is required", true),
         new(EthicsSupervisorDocumentsAccept, EthicsStage, "Supervisor: accept the ethics documents", false),

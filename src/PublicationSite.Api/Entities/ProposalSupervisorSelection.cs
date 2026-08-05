@@ -25,6 +25,13 @@ public class ProposalSupervisorSelection
     /// </summary>
     public DateTime? RespondBy { get; set; }
 
+    /// <summary>
+    /// When this supervisor was warned their answer-by date was close, so they are warned once
+    /// rather than on every sweep. An invitation is thrown away when its round expires, so a fresh
+    /// round warns again without anything having to reset this.
+    /// </summary>
+    public DateTime? DueSoonWarnedAt { get; set; }
+
     public bool IsSelected { get; set; }
     public string? Comments { get; set; }
     public DateTime? SelectedAt { get; set; }

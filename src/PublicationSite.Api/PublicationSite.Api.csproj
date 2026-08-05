@@ -24,6 +24,13 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- So the deadline sweep can be tested against a real database without its passes being made
+         public API. It is a background service: everything it does is internal by nature, and the
+         alternative is either publishing methods nothing else calls or leaving it untested. -->
+    <InternalsVisibleTo Include="PublicationSite.UnitTests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="AWSSDK.S3" Version="4.0.101.6" />
     <PackageReference Include="Azure.Storage.Blobs" Version="12.29.1" />
     <PackageReference Include="FluentValidation.AspNetCore" Version="11.3.0" />

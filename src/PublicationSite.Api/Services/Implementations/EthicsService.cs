@@ -120,6 +120,7 @@ public class EthicsService(
         approval.SupervisorDecisionComments = request.Comments;
         approval.SupervisorDecisionAt = DateTime.UtcNow;
         approval.Status = request.IsRequired ? EthicsStatus.PendingUpload : EthicsStatus.NotRequired;
+        MarkStepEntered(approval);
 
         if (request.IsRequired)
         {
@@ -307,6 +308,7 @@ public class EthicsService(
         if (required.All(r => uploaded.Contains(r.EthicsDocumentRequirementId)))
         {
             approval.Status = EthicsStatus.PendingVerification;
+            MarkStepEntered(approval);
 
             // A fresh set is unread by everybody, whatever either of them said about the set it
             // replaces. Without this a second upload would arrive already approved.
@@ -410,6 +412,7 @@ public class EthicsService(
         // Their own mark, set only on acceptance: sending the set back puts it with the student,
         // and the reading starts again when it comes back.
         approval.SupervisorDocumentsReviewedAt = request.Accept ? DateTime.UtcNow : null;
+        MarkStepEntered(approval);
         await db.SaveChangesAsync(cancellationToken);
 
         var container = await db.PublicationContainers.FindAsync([publicationContainerId], cancellationToken);
@@ -446,6 +449,7 @@ public class EthicsService(
         approval.IsRequiredPerCoordinator = request.RequireDocumentation;
         approval.CoordinatorDecisionComments = request.Comments;
         approval.CoordinatorDecisionAt = DateTime.UtcNow;
+        MarkStepEntered(approval);
 
         if (request.RequireDocumentation)
         {
@@ -536,6 +540,7 @@ public class EthicsService(
 
         if (request.Approve)
         {
+            MarkStepEntered(approval);
             await db.SaveChangesAsync(cancellationToken);
 
             await auditService.LogActivityAsync(publicationContainerId, coordinatorId, "CoordinatorApprovedEthicsDocuments",
@@ -548,6 +553,7 @@ public class EthicsService(
             ApplyDocumentReviewOutcome(approval, accept: false, request.Comments, request.DocumentIds);
             approval.CoordinatorDecisionAt = null;
             approval.SupervisorDocumentsReviewedAt = null;
+            MarkStepEntered(approval);
             await db.SaveChangesAsync(cancellationToken);
 
             await auditService.LogActivityAsync(publicationContainerId, coordinatorId, "CoordinatorRequestedEthicsRevision",
@@ -609,6 +615,7 @@ public class EthicsService(
 
         approval.HeadOfDepartmentComments = request.Comments;
         approval.HeadOfDepartmentReviewedAt = DateTime.UtcNow;
+        MarkStepEntered(approval);
         await db.SaveChangesAsync(cancellationToken);
 
         var container = await db.PublicationContainers.FindAsync([publicationContainerId], cancellationToken);
@@ -717,6 +724,18 @@ public class EthicsService(
             nameof(PublicationContainer), container.Id, cancellationToken);
     }
 
+    /// <summary>
+    /// Records that this approval has just become somebody's turn, and forgets what was said about
+    /// the last one. A deadline runs from here, and the reminder and the overdue report are each
+    /// meant to be said once per step rather than once per sweep.
+    /// </summary>
+    private static void MarkStepEntered(EthicsApproval approval)
+    {
+        approval.StepEnteredAt = DateTime.UtcNow;
+        approval.OverdueReportedAt = null;
+        approval.DueSoonWarnedAt = null;
+    }
+
     public async Task CoordinatorFinalDecisionAsync(Guid publicationContainerId, Guid coordinatorId, CoordinatorFinalDecisionRequest request, CancellationToken cancellationToken = default)
     {
         // With the documents, because turning this down sends them back to the student and has to
@@ -776,6 +795,7 @@ public class EthicsService(
             // all, which is where the coordinator's own overturn leads.
             approval.IsRequiredPerCoordinator = true;
             approval.Status = EthicsStatus.PendingUpload;
+            MarkStepEntered(approval);
             await SnapshotRequiredDocumentsAsync(approval, cancellationToken);
             await db.SaveChangesAsync(cancellationToken);
 
@@ -861,6 +881,7 @@ public class EthicsService(
         }
 
         approval.Status = EthicsStatus.PendingUpload;
+        MarkStepEntered(approval);
     }
 
     public async Task<IReadOnlyList<RequiredEthicsDocumentDto>> GetRequiredDocumentsAsync(
@@ -967,6 +988,12 @@ public class EthicsService(
         if (approval is null)
         {
             approval = new EthicsApproval { PublicationContainerId = containerId, Status = EthicsStatus.PendingSupervisorDecision };
+
+            // The clock starts here, not at the supervisor's first decision. An approval is created
+            // by the student declaring, and from that moment it is the supervisor's to answer, so
+            // this is when the review period the deadline measures actually begins.
+            MarkStepEntered(approval);
+
             db.EthicsApprovals.Add(approval);
         }
 

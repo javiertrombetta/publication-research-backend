@@ -216,12 +216,6 @@ public static class SettingKeys
     public const string WebsiteUrl = "institution.website-url";
 
     /// <summary>
-    /// The intake now running, as people say it: "2026 Semester 2". A proposal deferred to the next
-    /// cycle is deferred to something, and nothing in the system said what.
-    /// </summary>
-    public const string CurrentAcademicCycle = "institution.academic-cycle";
-
-    /// <summary>
     /// How many rows a listing shows before it pages.
     ///
     /// A number the institution chooses rather than one the code decides. Ten suits a queue of
@@ -263,6 +257,22 @@ public static class SettingKeys
     public const int DefaultSupervisorResponseDays = 14;
     public const int DefaultEthicsReviewDays = 21;
     public const int DefaultCommitteeReviewDays = 30;
+
+    /// <summary>
+    /// How many days before each of those a reminder goes to whoever owes the work.
+    ///
+    /// A deadline nobody is reminded of is only discovered once it has passed, which is too late
+    /// for the person who could have met it. Zero turns the reminder off without touching the
+    /// deadline itself, and a lead time longer than the deadline is refused: it would fire the
+    /// moment the work arrived.
+    /// </summary>
+    public const string SupervisorResponseWarningDays = "deadlines.supervisor-response-warning-days";
+    public const string EthicsReviewWarningDays = "deadlines.ethics-review-warning-days";
+    public const string CommitteeReviewWarningDays = "deadlines.committee-review-warning-days";
+
+    public const int DefaultSupervisorResponseWarningDays = 3;
+    public const int DefaultEthicsReviewWarningDays = 3;
+    public const int DefaultCommitteeReviewWarningDays = 5;
 
     // ---------- Research proposals ----------
 

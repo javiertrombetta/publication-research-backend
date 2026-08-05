@@ -183,6 +183,10 @@ builder.Services.AddScoped<ISupervisorGroupService, SupervisorGroupService>();
 // Closes proposal rounds whose answer-by date has passed. Without it that date is a note in the
 // database that nothing ever reads.
 builder.Services.AddHostedService<ExpiredProposalRoundService>();
+
+// Warns people before each deadline, and tells the coordinator about the two that pass without
+// anything else happening. Same reason: a date nobody is reminded of is a date nobody keeps.
+builder.Services.AddHostedService<DeadlineWatchService>();
 builder.Services.AddScoped<IEthicsService, EthicsService>();
 builder.Services.AddScoped<IPublicationService, PublicationService>();
 builder.Services.AddScoped<ICommitteeService, CommitteeService>();

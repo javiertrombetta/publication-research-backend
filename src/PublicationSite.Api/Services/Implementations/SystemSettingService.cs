@@ -438,7 +438,6 @@ public class SystemSettingService(
             await settings.GetStringAsync(SettingKeys.ItSupportEmail, cancellationToken),
             await settings.GetStringAsync(SettingKeys.ResearchEnquiriesEmail, cancellationToken),
             await settings.GetStringAsync(SettingKeys.PrivacyPolicyUrl, cancellationToken),
-            await settings.GetStringAsync(SettingKeys.CurrentAcademicCycle, cancellationToken),
             await settings.GetStringAsync(SettingKeys.WebsiteUrl, cancellationToken),
             (await settings.GetStringAsync(SettingKeys.RegistrationMode, cancellationToken)
              ?? EnvironmentRegistrationDefault) == SettingKeys.RegistrationModeOpen,
@@ -488,17 +487,13 @@ public class SystemSettingService(
         await SetPendingAsync(SettingKeys.ItSupportEmail, request.ItSupportEmail?.Trim() ?? string.Empty, actingAdminId, cancellationToken);
         await SetPendingAsync(SettingKeys.ResearchEnquiriesEmail, request.ResearchEnquiriesEmail?.Trim() ?? string.Empty, actingAdminId, cancellationToken);
         await SetPendingAsync(SettingKeys.PrivacyPolicyUrl, request.PrivacyPolicyUrl?.Trim() ?? string.Empty, actingAdminId, cancellationToken);
-        await SetPendingAsync(SettingKeys.CurrentAcademicCycle, request.CurrentAcademicCycle?.Trim() ?? string.Empty, actingAdminId, cancellationToken);
         await SetPendingAsync(SettingKeys.WebsiteUrl, request.WebsiteUrl?.Trim() ?? string.Empty, actingAdminId, cancellationToken);
         await SetPendingAsync(SettingKeys.RowsPerPage, rowsPerPage.ToString(), actingAdminId, cancellationToken);
         await SetPendingAsync(SettingKeys.ItSupportShownToVisitors,
             request.ItSupportShownToVisitors.ToString(), actingAdminId, cancellationToken);
 
         await CommitAsync(actingAdminId, "InstitutionSettingsUpdated",
-            $"Student addresses end in {studentDomain} and staff addresses in {staffDomain}." +
-            (string.IsNullOrWhiteSpace(request.CurrentAcademicCycle)
-                ? string.Empty
-                : $" The current cycle is {request.CurrentAcademicCycle.Trim()}."),
+            $"Student addresses end in {studentDomain} and staff addresses in {staffDomain}.",
             cancellationToken);
 
         return await GetInstitutionSettingsAsync(cancellationToken);
@@ -721,7 +716,10 @@ public class SystemSettingService(
         new(
             await settings.GetIntAsync(SettingKeys.SupervisorResponseDays, SettingKeys.DefaultSupervisorResponseDays, cancellationToken),
             await settings.GetIntAsync(SettingKeys.EthicsReviewDays, SettingKeys.DefaultEthicsReviewDays, cancellationToken),
-            await settings.GetIntAsync(SettingKeys.CommitteeReviewDays, SettingKeys.DefaultCommitteeReviewDays, cancellationToken));
+            await settings.GetIntAsync(SettingKeys.CommitteeReviewDays, SettingKeys.DefaultCommitteeReviewDays, cancellationToken),
+            await settings.GetIntAsync(SettingKeys.SupervisorResponseWarningDays, SettingKeys.DefaultSupervisorResponseWarningDays, cancellationToken),
+            await settings.GetIntAsync(SettingKeys.EthicsReviewWarningDays, SettingKeys.DefaultEthicsReviewWarningDays, cancellationToken),
+            await settings.GetIntAsync(SettingKeys.CommitteeReviewWarningDays, SettingKeys.DefaultCommitteeReviewWarningDays, cancellationToken));
 
     public async Task<DeadlineSettingsDto> UpdateDeadlineSettingsAsync(
         UpdateDeadlineSettingsRequest request, Guid actingAdminId, CancellationToken cancellationToken = default)
@@ -740,12 +738,32 @@ public class SystemSettingService(
             }
         }
 
+        // A reminder that fires the moment work arrives is not a reminder. Zero turns it off.
+        foreach (var (warning, deadline, what) in new[]
+                 {
+                     (request.SupervisorResponseWarningDays, request.SupervisorResponseDays, "supervisor response"),
+                     (request.EthicsReviewWarningDays, request.EthicsReviewDays, "ethics review"),
+                     (request.CommitteeReviewWarningDays, request.CommitteeReviewDays, "committee review")
+                 })
+        {
+            if (warning < 0 || (deadline > 0 && warning >= deadline))
+            {
+                throw new BusinessRuleException(
+                    $"The {what} reminder has to come between the work arriving and its deadline, so it must be "
+                    + "fewer days than the deadline itself. Use 0 for no reminder.");
+            }
+        }
+
         await SetPendingAsync(SettingKeys.SupervisorResponseDays, request.SupervisorResponseDays, actingAdminId, cancellationToken);
         await SetPendingAsync(SettingKeys.EthicsReviewDays, request.EthicsReviewDays, actingAdminId, cancellationToken);
         await SetPendingAsync(SettingKeys.CommitteeReviewDays, request.CommitteeReviewDays, actingAdminId, cancellationToken);
+        await SetPendingAsync(SettingKeys.SupervisorResponseWarningDays, request.SupervisorResponseWarningDays, actingAdminId, cancellationToken);
+        await SetPendingAsync(SettingKeys.EthicsReviewWarningDays, request.EthicsReviewWarningDays, actingAdminId, cancellationToken);
+        await SetPendingAsync(SettingKeys.CommitteeReviewWarningDays, request.CommitteeReviewWarningDays, actingAdminId, cancellationToken);
 
         await CommitAsync(actingAdminId, "DeadlineSettingsUpdated",
-            "Stage deadlines updated. They mark work as overdue; they do not prevent it being done late.",
+            "Stage deadlines and their reminders updated. They mark work as overdue and remind whoever owes it; "
+            + "they do not prevent it being done late.",
             cancellationToken);
 
         return await GetDeadlineSettingsAsync(cancellationToken);

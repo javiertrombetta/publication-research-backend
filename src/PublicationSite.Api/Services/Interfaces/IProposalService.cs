@@ -35,7 +35,6 @@ public interface IProposalService
 
     Task<IReadOnlyList<SupervisorInvitationDto>> GetSelectionsAsync(Guid proposalId, Guid requestingUserId, CancellationToken cancellationToken = default);
     Task AssignSupervisorAsync(Guid proposalId, AssignSupervisorRequest request, Guid coordinatorId, CancellationToken cancellationToken = default);
-    Task DeferToNextCycleAsync(Guid publicationContainerId, string comments, Guid coordinatorId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Refuses the offers a supervisor made on one proposal, so it stops being one the coordinator

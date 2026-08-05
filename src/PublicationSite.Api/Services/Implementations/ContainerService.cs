@@ -886,6 +886,14 @@ public class ContainerService(
                 throw new BusinessRuleException($"'{step}' is not a step of the ethics stage.");
         }
 
+        // The step's clock starts now, and anything already reported about the old one is dropped.
+        // Whoever has just been handed this review gets the whole review period to do it in, not
+        // what was left of somebody else's, and is warned about their own deadline rather than
+        // being passed over because the person before them had already been warned.
+        approval.StepEnteredAt = now;
+        approval.OverdueReportedAt = null;
+        approval.DueSoonWarnedAt = null;
+
         static void RequireDocuments(EthicsApproval approval)
         {
             if (approval.Documents.Count == 0)

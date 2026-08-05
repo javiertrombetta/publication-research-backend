@@ -592,30 +592,6 @@ public class ProposalService(
             nameof(PublicationContainer), container.Id, cancellationToken);
     }
 
-    public async Task DeferToNextCycleAsync(Guid publicationContainerId, string comments, Guid coordinatorId, CancellationToken cancellationToken = default)
-    {
-        await commentPolicy.EnsureAsync(DecisionPoints.ProposalDeferToNextCycle, comments, cancellationToken);
-
-        var container = await db.PublicationContainers.FirstOrDefaultAsync(
-            c => c.Id == publicationContainerId && c.CoordinatorId == coordinatorId, cancellationToken)
-            ?? throw new NotFoundException(nameof(PublicationContainer), publicationContainerId);
-
-        var proposals = await db.ResearchProposals
-            .Where(p => p.PublicationContainerId == container.Id &&
-                        (p.Status == ProposalStatus.Submitted || p.Status == ProposalStatus.SelectedBySupervisor))
-            .ToListAsync(cancellationToken);
-
-        foreach (var proposal in proposals)
-        {
-            proposal.Status = ProposalStatus.DeferredToNextCycle;
-        }
-
-        await db.SaveChangesAsync(cancellationToken);
-
-        await auditService.LogActivityAsync(container.Id, coordinatorId, "ProposalsDeferredToNextCycle", comments,
-            newStatus: ProposalStatus.DeferredToNextCycle.ToString());
-    }
-
     public async Task<DiscardSelectionsResultDto> DiscardSelectionsAsync(
         Guid proposalId, string comments, Guid coordinatorId, CancellationToken cancellationToken = default)
     {

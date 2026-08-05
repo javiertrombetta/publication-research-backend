@@ -404,8 +404,14 @@ namespace PublicationSite.Api.Data.Migrations
                     b.Property<Guid>("CreatedByUserId")
                         .HasColumnType("char(36)");
 
+                    b.Property<DateTime?>("DueSoonWarnedAt")
+                        .HasColumnType("datetime(6)");
+
                     b.Property<int>("MinApprovalsRequired")
                         .HasColumnType("int");
+
+                    b.Property<DateTime?>("OverdueReportedAt")
+                        .HasColumnType("datetime(6)");
 
                     b.Property<Guid>("PublicationId")
                         .HasColumnType("char(36)");
@@ -601,6 +607,9 @@ namespace PublicationSite.Api.Data.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
 
+                    b.Property<DateTime?>("DueSoonWarnedAt")
+                        .HasColumnType("datetime(6)");
+
                     b.Property<DateTime?>("ExpiryDate")
                         .HasColumnType("datetime(6)");
 
@@ -622,6 +631,9 @@ namespace PublicationSite.Api.Data.Migrations
                     b.Property<bool?>("IsRequiredPerSupervisor")
                         .HasColumnType("tinyint(1)");
 
+                    b.Property<DateTime?>("OverdueReportedAt")
+                        .HasColumnType("datetime(6)");
+
                     b.Property<Guid>("PublicationContainerId")
                         .HasColumnType("char(36)");
 
@@ -631,6 +643,9 @@ namespace PublicationSite.Api.Data.Migrations
 
                     b.Property<int>("Status")
                         .HasColumnType("int");
+
+                    b.Property<DateTime?>("StepEnteredAt")
+                        .HasColumnType("datetime(6)");
 
                     b.Property<DateTime?>("SupervisorDecisionAt")
                         .HasColumnType("datetime(6)");
@@ -911,6 +926,9 @@ namespace PublicationSite.Api.Data.Migrations
 
                     b.Property<string>("Comments")
                         .HasColumnType("text");
+
+                    b.Property<DateTime?>("DueSoonWarnedAt")
+                        .HasColumnType("datetime(6)");
 
                     b.Property<DateTime>("InvitedAt")
                         .HasColumnType("datetime(6)");

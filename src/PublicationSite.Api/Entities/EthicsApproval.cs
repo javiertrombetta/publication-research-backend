@@ -47,6 +47,23 @@ public class EthicsApproval
     public string? HeadOfDepartmentComments { get; set; }
     public DateTime? HeadOfDepartmentReviewedAt { get; set; }
 
+    /// <summary>
+    /// When this approval last became somebody's turn.
+    ///
+    /// A deadline is measured from the moment work landed on a person, and nothing recorded that:
+    /// the timestamps here say when each decision was made, which is the opposite end. Without it
+    /// an overdue review could only be guessed at from whichever mark happened to be newest.
+    /// </summary>
+    public DateTime? StepEnteredAt { get; set; }
+
+    /// <summary>
+    /// When the coordinator was told this review had run out of time, and when whoever owes it was
+    /// warned it was about to. Both so the sweep says each thing once rather than every time it
+    /// runs, and both cleared when the work moves on.
+    /// </summary>
+    public DateTime? OverdueReportedAt { get; set; }
+    public DateTime? DueSoonWarnedAt { get; set; }
+
     public DateTime? FinalDecisionAt { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
