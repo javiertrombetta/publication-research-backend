@@ -399,6 +399,19 @@ public class ContainerService(
         await db.SaveChangesAsync(cancellationToken);
     }
 
+    /// <summary>
+    /// What a publication's own trail can be ordered by, one per column of the screen that reads
+    /// it. Who is ordered by surname, as the column is read.
+    /// </summary>
+    private static readonly Dictionary<string, Expression<Func<ActivityHistoryEntry, object?>>> TrailSorts =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["when"] = a => a.CreatedAt,
+            ["what"] = a => a.Action,
+            ["who"] = a => a.ActorUser.LastName,
+            ["comments"] = a => a.Comments
+        };
+
     public async Task<PagedResult<ActivityHistoryEntryDto>> GetActivityHistoryAsync(
         Guid id, Guid requestingUserId, PageRequest paging, CancellationToken cancellationToken = default)
     {
@@ -438,12 +451,26 @@ public class ContainerService(
             {
                 query = query.Where(a => a.ActorUserId == actor || a.OnBehalfOfUserId == actor);
             }
+
+            // Over the three things the trail says in words: what happened, who it was, and what
+            // they wrote about it. The filters beside this each answer one question exactly;
+            // people arrive with half a remembered phrase instead.
+            if (!string.IsNullOrWhiteSpace(filter.Search))
+            {
+                var term = filter.Search.Trim();
+                query = query.Where(a =>
+                    a.Action.Contains(term)
+                    || a.Comments.Contains(term)
+                    || (a.ActorUser.FirstName + " " + a.ActorUser.LastName).Contains(term)
+                    || (a.OnBehalfOfUser != null
+                        && (a.OnBehalfOfUser.FirstName + " " + a.OnBehalfOfUser.LastName).Contains(term)));
+            }
         }
 
         var total = await query.CountAsync(cancellationToken);
 
         var items = await query
-            .OrderByDescending(a => a.CreatedAt).ThenBy(a => a.Id)
+            .SortBy(paging, a => a.CreatedAt, TrailSorts, a => a.Id)
             .Skip((paging.SafePage - 1) * paging.SafePageSize)
             .Take(paging.SafePageSize)
             .Select(a => new ActivityHistoryEntryDto(
