@@ -147,8 +147,41 @@ public class AuthService(
             return;
         }
 
-        await SendPasswordResetEmailAsync(user);
+        // Nothing limited how often this could be asked for, and nothing recorded that it had been.
+        // Anybody who knew an address could fill that person's inbox with reset links, at the
+        // institution's expense, and leave nothing behind for anyone looking into it afterwards.
+        //
+        // One message stands for the whole window. Refused silently, because the caller is told the
+        // same thing whatever happens here, which is the entire point of this endpoint.
+        var since = DateTime.UtcNow.AddMinutes(-ResetLinkWindowMinutes);
+        var alreadySent = await db.AuditLogEntries.AnyAsync(
+            a => a.ActionType == PasswordResetRequested && a.EntityId == user.Id && a.Timestamp >= since,
+            cancellationToken);
+
+        if (alreadySent)
+        {
+            return;
+        }
+
+        // Recorded only when a message actually goes out, which does two things. A flood leaves one
+        // row per window rather than one per attempt, so the trail is evidence rather than somewhere
+        // to write as much as you like. And a deployment with no mail server working throttles
+        // nothing, because nothing is arriving to be throttled: without this, the first attempt
+        // would silence the next five minutes and the person would sit waiting for a message that
+        // was never sent.
+        if (await SendPasswordResetEmailAsync(user))
+        {
+            await auditService.LogAuditAsync(user.Id, PasswordResetRequested, nameof(ApplicationUser), user.Id);
+        }
     }
+
+    private const string PasswordResetRequested = "PasswordResetRequested";
+
+    /// <summary>
+    /// Long enough to be worth having, short enough that somebody who deleted the message by
+    /// accident is not locked out of asking for another one for the rest of the afternoon.
+    /// </summary>
+    private const int ResetLinkWindowMinutes = 5;
 
     /// <summary>
     /// Returns whether the message went out. Forgot-password ignores that on purpose. Saying an

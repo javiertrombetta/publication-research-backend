@@ -312,6 +312,13 @@ once at startup and so cannot follow a value edited at runtime:
 - **Token lifetimes**: read per issue rather than from the startup snapshot. The issuer, audience and signing
   key deliberately stay in configuration: changing one from a web form would invalidate every token in
   circulation, including the caller's own.
+- **One reset link per five minutes, per account**: asking for one is anonymous by necessity, and
+  was unlimited, so anybody who knew an address could fill that person's inbox with links at the
+  institution's expense. The window is enforced from the audit trail, which now records the
+  request as well as the reset, and only once a message has actually gone out: a flood leaves one
+  row rather than thousands, and a deployment whose mail server is not working throttles nobody.
+  The caller is told the same thing either way, since that endpoint is careful never to say
+  whether an address is registered.
 - **Disabling takes effect at once**: a signed token describes the account as it was when it was issued, so
   disabling somebody would otherwise leave the hour they had already been given, and a refresh would hand
   them another hour on top for as long as their browser stayed open. Two checks close that. Refresh asks

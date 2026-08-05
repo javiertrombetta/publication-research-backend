@@ -281,6 +281,70 @@ public class AuthServiceTests : IDisposable
         _emailSender.Verify(e => e.SendAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
+    /// <summary>
+    /// The throttle on reset links reads the trail it writes, so the mocked audit service has to
+    /// leave the row a real one would.
+    /// </summary>
+    private void SetupAuditServicePersistsEntries()
+    {
+        _auditService
+            .Setup(a => a.LogAuditAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Guid?>(),
+                It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<Guid?>()))
+            .Returns(async (Guid actor, string action, string entityType, Guid? entityId,
+                string? _, string? _, string? _, Guid? _) =>
+            {
+                _fixture.Context.AuditLogEntries.Add(new AuditLogEntry
+                {
+                    ActorUserId = actor, ActionType = action, EntityType = entityType,
+                    EntityId = entityId, Timestamp = DateTime.UtcNow
+                });
+                await _fixture.Context.SaveChangesAsync();
+            });
+    }
+
+    /// <summary>
+    /// Asking for a reset link was unlimited and left no trace, so anybody who knew an address
+    /// could fill that person's inbox at the institution's expense and nobody looking afterwards
+    /// would find a thing.
+    /// </summary>
+    [Fact]
+    public async Task ForgotPasswordAsync_sends_one_link_and_will_not_repeat_it_straight_away()
+    {
+        SetupAuditServicePersistsEntries();
+        var user = TestDataBuilder.User(_fixture.Context);
+        _userManager.Setup(m => m.FindByEmailAsync(user.Email!)).ReturnsAsync(user);
+        _userManager.Setup(m => m.GeneratePasswordResetTokenAsync(user)).ReturnsAsync("reset-token");
+
+        await _sut.ForgotPasswordAsync(user.Email!);
+        await _sut.ForgotPasswordAsync(user.Email!);
+        await _sut.ForgotPasswordAsync(user.Email!);
+
+        _emailSender.Verify(e => e.SendAsync(user.Email!, It.IsAny<string>(), It.IsAny<string>(),
+            It.IsAny<CancellationToken>()), Times.Once);
+        _fixture.Context.AuditLogEntries.Count(a => a.ActionType == "PasswordResetRequested").Should().Be(1);
+    }
+
+    [Fact]
+    public async Task ForgotPasswordAsync_sends_another_once_the_window_has_passed()
+    {
+        SetupAuditServicePersistsEntries();
+        var user = TestDataBuilder.User(_fixture.Context);
+        _userManager.Setup(m => m.FindByEmailAsync(user.Email!)).ReturnsAsync(user);
+        _userManager.Setup(m => m.GeneratePasswordResetTokenAsync(user)).ReturnsAsync("reset-token");
+
+        await _sut.ForgotPasswordAsync(user.Email!);
+
+        // Backdated rather than waited for.
+        var entry = _fixture.Context.AuditLogEntries.Single(a => a.ActionType == "PasswordResetRequested");
+        entry.Timestamp = DateTime.UtcNow.AddMinutes(-30);
+        _fixture.Context.SaveChanges();
+
+        await _sut.ForgotPasswordAsync(user.Email!);
+
+        _emailSender.Verify(e => e.SendAsync(user.Email!, It.IsAny<string>(), It.IsAny<string>(),
+            It.IsAny<CancellationToken>()), Times.Exactly(2));
+    }
+
     private ApplicationUser SeedUserHoldingRefreshToken(UserStatus status, string token)
     {
         var user = TestDataBuilder.User(_fixture.Context, status: status);
