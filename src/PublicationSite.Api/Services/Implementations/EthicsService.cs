@@ -305,12 +305,32 @@ public class EthicsService(
         if (required.All(r => uploaded.Contains(r.EthicsDocumentRequirementId)))
         {
             approval.Status = EthicsStatus.PendingVerification;
+
+            var workflow = await settingService.GetEthicsWorkflowSettingsAsync(cancellationToken);
+
+            // Where the supervisor does not read documents, the set is already past them: without
+            // this it would sit at a step nobody works, waiting on a review that never comes.
+            if (!workflow.SupervisorReviewsDocuments)
+            {
+                foreach (var unread in approval.Documents.Where(d => d.Status == EthicsDocumentStatus.PendingReview))
+                {
+                    unread.Status = EthicsDocumentStatus.Accepted;
+                }
+            }
+
             await db.SaveChangesAsync(cancellationToken);
 
-            if (container.AssignedSupervisorId is Guid supervisorId)
+            if (workflow.SupervisorReviewsDocuments && container.AssignedSupervisorId is Guid supervisorId)
             {
                 await notificationService.NotifyAsync(supervisorId, NotificationType.EthicsDocumentationReadyForReview,
                     "Ethics documentation ready for review",
+                    "The student has uploaded all required ethics documentation. Please log in to review it.",
+                    nameof(PublicationContainer), container.Id, cancellationToken);
+            }
+            else if (workflow.CoordinatorReviewsDocuments)
+            {
+                await notificationService.NotifyAsync(container.CoordinatorId, NotificationType.EthicsCoordinatorReviewRequested,
+                    "Ethics documentation review requested",
                     "The student has uploaded all required ethics documentation. Please log in to review it.",
                     nameof(PublicationContainer), container.Id, cancellationToken);
             }
@@ -376,6 +396,12 @@ public class EthicsService(
             throw new BusinessRuleException("There is no ethics documentation currently awaiting review.");
         }
 
+        if (!(await settingService.GetEthicsWorkflowSettingsAsync(cancellationToken)).SupervisorReviewsDocuments)
+        {
+            throw new BusinessRuleException(
+                "This institution does not ask the supervisor to read ethics documentation.");
+        }
+
         await commentPolicy.EnsureAsync(request.Accept
             ? DecisionPoints.EthicsSupervisorDocumentsAccept
             : DecisionPoints.EthicsSupervisorDocumentsReturn, request.Comments, cancellationToken);
@@ -390,10 +416,27 @@ public class EthicsService(
 
         if (request.Accept)
         {
-            await notificationService.NotifyAsync(container!.CoordinatorId, NotificationType.EthicsCoordinatorReviewRequested,
-                "Ethics documentation review requested",
-                "A Supervisor has approved the submitted ethics documentation. Please log in to review it.",
-                nameof(PublicationContainer), publicationContainerId, cancellationToken);
+            var workflow = await settingService.GetEthicsWorkflowSettingsAsync(cancellationToken);
+
+            if (workflow.CoordinatorReviewsDocuments)
+            {
+                await notificationService.NotifyAsync(container!.CoordinatorId, NotificationType.EthicsCoordinatorReviewRequested,
+                    "Ethics documentation review requested",
+                    "A Supervisor has approved the submitted ethics documentation. Please log in to review it.",
+                    nameof(PublicationContainer), publicationContainerId, cancellationToken);
+            }
+            else if (workflow.HeadOfDepartmentReviews)
+            {
+                await AssignHeadOfDepartmentAsync(container!, approval, cancellationToken);
+            }
+            else
+            {
+                await notificationService.NotifyAsync(container!.CoordinatorId, NotificationType.EthicsFinalDecisionRequested,
+                    "Final ethics decision requested",
+                    "A Supervisor has approved the submitted ethics documentation, and this institution asks nobody "
+                    + "else to read it. The final decision is yours to make now.",
+                    nameof(PublicationContainer), publicationContainerId, cancellationToken);
+            }
         }
         else
         {
@@ -484,6 +527,12 @@ public class EthicsService(
             throw new BusinessRuleException("There is no ethics documentation currently awaiting Coordinator review.");
         }
 
+        if (!(await settingService.GetEthicsWorkflowSettingsAsync(cancellationToken)).CoordinatorReviewsDocuments)
+        {
+            throw new BusinessRuleException(
+                "This institution does not ask the coordinator to read ethics documentation.");
+        }
+
         await commentPolicy.EnsureAsync(request.Approve
             ? DecisionPoints.EthicsCoordinatorDocumentsApprove
             : DecisionPoints.EthicsCoordinatorDocumentsReturn, request.Comments, cancellationToken);
@@ -555,7 +604,12 @@ public class EthicsService(
                 "This institution does not put the Head of Department between the coordinator's decision and the close of this stage.");
         }
 
-        if (approval.CoordinatorDecisionAt is null || approval.HeadOfDepartmentReviewedAt is not null)
+        // The coordinator's reading is one of the steps that can be switched off, and where it is,
+        // there is no decision of theirs to wait for.
+        var coordinatorHasHadTheirTurn = approval.CoordinatorDecisionAt is not null
+            || (onDocuments && !workflow.CoordinatorReviewsDocuments);
+
+        if (!coordinatorHasHadTheirTurn || approval.HeadOfDepartmentReviewedAt is not null)
         {
             throw new BusinessRuleException("This container's ethics decision is not awaiting Head of Department review.");
         }
@@ -654,7 +708,7 @@ public class EthicsService(
             && approval.HeadOfDepartmentReviewedAt is not null;
 
         var afterDocuments = approval.Status == EthicsStatus.PendingVerification
-            && approval.CoordinatorDecisionAt is not null
+            && (approval.CoordinatorDecisionAt is not null || !workflow.CoordinatorReviewsDocuments)
             && (approval.HeadOfDepartmentReviewedAt is not null || !workflow.HeadOfDepartmentReviews);
 
         if (!afterNotRequired && !afterDocuments)

@@ -580,7 +580,13 @@ public class SystemSettingService(
                 SettingKeys.EthicsHeadOfDepartmentReview, SettingKeys.DefaultEthicsHeadOfDepartmentReview, cancellationToken),
             await settings.GetBoolAsync(
                 SettingKeys.EthicsHeadOfDepartmentReviewNotRequired,
-                SettingKeys.DefaultEthicsHeadOfDepartmentReviewNotRequired, cancellationToken));
+                SettingKeys.DefaultEthicsHeadOfDepartmentReviewNotRequired, cancellationToken),
+            await settings.GetBoolAsync(
+                SettingKeys.EthicsSupervisorReviewsDocuments,
+                SettingKeys.DefaultEthicsSupervisorReviewsDocuments, cancellationToken),
+            await settings.GetBoolAsync(
+                SettingKeys.EthicsCoordinatorReviewsDocuments,
+                SettingKeys.DefaultEthicsCoordinatorReviewsDocuments, cancellationToken));
 
     public async Task<EthicsWorkflowSettingsDto> UpdateEthicsWorkflowSettingsAsync(
         UpdateEthicsWorkflowSettingsRequest request, Guid actingAdminId, CancellationToken cancellationToken = default)
@@ -588,8 +594,25 @@ public class SystemSettingService(
         await SetPendingAsync(
             SettingKeys.EthicsHeadOfDepartmentReview, request.HeadOfDepartmentReviews, actingAdminId, cancellationToken);
 
+        // Something has to read the documents before the stage closes. A sequence with nobody in
+        // it would leave uploads sitting where no screen ever offers them.
+        if (!request.SupervisorReviewsDocuments && !request.CoordinatorReviewsDocuments && !request.HeadOfDepartmentReviews)
+        {
+            throw new BusinessRuleException(
+                "Somebody has to read the ethics documents. Leave at least one of the supervisor, "
+                + "the coordinator or the Head of Department reading them.");
+        }
+
         await SetPendingAsync(
             SettingKeys.EthicsHeadOfDepartmentReviewNotRequired, request.HeadOfDepartmentReviewsWhenNotRequired,
+            actingAdminId, cancellationToken);
+
+        await SetPendingAsync(
+            SettingKeys.EthicsSupervisorReviewsDocuments, request.SupervisorReviewsDocuments,
+            actingAdminId, cancellationToken);
+
+        await SetPendingAsync(
+            SettingKeys.EthicsCoordinatorReviewsDocuments, request.CoordinatorReviewsDocuments,
             actingAdminId, cancellationToken);
 
         await CommitAsync(actingAdminId, "EthicsWorkflowSettingsUpdated",
