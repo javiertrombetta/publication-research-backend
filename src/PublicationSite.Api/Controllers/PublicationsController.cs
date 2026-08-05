@@ -255,18 +255,22 @@ public class PublicationsController(IPublicationService publicationService, ICur
     /// administrator's queue. Answered in one request, because reconstructing it from the container
     /// listing missed the supervisor's approval and offered papers that would then be refused.
     /// </summary>
-    /// <response code="200">The matching awaiting committees, all of them.</response>
+    /// <remarks>
+    /// Ordered longest-waiting first, or by <c>title</c>, <c>student</c> or <c>waiting</c>. The
+    /// search term covers the paper's title and its author.
+    /// </remarks>
+    /// <response code="200">One page of papers, with the total count alongside it so a pager can be drawn without a second request.</response>
     /// <response code="401">No access token was sent, or the one sent has expired.</response>
     /// <response code="403">Signed in, but this is not something your role may do.</response>
     [HttpGet("api/publications/awaiting-committee")]
     [Authorize(Roles = RoleNames.Admin)]
-    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<AwaitingCommitteeDto>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<PagedResult<AwaitingCommitteeDto>>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    public async Task<IActionResult> GetAwaitingCommittee()
+    public async Task<IActionResult> GetAwaitingCommittee([FromQuery] PageRequest paging, [FromQuery] string? search = null)
     {
-        var result = await publicationService.GetAwaitingCommitteeAsync();
-        return Ok(ApiResponse<IReadOnlyList<AwaitingCommitteeDto>>.Ok(result));
+        var result = await publicationService.GetAwaitingCommitteeAsync(paging, search);
+        return Ok(ApiResponse<PagedResult<AwaitingCommitteeDto>>.Ok(result));
     }
 
     /// <summary>

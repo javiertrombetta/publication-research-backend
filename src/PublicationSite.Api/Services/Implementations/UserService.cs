@@ -78,9 +78,25 @@ public class UserService(
 
         var total = await query.CountAsync(cancellationToken);
 
-        var ordered = paging.SortBy is not null && DirectorySorts.TryGetValue(paging.SortBy, out var key)
-            ? paging.SortDescending ? query.OrderByDescending(key) : query.OrderBy(key)
-            : query.OrderBy(u => u.LastName).ThenBy(u => u.FirstName);
+        // Roles is its own case, and not in the dictionary above, because it is the one column
+        // that is a list rather than a value: an account can hold several. It orders by the first
+        // of them alphabetically, which is what the cell leads with, so the column reads in the
+        // order it is sorted in. Accounts holding no role at all have nothing to compare and land
+        // together at whichever end the direction puts them.
+        var byRole = string.Equals(paging.SortBy, "roles", StringComparison.OrdinalIgnoreCase);
+
+        var ordered = byRole
+            ? Order(u => db.UserRoles
+                .Where(ur => ur.UserId == u.Id)
+                .Join(db.Roles, ur => ur.RoleId, r => r.Id, (ur, r) => r.Name)
+                .OrderBy(name => name)
+                .FirstOrDefault())
+            : paging.SortBy is not null && DirectorySorts.TryGetValue(paging.SortBy, out var key)
+                ? Order(key)
+                : query.OrderBy(u => u.LastName).ThenBy(u => u.FirstName);
+
+        IOrderedQueryable<ApplicationUser> Order(Expression<Func<ApplicationUser, object?>> on) =>
+            paging.SortDescending ? query.OrderByDescending(on) : query.OrderBy(on);
 
         var items = await ordered
             .Skip((paging.SafePage - 1) * paging.SafePageSize)

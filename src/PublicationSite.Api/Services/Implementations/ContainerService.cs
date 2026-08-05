@@ -500,6 +500,10 @@ public class ContainerService(
 
         containers = WherePaperAwaiting(containers, query.PaperAwaiting);
         containers = WherePaperStatus(containers, query.PaperStatus);
+        containers = WherePipeline(containers, query.Pipeline);
+        containers = WhereEthicsStatus(containers, query.EthicsStatus);
+        containers = WhereCommitteeDecision(containers, query.CommitteeDecision);
+        containers = WhereReviewDecision(containers, query.ReviewDecision);
         containers = WhereMatches(containers, query.Search);
 
         var workflow = await EthicsWorkflowAsync(cancellationToken);
@@ -532,6 +536,99 @@ public class ContainerService(
 
         return Enum.TryParse<PublicationStatus>(status, ignoreCase: true, out var wanted)
             ? query.Where(c => c.Publication != null && c.Publication.Status == wanted)
+            : query.Where(_ => false);
+    }
+
+    /// <summary>
+    /// Narrows to the publications on one of the three stages. The name or the number, because the
+    /// dashboard reads its figures back from a dictionary keyed by name while a link is as likely
+    /// to carry the number the DTO exposes.
+    /// </summary>
+    private static IQueryable<PublicationContainer> WherePipeline(
+        IQueryable<PublicationContainer> query, string? pipeline)
+    {
+        if (string.IsNullOrWhiteSpace(pipeline)) return query;
+
+        return Enum.TryParse<PipelineStage>(pipeline, ignoreCase: true, out var wanted)
+            ? query.Where(c => c.CurrentPipeline == wanted)
+            : query.Where(_ => false);
+    }
+
+    /// <summary>
+    /// Narrows to publications whose ethics approval is at the status named, or to every
+    /// publication that has an approval at all.
+    ///
+    /// The blank-returns-everything rule of the other filters would be wrong for the second: a
+    /// publication whose student has not declared has no approval, and counting it among the
+    /// approvals would make the listing longer than the figure that opened it.
+    /// </summary>
+    private static IQueryable<PublicationContainer> WhereEthicsStatus(
+        IQueryable<PublicationContainer> query, string? status)
+    {
+        if (string.IsNullOrWhiteSpace(status)) return query;
+
+        if (string.Equals(status, ContainerQuery.AnyStatus, StringComparison.OrdinalIgnoreCase))
+        {
+            return query.Where(c => c.EthicsApproval != null);
+        }
+
+        return Enum.TryParse<EthicsStatus>(status, ignoreCase: true, out var wanted)
+            ? query.Where(c => c.EthicsApproval != null && c.EthicsApproval.Status == wanted)
+            : query.Where(_ => false);
+    }
+
+    /// <summary>
+    /// Narrows to publications whose committee holds at least one seat in the state named, or to
+    /// every publication that has a committee.
+    ///
+    /// Seats rather than committees, because the figure this answers counts seats: the dashboard's
+    /// "3 pending" is three members who have not voted, which can be three publications or one.
+    /// Filtering on the committee's own status instead returned nothing at all, since a committee
+    /// with votes outstanding is InReview only once somebody has voted.
+    /// </summary>
+    private static IQueryable<PublicationContainer> WhereCommitteeDecision(
+        IQueryable<PublicationContainer> query, string? decision)
+    {
+        if (string.IsNullOrWhiteSpace(decision)) return query;
+
+        if (string.Equals(decision, ContainerQuery.AnyStatus, StringComparison.OrdinalIgnoreCase))
+        {
+            return query.Where(c => c.Publication != null && c.Publication.Committee != null);
+        }
+
+        if (string.Equals(decision, ContainerQuery.PendingDecision, StringComparison.OrdinalIgnoreCase))
+        {
+            return query.Where(c => c.Publication != null
+                                    && c.Publication.Committee != null
+                                    && c.Publication.Committee.Members.Any(
+                                        m => m.Decision == CommitteeMemberDecision.Pending));
+        }
+
+        if (string.Equals(decision, ContainerQuery.SettledDecision, StringComparison.OrdinalIgnoreCase))
+        {
+            return query.Where(c => c.Publication != null
+                                    && c.Publication.Committee != null
+                                    && c.Publication.Committee.Members.Any(
+                                        m => m.Decision != CommitteeMemberDecision.Pending));
+        }
+
+        return query.Where(_ => false);
+    }
+
+    /// <summary>
+    /// Narrows to publications carrying at least one review recorded with the verdict named, on
+    /// any version. Any version rather than the latest, because a paper sent back and accepted on
+    /// its second draft is genuinely one of the papers somebody once asked to revise, and that is
+    /// what the dashboard's tally counted.
+    /// </summary>
+    private static IQueryable<PublicationContainer> WhereReviewDecision(
+        IQueryable<PublicationContainer> query, string? decision)
+    {
+        if (string.IsNullOrWhiteSpace(decision)) return query;
+
+        return Enum.TryParse<ReviewDecision>(decision, ignoreCase: true, out var wanted)
+            ? query.Where(c => c.Publication != null
+                               && c.Publication.Versions.Any(v => v.Reviews.Any(r => r.Decision == wanted)))
             : query.Where(_ => false);
     }
 

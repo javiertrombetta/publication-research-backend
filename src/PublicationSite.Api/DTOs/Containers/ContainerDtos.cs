@@ -163,8 +163,50 @@ public class ContainerQuery : PageRequest
     public string? PaperStatus { get; set; }
 
     /// <summary>
+    /// Which of the three stages a publication is on, by name or by number.
+    ///
+    /// Here so the administrator's dashboard figures can be opened. Every count on it is a number
+    /// with no way through to what it counts, which makes it something to look at rather than
+    /// something to work from, and each of these narrows the listing to exactly one of them.
+    /// </summary>
+    public string? Pipeline { get; set; }
+
+    /// <summary>
+    /// The ethics approval's status, by name, or <c>Any</c> for every publication that has one at
+    /// all. The dashboard counts approvals by status and counts them all together, and both
+    /// figures have to lead somewhere.
+    /// </summary>
+    public string? EthicsStatus { get; set; }
+
+    /// <summary>
+    /// Publications whose evaluation committee holds at least one seat in this state:
+    /// <c>Pending</c> for a member who has not voted, <c>Decided</c> for one who has, or
+    /// <c>Any</c> for every publication that has a committee at all.
+    ///
+    /// Seats rather than committees, because that is what the dashboard's committee figures count.
+    /// A committee of three with one vote outstanding is one publication and appears under both.
+    /// </summary>
+    public string? CommitteeDecision { get; set; }
+
+    /// <summary>
+    /// Publications carrying at least one review recorded with this verdict, by name. The
+    /// dashboard's decision tally counts reviews rather than publications, so a figure of six can
+    /// perfectly well open five rows; the listing says what it is showing.
+    /// </summary>
+    public string? ReviewDecision { get; set; }
+
+    /// <summary>
     /// A word to look for in the student's name, the publication's title or its abstract. One term
     /// across all three, because somebody hunting for a row remembers whichever of them stuck.
     /// </summary>
     public string? Search { get; set; }
+
+    /// <summary>What <see cref="EthicsStatus"/> and <see cref="CommitteeDecision"/> take to mean "any of them".</summary>
+    public const string AnyStatus = "Any";
+
+    /// <summary>The two seat states <see cref="CommitteeDecision"/> takes.</summary>
+    public const string PendingDecision = "Pending";
+
+    /// <inheritdoc cref="PendingDecision"/>
+    public const string SettledDecision = "Decided";
 }
