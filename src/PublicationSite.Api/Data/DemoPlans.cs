@@ -212,6 +212,7 @@ public static class DemoPlans
             Title = "Energy cost of client-side rendering on low-end devices",
             Abstract = "Measuring battery consumption of comparable interfaces rendered on the client and on the server.",
             Stage = DemoStage.ProposalsSubmitted,
+            Chosen = 0,
             StartedDaysAgo = 3,
             Proposals =
             [
@@ -229,6 +230,7 @@ public static class DemoPlans
             Title = "Test flakiness and developer trust in build pipelines",
             Abstract = "Whether intermittent test failures change how teams respond to a red build.",
             Stage = DemoStage.ProposalsWithSupervisors,
+            Chosen = 0,
             StartedDaysAgo = 6,
             Proposals =
             [
@@ -274,6 +276,7 @@ public static class DemoPlans
             Title = "Consent fatigue in mobile application permissions",
             Abstract = "Whether repeated permission prompts change what people agree to, and what they remember agreeing to.",
             Stage = DemoStage.ProposalsReturnedUnwanted,
+            Chosen = 0,
             StartedDaysAgo = 19,
             Proposals =
             [
@@ -882,6 +885,7 @@ public static class DemoPlans
             Title = "Remote work policy and retention in professional services",
             Abstract = "Whether stated remote-work policy predicts who stays, once pay is controlled for.",
             Stage = DemoStage.ProposalsWithSupervisors,
+            Chosen = 0,
             StartedDaysAgo = 4,
             Proposals =
             [
