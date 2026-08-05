@@ -7,7 +7,7 @@ public interface IProposalService
 {
     Task<ProposalDto> CreateAsync(Guid publicationContainerId, Guid studentId, SaveProposalRequest request, CancellationToken cancellationToken = default);
     Task<ProposalDto> UpdateAsync(Guid proposalId, Guid studentId, SaveProposalRequest request, CancellationToken cancellationToken = default);
-    Task<IReadOnlyList<ProposalDto>> GetByContainerAsync(Guid publicationContainerId, Guid requestingUserId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<ProposalDto>> GetByContainerAsync(Guid publicationContainerId, Guid requestingUserId, SortRequest? sort = null, CancellationToken cancellationToken = default);
     Task FinishSubmissionAsync(Guid publicationContainerId, Guid studentId, CancellationToken cancellationToken = default);
     /// <param name="actingAsAdmin">True when an administrator is doing this. Otherwise the caller has to be the coordinator this publication belongs to.</param>
     Task RequestNewSubmissionAsync(Guid publicationContainerId, string comments, Guid actingUserId, bool actingAsAdmin = false, CancellationToken cancellationToken = default);

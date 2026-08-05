@@ -74,9 +74,9 @@ public class ProposalsController(IProposalService proposalService, ICurrentUserS
     [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<ProposalDto>>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status403Forbidden)]
-    public async Task<IActionResult> GetByContainer(Guid containerId)
+    public async Task<IActionResult> GetByContainer(Guid containerId, [FromQuery] SortRequest sort)
     {
-        var result = await proposalService.GetByContainerAsync(containerId, currentUser.UserId);
+        var result = await proposalService.GetByContainerAsync(containerId, currentUser.UserId, sort);
         return Ok(ApiResponse<IReadOnlyList<ProposalDto>>.Ok(result));
     }
     /// <summary>

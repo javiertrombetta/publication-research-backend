@@ -78,3 +78,19 @@ public class PageRequest
     [BindNever]
     public int SafePageSize => Math.Clamp(PageSize <= 0 ? DefaultPageSize : PageSize, 1, MaximumPageSize);
 }
+
+/// <summary>
+/// An ordering without a page.
+///
+/// Some listings are bounded by the process rather than by the database: a round holds three
+/// proposals, a committee has three seats, an ethics stage asks for a fixed set of documents.
+/// Those are returned whole, because a pager on them would never show a second page. They are
+/// still worth ordering, which is what this carries.
+/// </summary>
+public class SortRequest
+{
+    /// <summary>The column, named as the screen sends it. Unknown names fall back to the default order.</summary>
+    public string? SortBy { get; set; }
+
+    public bool SortDescending { get; set; }
+}

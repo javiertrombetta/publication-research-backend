@@ -301,7 +301,18 @@ public class PublicationService(
             version.ReviewerNotes, "You", version.UploadedAt);
     }
 
-    public async Task<IReadOnlyList<PublicationVersionDto>> GetVersionsAsync(Guid publicationId, Guid requestingUserId, CancellationToken cancellationToken = default)
+    /// <summary>What a paper's versions can be ordered by, one per column of the screen.</summary>
+    private static readonly Dictionary<string, Expression<Func<PublicationVersion, object?>>> VersionSorts =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["version"] = v => v.VersionNumber,
+            ["file"] = v => v.FilePath,
+            ["uploaded"] = v => v.UploadedAt
+        };
+
+    public async Task<IReadOnlyList<PublicationVersionDto>> GetVersionsAsync(
+        Guid publicationId, Guid requestingUserId, SortRequest? sort = null,
+        CancellationToken cancellationToken = default)
     {
         var publication = await db.Publications.FindAsync([publicationId], cancellationToken)
             ?? throw new NotFoundException(nameof(Publication), publicationId);
@@ -310,7 +321,7 @@ public class PublicationService(
 
         return await db.PublicationVersions
             .Where(v => v.PublicationId == publicationId)
-            .OrderByDescending(v => v.VersionNumber)
+            .SortBy(sort ?? new SortRequest(), v => v.VersionNumber, VersionSorts, fallbackDescending: true)
             .Select(v => new PublicationVersionDto(v.Id, v.VersionNumber, v.FilePath, v.SupplementaryFilesPath,
                 v.ReviewerNotes, v.UploadedByUser.FirstName + " " + v.UploadedByUser.LastName, v.UploadedAt))
             .ToListAsync(cancellationToken);
@@ -614,7 +625,20 @@ public class PublicationService(
         return string.Join(' ', cleaned.Split(' ', StringSplitOptions.RemoveEmptyEntries));
     }
 
-    public async Task<IReadOnlyList<ReviewDto>> GetReviewsAsync(Guid publicationId, Guid requestingUserId, CancellationToken cancellationToken = default)
+    /// <summary>What a committee's verdicts can be ordered by, one per column of the screen.</summary>
+    private static readonly Dictionary<string, Expression<Func<Review, object?>>> ReviewSorts =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["reviewer"] = r => r.ReviewerUser.LastName,
+            ["seat"] = r => r.ReviewerType,
+            ["decision"] = r => r.Decision,
+            ["comments"] = r => r.Comments,
+            ["when"] = r => r.ReviewedAt
+        };
+
+    public async Task<IReadOnlyList<ReviewDto>> GetReviewsAsync(
+        Guid publicationId, Guid requestingUserId, SortRequest? sort = null,
+        CancellationToken cancellationToken = default)
     {
         var publication = await db.Publications.FindAsync([publicationId], cancellationToken)
             ?? throw new NotFoundException(nameof(Publication), publicationId);
@@ -623,7 +647,7 @@ public class PublicationService(
 
         return await db.Reviews
             .Where(r => r.PublicationVersion.PublicationId == publicationId)
-            .OrderByDescending(r => r.ReviewedAt)
+            .SortBy(sort ?? new SortRequest(), r => r.ReviewedAt, ReviewSorts, fallbackDescending: true)
             .Select(r => new ReviewDto(r.Id, r.ReviewerUser.FirstName + " " + r.ReviewerUser.LastName,
                 r.ReviewerType.ToString(), r.Decision.ToString(), r.Comments, r.ReviewedAt))
             .ToListAsync(cancellationToken);
