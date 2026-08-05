@@ -221,7 +221,7 @@ public class EthicsController(IEthicsService ethicsService, ICurrentUserService 
     /// <response code="403">Signed in, but this record is not yours to see or act on.</response>
     /// <response code="404">No ethics document with that id.</response>
     [HttpGet("api/containers/{containerId:guid}/ethics/documents/{documentId:guid}/download")]
-    [ProducesResponseType(typeof(FileResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(FileResult), StatusCodes.Status200OK, "application/octet-stream")]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]

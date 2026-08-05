@@ -164,6 +164,7 @@ public class CommitteesController(ICommitteeService committeeService, ICurrentUs
     /// <response code="200">One page of committees, with the total count alongside it so a pager can be drawn without a second request.</response>
     /// <response code="401">No access token was sent, or the one sent has expired.</response>
     /// <response code="403">Signed in, but this is not something your role may do.</response>
+    /// <param name="awaitingMe">Only the papers this member has still to vote on.</param>
     [HttpGet("api/committees/my-assignments")]
     [Authorize(Roles = RoleNames.CommitteeEligibleRoles)]
     [ProducesResponseType(typeof(ApiResponse<PagedResult<CommitteeDto>>), StatusCodes.Status200OK)]

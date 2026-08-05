@@ -176,6 +176,7 @@ public class DepartmentsController(IDepartmentService departmentService, ICurren
     /// <response code="401">No access token was sent, or the one sent has expired.</response>
     /// <response code="403">Signed in, but this is not something your role may do.</response>
     /// <response code="404">No coordinator profile with that id.</response>
+    /// <param name="isAvailable">Whether this coordinator is offered new publications. What they already carry is unaffected.</param>
     [HttpPut("coordinators/{coordinatorUserId:guid}/availability")]
     [Authorize(Roles = RoleNames.Admin)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]

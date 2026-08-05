@@ -22,6 +22,7 @@ public class NotificationsController(INotificationQueryService notificationQuery
     /// </summary>
     /// <response code="200">The matching notifications, all of them.</response>
     /// <response code="401">No access token was sent, or the one sent has expired.</response>
+    /// <param name="unreadOnly">Only what this person has not read yet, which is what the bell in the top bar shows.</param>
     [HttpGet]
     [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<NotificationDto>>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]

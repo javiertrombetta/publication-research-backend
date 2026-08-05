@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 using PublicationSite.Api.DTOs.Common;
 
 namespace PublicationSite.Api.DTOs.Containers;
@@ -52,7 +53,7 @@ public class ActivityHistoryQuery : PageRequest
     /// <summary>Inclusive, read as a date in the reader's own day rather than an instant.</summary>
     public DateOnly? From { get; set; }
 
-    /// <inheritdoc cref="From"/>
+    /// <summary>Inclusive, and read the same way as <see cref="From"/>.</summary>
     public DateOnly? To { get; set; }
 
     /// <summary>One of the action names the trail records. See ActivityHistoryEntryDto.Action.</summary>
@@ -141,13 +142,28 @@ public record AssignCoordinatorRequest(
 /// </summary>
 public class ContainerQuery : PageRequest
 {
+    /// <summary>
+    /// Only this student's publications.
+    /// </summary>
     public Guid? StudentId { get; set; }
+    /// <summary>
+    /// Only the publications this coordinator carries.
+    /// </summary>
     public Guid? CoordinatorId { get; set; }
+    /// <summary>
+    /// The container's own status by name: InProgress, Completed or Archived.
+    /// </summary>
     public string? Status { get; set; }
 
     /// <summary>One or more names from Common/EthicsSteps, comma-separated.</summary>
     public string? EthicsSteps { get; set; }
 
+    /// <summary>
+    /// The list above, split. Hidden from binding, and so from the API reference: it is how
+    /// EthicsSteps is read rather than a second way of sending the same thing, and Swagger was
+    /// offering callers an array parameter with no setter behind it to bind to.
+    /// </summary>
+    [BindNever]
     public IReadOnlyList<string>? EthicsStep => string.IsNullOrWhiteSpace(EthicsSteps)
         ? null
         : EthicsSteps.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);

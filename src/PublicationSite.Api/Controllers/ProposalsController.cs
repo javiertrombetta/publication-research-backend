@@ -129,6 +129,7 @@ public class ProposalsController(IProposalService proposalService, ICurrentUserS
     /// <response code="200">One page of proposals with the supervisors invited to them, with the total count alongside it so a pager can be drawn without a second request.</response>
     /// <response code="401">No access token was sent, or the one sent has expired.</response>
     /// <response code="403">Signed in, but this is not something your role may do.</response>
+    /// <param name="awaitingAllocation">Only the proposals a supervisor has offered to take on and nobody has been allocated to, which is what the selection screen can act on.</param>
     [HttpGet("api/proposals/for-coordinator")]
     [Authorize(Roles = RoleNames.Coordinator)]
     [ProducesResponseType(typeof(ApiResponse<PagedResult<ProposalWithInvitationsDto>>), StatusCodes.Status200OK)]
@@ -167,6 +168,7 @@ public class ProposalsController(IProposalService proposalService, ICurrentUserS
     /// <response code="200">One page of proposals, with the total count alongside it so a pager can be drawn without a second request.</response>
     /// <response code="401">No access token was sent, or the one sent has expired.</response>
     /// <response code="403">Signed in, but this is not something your role may do.</response>
+    /// <param name="returnedOnly">Only the students whose round came back with nobody willing, which is the part of the queue a coordinator works through first.</param>
     [HttpGet("api/proposals/pending")]
     [Authorize(Roles = RoleNames.Coordinator)]
     [ProducesResponseType(typeof(ApiResponse<PagedResult<ProposalWithInvitationsDto>>), StatusCodes.Status200OK)]

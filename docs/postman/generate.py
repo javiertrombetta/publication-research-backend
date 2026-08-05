@@ -32,16 +32,17 @@ ENVIRONMENT = HERE / "PublicationResearchBackend.postman_environment.json"
 COLLECTION_ID = "084676b9-7af0-4ea4-9de0-61e3be6a4298"
 ENVIRONMENT_ID = "424dde38-0048-4565-b8b7-4baf525701d0"
 
-DEFAULT_BASE_URL = (
-    "https://publication-research-backend.whiteriver-e238d117.australiaeast.azurecontainerapps.io"
-)
+# Localhost, deliberately. A collection that points at a hosted instance stops working the day that
+# instance is taken down, and it sends whatever you were experimenting with to a shared database.
+# Anyone wanting the deployed one overrides base_url in the environment, which is what it is for.
+DEFAULT_BASE_URL = "http://localhost:5020"
 
 # Folder order, so the collection reads in the order somebody works through the system rather than
 # alphabetically. Anything not named here follows, sorted.
 FOLDER_ORDER = [
     "Health", "DevTools", "Auth", "Users", "Departments", "Containers", "Proposals",
     "Ethics", "Publications", "Committees", "SupervisorGroups", "Catalogue", "Dashboard",
-    "Notifications", "Settings", "AuditLog", "Invitations",
+    "Notifications", "Settings", "WorkflowRules", "AuditLog", "Invitations",
 ]
 
 # Saves the tokens so every other request in the collection just works.
@@ -63,7 +64,9 @@ COLLECTION_DESCRIPTION = (
     "1. Run Auth > Login with your Admin (or any) credentials. The access and refresh tokens are "
     "saved automatically into collection variables.\n"
     "2. Every other request inherits Bearer auth from the collection using {{access_token}}.\n"
-    "3. When the access token expires, run Auth > Refresh to get a new pair."
+    "3. When the access token expires, run Auth > Refresh, which saves the new pair the same way.\n\n"
+    "base_url is http://localhost:5020, so this works against an API you are running yourself and "
+    "keeps experiments off any shared instance. Point it elsewhere by editing the environment."
 )
 
 
@@ -160,11 +163,12 @@ def build_request(path: str, method: str, op: dict, spec: dict) -> dict:
             ],
         }
 
-    # The endpoints that must not send the collection's bearer token: signing in has no token yet,
-    # and single sign-on authenticates with Microsoft's rather than ours.
-    if path.rstrip("/") in ("/api/auth/login", "/api/auth/register", "/api/auth/refresh",
-                            "/api/auth/forgot-password", "/api/auth/reset-password",
-                            "/api/auth/verify-email", "/health") or path.startswith("/api/catalogue"):
+    # Which requests must not send the collection's bearer token, taken from the description itself:
+    # an operation that carries no security requirement is one the API serves without a token.
+    # This was a list written out here, and a list is a second opinion that goes wrong: it had every
+    # catalogue route as open, while downloading the full text of a paper has always needed an
+    # account.
+    if not op.get("security"):
         request["auth"] = {"type": "noauth"}
 
     summary = (op.get("summary") or "").strip()
@@ -175,8 +179,8 @@ def build_request(path: str, method: str, op: dict, spec: dict) -> dict:
     name = summary.split(".")[0].strip() if summary else f"{method.upper()} {path}"
     item: dict = {"name": name or path, "request": request, "response": []}
 
-    if path.rstrip("/") == "/api/auth/login":
-        item["name"] = "Login"
+    if path.rstrip("/") in ("/api/auth/login", "/api/auth/refresh"):
+        item["name"] = "Login" if path.rstrip("/").endswith("login") else "Refresh"
         item["event"] = [{"listen": "test", "script": {"type": "text/javascript", "exec": LOGIN_TEST}}]
 
     return item
