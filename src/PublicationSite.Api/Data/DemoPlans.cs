@@ -29,7 +29,8 @@ public static class DemoPlans
             Title = "Automated accessibility testing in continuous integration",
             Abstract = "Whether accessibility checks running on every build change what developers fix, and when.",
             Stage = DemoStage.ProposalsDrafted,
-            StartedDaysAgo = 2
+            StartedDaysAgo = 2,
+            LastActionDaysAgo = 2
         },
 
         new()
@@ -38,6 +39,7 @@ public static class DemoPlans
             Abstract = "A comparison of defect rates between paired and solo work across one teaching semester.",
             Stage = DemoStage.SupervisorAssigned,
             StartedDaysAgo = 13,
+            LastActionDaysAgo = 4,
             Chosen = 1,
             Proposals =
             [
@@ -63,6 +65,7 @@ public static class DemoPlans
             Abstract = "What reviewers in teams of fewer than ten people actually look for, in their own words.",
             Stage = DemoStage.EthicsDocumentsRequested,
             StartedDaysAgo = 24,
+            LastActionDaysAgo = 11,
             Chosen = 2,
             Proposals =
             [
@@ -90,6 +93,7 @@ public static class DemoPlans
             Stage = DemoStage.EthicsCompleted,
             EthicsRequired = false,
             StartedDaysAgo = 47,
+            LastActionDaysAgo = 30,
             Chosen = 0,
             Proposals =
             [
@@ -120,6 +124,7 @@ public static class DemoPlans
             Stage = DemoStage.PaperAccepted,
             EthicsRequired = false,
             StartedDaysAgo = 119,
+            LastActionDaysAgo = 12,
             Chosen = 1,
             Year = 2026,
             Keywords = ["developer onboarding", "documentation", "open source"],
@@ -164,6 +169,7 @@ public static class DemoPlans
             Abstract = "A survey of which static analysis tools are adopted, which are abandoned, and why.",
             Stage = DemoStage.Published,
             StartedDaysAgo = 264,
+            LastActionDaysAgo = 232,
             Chosen = 1,
             Year = 2025,
             Keywords = ["static analysis", "software quality", "developer practice"],
@@ -218,6 +224,7 @@ public static class DemoPlans
             Stage = DemoStage.ProposalsSubmitted,
             Chosen = 0,
             StartedDaysAgo = 3,
+            LastActionDaysAgo = 2,
             Proposals =
             [
                 new("Energy cost of client-side rendering on low-end devices",
@@ -236,6 +243,7 @@ public static class DemoPlans
             Stage = DemoStage.ProposalsWithSupervisors,
             Chosen = 0,
             StartedDaysAgo = 6,
+            LastActionDaysAgo = 4,
             Proposals =
             [
                 new("Test flakiness and developer trust in build pipelines",
@@ -257,6 +265,7 @@ public static class DemoPlans
             Abstract = "An audit of what personal data teaching systems collect against what they demonstrably use.",
             Stage = DemoStage.ProposalSelected,
             StartedDaysAgo = 11,
+            LastActionDaysAgo = 3,
             Chosen = 2,
             Proposals =
             [
@@ -282,6 +291,7 @@ public static class DemoPlans
             Stage = DemoStage.ProposalsReturnedUnwanted,
             Chosen = 0,
             StartedDaysAgo = 19,
+            LastActionDaysAgo = 6,
             Proposals =
             [
                 new("Consent fatigue in mobile application permissions",
@@ -305,6 +315,7 @@ public static class DemoPlans
             Abstract = "A controlled comparison of retrieval practice against re-reading in a first programming paper.",
             Stage = DemoStage.Published,
             StartedDaysAgo = 331,
+            LastActionDaysAgo = 300,
             Chosen = 0,
             Year = 2025,
             Keywords = ["IT education", "retrieval practice", "assessment"],
@@ -359,6 +370,7 @@ public static class DemoPlans
             Abstract = "An evaluation of three widely deployed platforms against WCAG 2.2 success criteria.",
             Stage = DemoStage.EthicsDeclared,
             StartedDaysAgo = 5,
+            LastActionDaysAgo = 2,
             Chosen = 0,
             Proposals =
             [
@@ -385,6 +397,7 @@ public static class DemoPlans
             Stage = DemoStage.EthicsNotRequiredAwaitingCoordinator,
             EthicsRequired = false,
             StartedDaysAgo = 9,
+            LastActionDaysAgo = 5,
             Chosen = 1,
             Proposals =
             [
@@ -411,6 +424,7 @@ public static class DemoPlans
             Abstract = "A mixed-methods study of reported workload against supervision arrangements.",
             Stage = DemoStage.EthicsDocumentsUploaded,
             StartedDaysAgo = 14,
+            LastActionDaysAgo = 4,
             Chosen = 0,
             Proposals =
             [
@@ -437,6 +451,7 @@ public static class DemoPlans
             Abstract = "Whether structured prompts improve the specificity of feedback students give one another.",
             Stage = DemoStage.EthicsDocumentsWithCoordinator,
             StartedDaysAgo = 18,
+            LastActionDaysAgo = 8,
             Chosen = 2,
             Proposals =
             [
@@ -464,6 +479,7 @@ public static class DemoPlans
             Abstract = "Establishing a baseline of incoming digital skills and where the gaps cluster.",
             Stage = DemoStage.EthicsWithHeadOfDepartment,
             StartedDaysAgo = 26,
+            LastActionDaysAgo = 24,
             Chosen = 0,
             Proposals =
             [
@@ -492,6 +508,7 @@ public static class DemoPlans
             Abstract = "Relating attendance in blended courses to final outcomes, controlling for prior attainment.",
             Stage = DemoStage.EthicsAwaitingFinalDecision,
             StartedDaysAgo = 12,
+            LastActionDaysAgo = 3,
             Chosen = 1,
             Proposals =
             [
@@ -530,6 +547,7 @@ public static class DemoPlans
             Stage = DemoStage.PaperWithSupervisor,
             EthicsRequired = false,
             StartedDaysAgo = 34,
+            LastActionDaysAgo = 9,
             Chosen = 0,
             Year = 2026,
             Keywords = ["version control", "novice programmers", "computing education"],
@@ -565,6 +583,7 @@ public static class DemoPlans
             Stage = DemoStage.PaperAwaitingCommittee,
             EthicsRequired = false,
             StartedDaysAgo = 52,
+            LastActionDaysAgo = 15,
             Chosen = 1,
             Year = 2026,
             Keywords = ["continuous deployment", "regulated software", "audit"],
@@ -601,6 +620,7 @@ public static class DemoPlans
             Stage = DemoStage.CommitteeReviewing,
             EthicsRequired = false,
             StartedDaysAgo = 16,
+            LastActionDaysAgo = 8,
             Chosen = 0,
             Year = 2026,
             Keywords = ["technical debt", "planning", "software maintenance"],
@@ -639,6 +659,7 @@ public static class DemoPlans
             Stage = DemoStage.PaperAwaitingFinalDecision,
             EthicsRequired = false,
             StartedDaysAgo = 73,
+            LastActionDaysAgo = 5,
             Chosen = 2,
             Year = 2026,
             Keywords = ["search behaviour", "digital libraries", "log analysis"],
@@ -691,6 +712,7 @@ public static class DemoPlans
             Abstract = "Whether the explanations shown alongside an at-risk flag are ones students can act on.",
             Stage = DemoStage.SupervisorAssigned,
             StartedDaysAgo = 21,
+            LastActionDaysAgo = 7,
             Chosen = 1,
             AlternateSupervises = true,
             Proposals =
@@ -717,6 +739,7 @@ public static class DemoPlans
             Abstract = "Whether automated marking agrees with human markers equally across student groups.",
             Stage = DemoStage.EthicsCompleted,
             StartedDaysAgo = 58,
+            LastActionDaysAgo = 20,
             Chosen = 0,
             AlternateSupervises = true,
             Dispatch = DemoDispatch.AlternateOnly,
@@ -749,6 +772,7 @@ public static class DemoPlans
             Stage = DemoStage.Published,
             EthicsRequired = false,
             StartedDaysAgo = 198,
+            LastActionDaysAgo = 150,
             Chosen = 2,
             AlternateSupervises = true,
             Year = 2026,
@@ -803,6 +827,7 @@ public static class DemoPlans
             Abstract = "How firms without a designated successor plan, or avoid planning, for the owner's exit.",
             Stage = DemoStage.EthicsWithHeadOfDepartment,
             StartedDaysAgo = 15,
+            LastActionDaysAgo = 6,
             Chosen = 0,
             Proposals =
             [
@@ -831,6 +856,7 @@ public static class DemoPlans
             Abstract = "What forecasting methods small tourism operators use, and how far ahead they trust them.",
             Stage = DemoStage.ProposalSelected,
             StartedDaysAgo = 7,
+            LastActionDaysAgo = 2,
             Chosen = 1,
             Proposals =
             [
@@ -856,6 +882,7 @@ public static class DemoPlans
             Stage = DemoStage.PaperAwaitingFinalDecision,
             EthicsRequired = false,
             StartedDaysAgo = 66,
+            LastActionDaysAgo = 10,
             Chosen = 2,
             AlternateSupervises = true,
             Year = 2026,
@@ -905,6 +932,7 @@ public static class DemoPlans
             Stage = DemoStage.ProposalsWithSupervisors,
             Chosen = 0,
             StartedDaysAgo = 4,
+            LastActionDaysAgo = 2,
             Proposals =
             [
                 new("Remote work policy and retention in professional services",
@@ -926,6 +954,7 @@ public static class DemoPlans
             Abstract = "What privately held firms disclose about sustainability when nothing obliges them to.",
             Stage = DemoStage.EthicsDocumentsWithCoordinator,
             StartedDaysAgo = 20,
+            LastActionDaysAgo = 19,
             Chosen = 1,
             AlternateSupervises = true,
             Proposals =
@@ -955,6 +984,7 @@ public static class DemoPlans
             Stage = DemoStage.Published,
             EthicsRequired = false,
             StartedDaysAgo = 289,
+            LastActionDaysAgo = 240,
             Chosen = 0,
             Year = 2025,
             Keywords = ["procurement", "supplier diversity", "corporate commitments"],

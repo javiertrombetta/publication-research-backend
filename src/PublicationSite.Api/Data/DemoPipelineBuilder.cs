@@ -232,6 +232,16 @@ public record DemoPublicationPlan
     /// </summary>
     public int StartedDaysAgo { get; init; } = 7;
 
+    /// <summary>
+    /// How long ago the last thing happened to it. The steps in between are spread evenly across
+    /// the gap, so a publication has a history with duration in it rather than a column of one
+    /// date repeated.
+    ///
+    /// Left at zero this means today, which is right for work that is still moving: whoever it is
+    /// waiting on was handed it recently. A publication that finished names the day it finished.
+    /// </summary>
+    public int LastActionDaysAgo { get; init; }
+
     /// <summary>Who sat on the evaluation committee.</summary>
     public DemoSeat[] Committee { get; init; } = [];
 
@@ -269,9 +279,18 @@ public class DemoPipelineBuilder(
     /// </summary>
     private DateTime _currentStepStartedAt;
 
+    /// <summary>
+    /// Where each step of the publication being built began, on the real clock. The steps run
+    /// milliseconds apart, so this is what lets each of them be moved to a date of its own
+    /// afterwards rather than the whole publication being moved as one block.
+    /// </summary>
+    private readonly List<DateTime> _stepStarts = [];
+
     public async Task<Guid> BuildAsync(DemoCast cast, DemoPublicationPlan plan, CancellationToken cancellationToken = default)
     {
         var startedAt = DateTime.UtcNow;
+        _stepStarts.Clear();
+        _stepStarts.Add(startedAt);
 
         // Reset per publication rather than left holding the previous one's last step: a plan that
         // stops before its first step would otherwise mark its notifications against a boundary
@@ -283,7 +302,7 @@ public class DemoPipelineBuilder(
 
         await WalkAsync(containerId, cast, plan, cancellationToken);
         await MarkEarlierNotificationsReadAsync(startedAt, cancellationToken);
-        await BackdateAsync(containerId, plan.StartedDaysAgo, cancellationToken);
+        await BackdateAsync(containerId, plan, startedAt, cancellationToken);
 
         return containerId;
     }
@@ -573,6 +592,7 @@ public class DemoPipelineBuilder(
     private async Task StepAsync(Func<Task> step)
     {
         _currentStepStartedAt = DateTime.UtcNow;
+        _stepStarts.Add(_currentStepStartedAt);
         await step();
     }
 
@@ -600,110 +620,154 @@ public class DemoPipelineBuilder(
     /// One shift for the whole publication, so the order its own steps happened in survives: the
     /// paper is still submitted after the ethics approval that opened the stage.
     /// </summary>
-    private async Task BackdateAsync(Guid containerId, int days, CancellationToken ct)
+    /// <summary>
+    /// Moves what this publication holds back to when it would actually have happened.
+    ///
+    /// The services stamp the moment they run, so a dataset built in one pass has every date within
+    /// a second of every other. Dating each publication back by its own amount fixed the listings,
+    /// which order by when a publication started, and left a second version of the same fault
+    /// inside each one: a paper created, reviewed by two supervisors, put through ethics, sent to a
+    /// committee and published, all on one afternoon. Nobody reading a publication's history
+    /// believes that, and "how long has this been sitting with the Head of Department" has no
+    /// answer when every entry shares a timestamp.
+    ///
+    /// So each step is moved separately. The steps ran milliseconds apart and their real boundaries
+    /// were recorded as they went, which is enough to tell the rows of one step from another's;
+    /// each is then placed on its own date, spread evenly between the day the publication opened
+    /// and the day of its last action. Order is preserved by construction, since the dates are laid
+    /// out in the same sequence the steps ran in.
+    /// </summary>
+    private async Task BackdateAsync(
+        Guid containerId, DemoPublicationPlan plan, DateTime startedAt, CancellationToken ct)
     {
-        if (days <= 0) return;
+        if (plan.StartedDaysAgo <= 0) return;
 
-        // AddDays with a negative number, rather than subtracting a TimeSpan, because that is the
-        // form the provider translates; and each nullable date is guarded in the expression itself,
-        // since a step this publication never reached has no date to move.
-        var back = -(double)days;
+        var now = DateTime.UtcNow;
 
+        // Where the last step should land. A publication still in flight was last touched recently,
+        // which is what makes a queue look like a queue; a finished one ended when it ended.
+        var lastActionDaysAgo = Math.Min(plan.LastActionDaysAgo, plan.StartedDaysAgo);
+
+        // The real windows, and the date each is being moved to.
+        var windows = new List<(DateTime From, DateTime To, double Days)>();
+        for (var i = 0; i < _stepStarts.Count; i++)
+        {
+            var from = _stepStarts[i];
+            var to = i + 1 < _stepStarts.Count ? _stepStarts[i + 1] : now.AddSeconds(1);
+
+            // Evenly between the two ends, oldest first. One step means the day it opened.
+            var share = _stepStarts.Count == 1 ? 0d : (double)i / (_stepStarts.Count - 1);
+            var days = plan.StartedDaysAgo - share * (plan.StartedDaysAgo - lastActionDaysAgo);
+
+            windows.Add((from, to, days));
+        }
+
+        foreach (var (from, to, days) in windows)
+        {
+            await ShiftAsync(containerId, from, to, -days, ct);
+        }
+    }
+
+    /// <summary>
+    /// Moves every date this publication owns that falls inside one real window.
+    ///
+    /// The window is on the real clock, so a row already moved is days in the past and cannot be
+    /// caught twice however many windows follow. Each nullable date is guarded in the expression
+    /// itself, since a step this publication never reached has no date to move, and AddDays with a
+    /// negative number is used rather than subtracting a TimeSpan because that is the form the
+    /// provider translates.
+    /// </summary>
+    private async Task ShiftAsync(Guid containerId, DateTime from, DateTime to, double back, CancellationToken ct)
+    {
         await db.PublicationContainers.Where(c => c.Id == containerId)
             .ExecuteUpdateAsync(s => s
-                .SetProperty(c => c.CreatedAt, c => c.CreatedAt.AddDays(back))
-                .SetProperty(c => c.UpdatedAt, c => c.UpdatedAt.AddDays(back)), ct);
+                .SetProperty(c => c.CreatedAt, c => c.CreatedAt >= from && c.CreatedAt < to ? c.CreatedAt.AddDays(back) : c.CreatedAt)
+                .SetProperty(c => c.UpdatedAt, c => c.UpdatedAt >= from && c.UpdatedAt < to ? c.UpdatedAt.AddDays(back) : c.UpdatedAt), ct);
 
-        await db.ActivityHistoryEntries.Where(e => e.PublicationContainerId == containerId)
+        await db.ActivityHistoryEntries
+            .Where(e => e.PublicationContainerId == containerId && e.CreatedAt >= from && e.CreatedAt < to)
             .ExecuteUpdateAsync(s => s.SetProperty(e => e.CreatedAt, e => e.CreatedAt.AddDays(back)), ct);
 
         await db.ResearchProposals.Where(p => p.PublicationContainerId == containerId)
             .ExecuteUpdateAsync(s => s
-                .SetProperty(p => p.CreatedAt, p => p.CreatedAt.AddDays(back))
-                .SetProperty(p => p.UpdatedAt, p => p.UpdatedAt.AddDays(back))
-                .SetProperty(p => p.SubmittedAt, p => p.SubmittedAt == null
-                    ? null
-                    : (DateTime?)p.SubmittedAt.Value.AddDays(back))
-                .SetProperty(p => p.ReturnedToDispatchAt, p => p.ReturnedToDispatchAt == null
-                    ? null
-                    : (DateTime?)p.ReturnedToDispatchAt.Value.AddDays(back)), ct);
+                .SetProperty(p => p.CreatedAt, p => p.CreatedAt >= from && p.CreatedAt < to ? p.CreatedAt.AddDays(back) : p.CreatedAt)
+                .SetProperty(p => p.UpdatedAt, p => p.UpdatedAt >= from && p.UpdatedAt < to ? p.UpdatedAt.AddDays(back) : p.UpdatedAt)
+                .SetProperty(p => p.SubmittedAt, p => p.SubmittedAt != null && p.SubmittedAt >= from && p.SubmittedAt < to
+                    ? (DateTime?)p.SubmittedAt.Value.AddDays(back) : p.SubmittedAt)
+                .SetProperty(p => p.ReturnedToDispatchAt, p => p.ReturnedToDispatchAt != null && p.ReturnedToDispatchAt >= from && p.ReturnedToDispatchAt < to
+                    ? (DateTime?)p.ReturnedToDispatchAt.Value.AddDays(back) : p.ReturnedToDispatchAt), ct);
 
-        await db.ProposalSupervisorSelections
-            .Where(x => x.Proposal.PublicationContainerId == containerId)
+        await db.ProposalSupervisorSelections.Where(x => x.Proposal.PublicationContainerId == containerId)
             .ExecuteUpdateAsync(s => s
-                .SetProperty(x => x.InvitedAt, x => x.InvitedAt.AddDays(back))
-                .SetProperty(x => x.SelectedAt, x => x.SelectedAt == null
-                    ? null
-                    : (DateTime?)x.SelectedAt.Value.AddDays(back))
-                .SetProperty(x => x.RespondBy, x => x.RespondBy == null
-                    ? null
-                    : (DateTime?)x.RespondBy.Value.AddDays(back)), ct);
+                .SetProperty(x => x.InvitedAt, x => x.InvitedAt >= from && x.InvitedAt < to ? x.InvitedAt.AddDays(back) : x.InvitedAt)
+                .SetProperty(x => x.SelectedAt, x => x.SelectedAt != null && x.SelectedAt >= from && x.SelectedAt < to
+                    ? (DateTime?)x.SelectedAt.Value.AddDays(back) : x.SelectedAt)
+                // The deadline moves with the invitation that set it, so a round still open keeps
+                // its fortnight and one long settled shows the date it actually ran out.
+                .SetProperty(x => x.RespondBy, x => x.InvitedAt >= from && x.InvitedAt < to && x.RespondBy != null
+                    ? (DateTime?)x.RespondBy.Value.AddDays(back) : x.RespondBy), ct);
 
-        await db.ProposalAssignments
-            .Where(a => a.Proposal.PublicationContainerId == containerId)
-            .ExecuteUpdateAsync(s => s.SetProperty(a => a.AssignedAt, a => a.AssignedAt.AddDays(back)), ct);
+        await db.ProposalAssignments.Where(a => a.Proposal.PublicationContainerId == containerId)
+            .ExecuteUpdateAsync(s => s.SetProperty(a => a.AssignedAt,
+                a => a.AssignedAt >= from && a.AssignedAt < to ? a.AssignedAt.AddDays(back) : a.AssignedAt), ct);
 
         await db.EthicsDeclarations.Where(d => d.PublicationContainerId == containerId)
-            .ExecuteUpdateAsync(s => s.SetProperty(d => d.DecidedAt, d => d.DecidedAt.AddDays(back)), ct);
+            .ExecuteUpdateAsync(s => s.SetProperty(d => d.DecidedAt,
+                d => d.DecidedAt >= from && d.DecidedAt < to ? d.DecidedAt.AddDays(back) : d.DecidedAt), ct);
 
         await db.EthicsApprovals.Where(a => a.PublicationContainerId == containerId)
             .ExecuteUpdateAsync(s => s
-                .SetProperty(a => a.CreatedAt, a => a.CreatedAt.AddDays(back))
-                .SetProperty(a => a.StepEnteredAt, a => a.StepEnteredAt == null
-                    ? null
-                    : (DateTime?)a.StepEnteredAt.Value.AddDays(back))
-                .SetProperty(a => a.SupervisorDecisionAt, a => a.SupervisorDecisionAt == null
-                    ? null
-                    : (DateTime?)a.SupervisorDecisionAt.Value.AddDays(back))
-                .SetProperty(a => a.SupervisorDocumentsReviewedAt, a => a.SupervisorDocumentsReviewedAt == null
-                    ? null
-                    : (DateTime?)a.SupervisorDocumentsReviewedAt.Value.AddDays(back))
-                .SetProperty(a => a.CoordinatorDecisionAt, a => a.CoordinatorDecisionAt == null
-                    ? null
-                    : (DateTime?)a.CoordinatorDecisionAt.Value.AddDays(back))
-                .SetProperty(a => a.HeadOfDepartmentReviewedAt, a => a.HeadOfDepartmentReviewedAt == null
-                    ? null
-                    : (DateTime?)a.HeadOfDepartmentReviewedAt.Value.AddDays(back))
-                .SetProperty(a => a.FinalDecisionAt, a => a.FinalDecisionAt == null
-                    ? null
-                    : (DateTime?)a.FinalDecisionAt.Value.AddDays(back))
-                .SetProperty(a => a.ApprovalDate, a => a.ApprovalDate == null
-                    ? null
-                    : (DateTime?)a.ApprovalDate.Value.AddDays(back)), ct);
+                .SetProperty(a => a.CreatedAt, a => a.CreatedAt >= from && a.CreatedAt < to ? a.CreatedAt.AddDays(back) : a.CreatedAt)
+                .SetProperty(a => a.StepEnteredAt, a => a.StepEnteredAt != null && a.StepEnteredAt >= from && a.StepEnteredAt < to
+                    ? (DateTime?)a.StepEnteredAt.Value.AddDays(back) : a.StepEnteredAt)
+                .SetProperty(a => a.SupervisorDecisionAt, a => a.SupervisorDecisionAt != null && a.SupervisorDecisionAt >= from && a.SupervisorDecisionAt < to
+                    ? (DateTime?)a.SupervisorDecisionAt.Value.AddDays(back) : a.SupervisorDecisionAt)
+                .SetProperty(a => a.SupervisorDocumentsReviewedAt, a => a.SupervisorDocumentsReviewedAt != null && a.SupervisorDocumentsReviewedAt >= from && a.SupervisorDocumentsReviewedAt < to
+                    ? (DateTime?)a.SupervisorDocumentsReviewedAt.Value.AddDays(back) : a.SupervisorDocumentsReviewedAt)
+                .SetProperty(a => a.CoordinatorDecisionAt, a => a.CoordinatorDecisionAt != null && a.CoordinatorDecisionAt >= from && a.CoordinatorDecisionAt < to
+                    ? (DateTime?)a.CoordinatorDecisionAt.Value.AddDays(back) : a.CoordinatorDecisionAt)
+                .SetProperty(a => a.HeadOfDepartmentReviewedAt, a => a.HeadOfDepartmentReviewedAt != null && a.HeadOfDepartmentReviewedAt >= from && a.HeadOfDepartmentReviewedAt < to
+                    ? (DateTime?)a.HeadOfDepartmentReviewedAt.Value.AddDays(back) : a.HeadOfDepartmentReviewedAt)
+                .SetProperty(a => a.FinalDecisionAt, a => a.FinalDecisionAt != null && a.FinalDecisionAt >= from && a.FinalDecisionAt < to
+                    ? (DateTime?)a.FinalDecisionAt.Value.AddDays(back) : a.FinalDecisionAt)
+                .SetProperty(a => a.ApprovalDate, a => a.ApprovalDate != null && a.ApprovalDate >= from && a.ApprovalDate < to
+                    ? (DateTime?)a.ApprovalDate.Value.AddDays(back) : a.ApprovalDate), ct);
 
-        await db.EthicsDocuments.Where(d => d.EthicsApproval.PublicationContainerId == containerId)
+        await db.EthicsDocuments.Where(d => d.EthicsApproval.PublicationContainerId == containerId
+                                            && d.UploadedAt >= from && d.UploadedAt < to)
             .ExecuteUpdateAsync(s => s.SetProperty(d => d.UploadedAt, d => d.UploadedAt.AddDays(back)), ct);
 
         await db.Publications.Where(p => p.PublicationContainerId == containerId)
             .ExecuteUpdateAsync(s => s
-                .SetProperty(p => p.CreatedAt, p => p.CreatedAt.AddDays(back))
-                .SetProperty(p => p.UpdatedAt, p => p.UpdatedAt.AddDays(back))
-                .SetProperty(p => p.PublishedAt, p => p.PublishedAt == null
-                    ? null
-                    : (DateTime?)p.PublishedAt.Value.AddDays(back)), ct);
+                .SetProperty(p => p.CreatedAt, p => p.CreatedAt >= from && p.CreatedAt < to ? p.CreatedAt.AddDays(back) : p.CreatedAt)
+                .SetProperty(p => p.UpdatedAt, p => p.UpdatedAt >= from && p.UpdatedAt < to ? p.UpdatedAt.AddDays(back) : p.UpdatedAt)
+                .SetProperty(p => p.PublishedAt, p => p.PublishedAt != null && p.PublishedAt >= from && p.PublishedAt < to
+                    ? (DateTime?)p.PublishedAt.Value.AddDays(back) : p.PublishedAt), ct);
 
-        await db.PublicationVersions.Where(v => v.Publication.PublicationContainerId == containerId)
+        await db.PublicationVersions.Where(v => v.Publication.PublicationContainerId == containerId
+                                                && v.UploadedAt >= from && v.UploadedAt < to)
             .ExecuteUpdateAsync(s => s.SetProperty(v => v.UploadedAt, v => v.UploadedAt.AddDays(back)), ct);
 
-        await db.Reviews.Where(r => r.PublicationVersion.Publication.PublicationContainerId == containerId)
+        await db.Reviews.Where(r => r.PublicationVersion.Publication.PublicationContainerId == containerId
+                                    && r.ReviewedAt >= from && r.ReviewedAt < to)
             .ExecuteUpdateAsync(s => s.SetProperty(r => r.ReviewedAt, r => r.ReviewedAt.AddDays(back)), ct);
 
-        await db.Committees.Where(c => c.Publication.PublicationContainerId == containerId)
+        await db.Committees.Where(c => c.Publication.PublicationContainerId == containerId
+                                       && c.CreatedAt >= from && c.CreatedAt < to)
             .ExecuteUpdateAsync(s => s.SetProperty(c => c.CreatedAt, c => c.CreatedAt.AddDays(back)), ct);
 
         await db.CommitteeMembers.Where(m => m.Committee.Publication.PublicationContainerId == containerId)
             .ExecuteUpdateAsync(s => s
-                .SetProperty(m => m.InvitedAt, m => m.InvitedAt.AddDays(back))
-                .SetProperty(m => m.DecidedAt, m => m.DecidedAt == null
-                    ? null
-                    : (DateTime?)m.DecidedAt.Value.AddDays(back)), ct);
+                .SetProperty(m => m.InvitedAt, m => m.InvitedAt >= from && m.InvitedAt < to ? m.InvitedAt.AddDays(back) : m.InvitedAt)
+                .SetProperty(m => m.DecidedAt, m => m.DecidedAt != null && m.DecidedAt >= from && m.DecidedAt < to
+                    ? (DateTime?)m.DecidedAt.Value.AddDays(back) : m.DecidedAt), ct);
 
         // Both of these carry the container as a loose reference rather than a foreign key, which
         // is why they are matched by id rather than joined.
-        await db.Notifications.Where(n => n.RelatedEntityId == containerId)
+        await db.Notifications.Where(n => n.RelatedEntityId == containerId && n.CreatedAt >= from && n.CreatedAt < to)
             .ExecuteUpdateAsync(s => s.SetProperty(n => n.CreatedAt, n => n.CreatedAt.AddDays(back)), ct);
 
-        await db.AuditLogEntries.Where(e => e.EntityId == containerId)
+        await db.AuditLogEntries.Where(e => e.EntityId == containerId && e.Timestamp >= from && e.Timestamp < to)
             .ExecuteUpdateAsync(s => s.SetProperty(e => e.Timestamp, e => e.Timestamp.AddDays(back)), ct);
     }
 
