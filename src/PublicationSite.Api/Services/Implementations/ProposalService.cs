@@ -192,7 +192,13 @@ public class ProposalService(
         ["student"] = p => p.PublicationContainer.Student.LastName,
         ["title"] = p => p.Title,
         ["status"] = p => p.Status,
-        ["submitted"] = p => p.SubmittedAt ?? p.CreatedAt
+        ["submitted"] = p => p.SubmittedAt ?? p.CreatedAt,
+
+        // The date supervisors were asked to answer by, which is the one the coordinator's
+        // selection screen shows and the one that decides what to chase. A proposal sent more than
+        // once has more than one, so the earliest stands for the round: it is the deadline that has
+        // passed, or is about to.
+        ["due"] = p => p.SupervisorSelections.Min(sel => sel.RespondBy)
     };
 
     public async Task<PagedResult<ProposalWithInvitationsDto>> GetPendingForCoordinatorAsync(

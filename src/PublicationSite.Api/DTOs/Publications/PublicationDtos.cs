@@ -13,7 +13,13 @@ public record PublicationDto(
     DateTime? PublishedAt,
     IReadOnlyList<string> Keywords,
     IReadOnlyList<string> ResearchAreas,
-    string? StudentName = null);
+    string? StudentName = null,
+    /// <summary>
+    /// When the paper last changed. The reviewer queues order by it and call it the submission
+    /// date, which for a paper under review is what it is: submitting, resubmitting and every
+    /// revision move it. Carried so those queues can show the date they order by.
+    /// </summary>
+    DateTime? UpdatedAt = null);
 
 public record UpdatePublicationMetadataRequest(
     string Title,
