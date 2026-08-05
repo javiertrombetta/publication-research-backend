@@ -448,8 +448,19 @@ public class ProposalService(
             // It is out again, so it is no longer waiting for a second try. Left set, the dispatch
             // screen would keep counting it among the ones that came back long after it had gone.
             proposal.ReturnedToDispatchAt = null;
+        }
 
-            await auditService.LogActivityAsync(proposal.PublicationContainerId, coordinatorId, "ProposalsSentToSupervisors",
+        // Once per publication, not once per proposal. Sending a round is one decision, taken once,
+        // with one comment explaining it, and writing it inside the loop above put the coordinator's
+        // paragraph on the publication's history three times in a row: the trail is what a decision
+        // is explained by months later, and a reader cannot tell a repeated entry from three
+        // separate dispatches that happened to be worded identically.
+        //
+        // Distinct because a request may carry proposals from more than one publication, and each
+        // of those is a publication this happened to.
+        foreach (var containerId in proposals.Select(p => p.PublicationContainerId).Distinct())
+        {
+            await auditService.LogActivityAsync(containerId, coordinatorId, "ProposalsSentToSupervisors",
                 request.Comments);
         }
 

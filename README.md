@@ -180,7 +180,7 @@ asked for.
 
 | Deployment | `ASPNETCORE_ENVIRONMENT` | `Seed:DemoData` | What ends up in the database |
 | --- | --- | --- | --- |
-| A developer's machine | `Development` | unset (defaults on) | Roles, and the full demonstration dataset |
+| A developer's machine | `Development` | unset (defaults on) | Roles, and the full demonstration dataset. `DevTools:EnableDatabaseReset` is on here too, so a test run can start from a known state |
 | The shared instance the team tests against | `Production` | `true` | Roles, the configured Admin, and the full demonstration dataset |
 | Production | `Production` | unset | Roles and the configured Admin. Nothing else |
 
@@ -263,6 +263,24 @@ transaction, so an interrupted run leaves nothing behind and the next start rebu
 It runs in the background once the server is listening, not before. Against a hosted database it takes long
 enough that doing it inline would hold the health check open past the point where a platform gives up on
 the deploy. `GET /api/dev/demo-data` (Admin) reports whether it has finished.
+
+### Starting a test run from a known state
+
+A developer's machine has the reset switched on, in `appsettings.Development.json`. A test run that
+begins wherever the last one left off is not repeatable, and a workflow this size accumulates: a
+proposal sent out, an ethics document rejected, a paper accepted. One request puts the thirty
+publications back exactly as they were.
+
+```bash
+TOKEN=$(curl -s -X POST http://localhost:5020/api/auth/login -H "Content-Type: application/json" \
+  -d '{"email":"admin.test@ais.ac.nz","password":"DevTest123!"}' | python3 -c "import sys,json;print(json.load(sys.stdin)['data']['accessToken'])")
+curl -s -X POST http://localhost:5020/api/dev/reset-database -H "Authorization: Bearer $TOKEN"
+```
+
+It returns as soon as signing in works again and rebuilds the dataset in the background; poll
+`GET /api/dev/demo-data` until the counts stop moving (22 accounts, 30 publications, 4 published).
+Sign in again afterwards, on the site as well: every token and every session cookie issued before
+the reset names a user id the new database does not have.
 
 ### Resetting a shared deployment (frontend team use)
 
