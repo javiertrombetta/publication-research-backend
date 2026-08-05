@@ -13,6 +13,7 @@ namespace PublicationSite.Api.DTOs.Containers;
 /// <param name="EthicsDocumentsReturned">True while the student is being asked to upload an ethics document again, as opposed to for the first time. The stage reads PendingUpload either way, so without this a listing cannot tell a publication that has been sent back from one that has not started, and both look like ordinary work in progress.</param>
 /// <param name="RequiredReviewerMembers">The evaluation committee this publication needs, as agreed when it was opened rather than as configured today, so an administrator assigning a committee months later is told the figures this piece of research was actually started under. Null on containers created before the figures were recorded; the current settings apply to those.</param>
 /// <param name="PaperId">The research paper's own id, where one exists. The endpoints that act on a paper take it, and a screen listing publications otherwise has to fetch each one to find it.</param>
+/// <param name="LastActivityAt">When anything last happened to this publication, taken from its own trail rather than from a timestamp on the row. The trail is written at all forty-odd points where somebody acts; the row's UpdatedAt is set at nine of them, so it says a publication has been untouched for a month when a supervisor commented on it yesterday. Null only where nothing has been recorded yet, which is a publication created and not yet worked on.</param>
 public record PublicationContainerDto(
     Guid Id,
     Guid StudentId,
@@ -39,13 +40,6 @@ public record PublicationContainerDto(
     Guid? EthicsHeadOfDepartmentId = null,
     string? EthicsHeadOfDepartmentName = null,
     Guid? PaperId = null,
-    /// <summary>
-    /// When anything last happened to this publication, taken from its own trail rather than from
-    /// a timestamp on the row. The trail is written at all forty-odd points where somebody acts;
-    /// the row's UpdatedAt is set at nine of them, so it says a publication has been untouched
-    /// for a month when a supervisor commented on it yesterday. Null only where nothing has been
-    /// recorded yet, which is a publication created and not yet worked on.
-    /// </summary>
     DateTime? LastActivityAt = null);
 
 /// <summary>
