@@ -198,8 +198,9 @@ export Seed__AdminPassword="SomeStrongPassword123!"
 It creates the account once and never touches an existing one, logging a warning to confirm. That account
 then configures everything else and invites everyone else.
 
-Because it is checked on every startup rather than only the first, this is also the way back in if a
-deployment ends up with . Set the two values, deploy, sign in, then clear them. And it says so
+Because it is checked on every startup rather than only the first, this is also the way back into a
+deployment nobody can sign in to: the last administrator locked out, or an account disabled by
+somebody who then left. Set the two values, deploy, sign in, then clear them. And it says so
 itself: a deployment that comes up with no enabled Admin account and no demonstration data logs an error at
 startup naming that remedy, rather than leaving the first person to find out at a sign-in page that no
 credentials open.
@@ -285,13 +286,18 @@ default rather than failing.
 
 | Group | Covers |
 | --- | --- |
-| `committees` | Required internal/external members and minimum approvals |
+| `committees` | Required reviewers and externals, minimum approvals, and who may be put on one |
 | `ethics-documents` | Which documents the ethics stage asks students for |
+| `ethics-workflow` | Which steps of the ethics stage this institution runs, and in what order the documents are read |
+| `paper-workflow` | Which of the three readings a paper goes through, and whether ethics comes before the paper or after |
+| `proposals` | How many proposals a student submits in one round |
 | `deadlines` | Expected days for supervisor response, ethics review and committee review, and how far ahead of each a reminder goes out |
+| `decision-comments` | Which decisions have to carry a comment |
 | `uploads` | Maximum file size and permitted extensions |
 | `passwords` | Length, character classes, expiry, lockout threshold and duration |
 | `access` | Registration mode, single sign-on, invitation validity, token lifetimes |
 | `notifications` | SMTP server and the master email switch |
+| `storage` | Where uploads are written: local disk, S3 or Azure Blob |
 | `institution` | Name, email domains, contact addresses, privacy policy, rows per page |
 
 Three of these needed the code that reads them to change, because ASP.NET Core binds the equivalent options
@@ -346,7 +352,7 @@ invitation. Accepting, re-sending or withdrawing all invalidate the current toke
 
 - Email domain decides the auto-assigned role at registration: the student domain → Student, the staff domain →
   Staff (an Admin must then grant the actual operational role). Both domains are settings, and the API refuses
-  to let them , because the same address cannot mean both.
+  to let one contain the other, because the same address cannot mean both.
 - New accounts start `Pending` and only become `Enabled` after email verification, regardless of provider
   (local or Azure SSO). Accounts created by accepting an invitation are enabled immediately: the invitation
   reached that address and was answered, which is the same proof a verification email would give.
@@ -372,20 +378,40 @@ invitation. Accepting, re-sending or withdrawing all invalidate the current toke
 ## Known scope decisions
 
 - Admin "act on behalf of" is wired through the primary workflow endpoints (proposals, ethics, paper
-  submission/publish) via the `OnBehalfOfUserId` audit trail, not duplicated as a fully parallel endpoint
-  surface for every single Admin permission listed in the requirements. That would have meant doubling the
-  controller surface for marginal value.
-- File storage is local disk (`IFileStorageService` / `LocalFileStorageService`) behind an interface so it can
-  be swapped for Azure Blob Storage later without touching callers.
-- Deadlines are stored and validated, and the API exposes them, but nothing yet acts on them: reminders and
-  escalation need a background scheduler that does not exist here.
-- Publication categories have a table and no endpoints. Nothing consumes them.
+  submission and publishing) via the `OnBehalfOfUserId` audit trail, rather than duplicated as a parallel
+  endpoint surface for every Admin permission in the requirements. That would have doubled the controller
+  surface for marginal value.
+- Single sign-on is built but not switched on. The token exchange, the second authentication scheme and the
+  setting that records the institution's intent all exist; what is missing is a tenant. Configure
+  `AzureAd:TenantId` and it starts working, and until then the API says plainly that turning the setting on
+  would currently do nothing, rather than failing at the first person who tries it.
+- Uploads can go to local disk, S3 or Azure Blob, chosen by an administrator at runtime. Moving between them
+  copies what is already stored and repoints the records, because a destination that only applies to future
+  uploads splits a publication's files across two places.
+- Deadlines are acted on by a hosted service that sweeps every few minutes, rather than by a scheduler
+  outside the application. It records that it has already reported something, so a publication that stays
+  overdue is mentioned once and not on every pass.
+
+## What is deliberately absent
+
+- Publication categories. They were a table with no endpoints, doing a job `ResearchArea` already does end to
+  end, and the table has been dropped rather than left for somebody to wire up.
+- A second way to reassign a coordinator. Opening a publication and moving one to somebody else were two
+  endpoints doing the same thing, and only one checked the role, the department and the reason. The other
+  now refuses and says where that change belongs.
 
 ## Deployment
 
-Docker + GitHub Actions build and push an image to Docker Hub on every push to `main`; Render pulls
-it from there. Full walkthrough, required environment variables, and known limitations (ephemeral
-disk, no managed MySQL on Render): [docs/deployment.md](docs/deployment.md).
+A push to `main` builds the image, runs both test projects against it, pushes to Docker Hub and
+deploys to Azure Container Apps. The database stays on Aiven; uploads go to a storage account rather
+than to the container's own disk, which does not survive a redeploy.
+
+- [docs/azure.md](docs/azure.md) explains the shape of it and why Container Apps rather than App
+  Service, which on a student subscription is a question about how long the credit lasts.
+- [azure/](azure/) holds the scripts that create the resources. They want four values that do not
+  belong in a repository, and say which.
+- [docs/deployment.md](docs/deployment.md) covers the pipeline itself, and the Render setup this ran
+  on before Azure.
 
 ```bash
 docker compose up -d          # mysql + the containerised API itself, for a local smoke test
@@ -422,7 +448,7 @@ Run everything:
 dotnet test
 ```
 
-226 tests: 219 unit, 7 integration.
+237 tests: 230 unit, 7 integration.
 
 - **Unit tests** exercise the service layer directly against a fresh SQLite in-memory database per test
   (relational/FK-enforcing, unlike the EF Core InMemory provider), with `UserManager`/`SignInManager` mocked via
