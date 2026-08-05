@@ -385,6 +385,13 @@ public class PublicationService(
     public async Task<PagedResult<PublicationDto>> GetPendingForSupervisorAsync(
         Guid supervisorId, PageRequest page, string? search = null, CancellationToken cancellationToken = default)
     {
+        // Nothing where this institution does not ask supervisors to read papers: the review
+        // itself is refused, so offering it would only waste the reading.
+        if (!(await settingService.GetPaperWorkflowSettingsAsync(cancellationToken)).SupervisorReviews)
+        {
+            return new PagedResult<PublicationDto>([], page.SafePage, page.SafePageSize, 0);
+        }
+
         var query = db.Publications
             .Where(p => p.PublicationContainer.AssignedSupervisorId == supervisorId
                         && (p.Status == PublicationStatus.UnderReview || p.Status == PublicationStatus.Resubmitted))
@@ -432,9 +439,24 @@ public class PublicationService(
 
     public async Task<IReadOnlyList<AwaitingCommitteeDto>> GetAwaitingCommitteeAsync(CancellationToken cancellationToken = default)
     {
-        return await db.Publications
-            .Where(p => p.Status == PublicationStatus.UnderReview && p.Committee == null)
-            .WhereLatestVersionApprovedBySupervisor()
+        var workflow = await settingService.GetPaperWorkflowSettingsAsync(cancellationToken);
+
+        // Nothing at all where this institution appoints no committees: offering a paper here
+        // would be offering work the assignment itself refuses.
+        if (!workflow.CommitteeEvaluates) return [];
+
+        var papers = db.Publications
+            .Where(p => p.Status == PublicationStatus.UnderReview && p.Committee == null);
+
+        // The supervisor's approval is only a precondition where the supervisor reads papers.
+        // Asked for regardless, a paper on a stage that skips them never carried one, so it was
+        // invisible to the only screen that could appoint its committee.
+        if (workflow.SupervisorReviews)
+        {
+            papers = papers.WhereLatestVersionApprovedBySupervisor();
+        }
+
+        return await papers
             .OrderBy(p => p.UpdatedAt)
             .Select(p => new AwaitingCommitteeDto(
                 p.Id,

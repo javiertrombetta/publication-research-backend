@@ -734,10 +734,13 @@ public class EthicsService(
         // The route where no documentation was needed only reaches this step at all when the Head
         // of Department has been through it; without that step the coordinator's agreement closed
         // the stage there and then.
+        // Once the Head of Department has been through it, or where that step has since been
+        // switched off and the approval was parked at it: the coordinator is then all that is
+        // left, and refusing here would strand the publication with nobody able to close it.
         var afterNotRequired = approval.Status == EthicsStatus.NotRequired
             && approval.FinalDecisionAt is null
             && approval.CoordinatorDecisionAt is not null
-            && approval.HeadOfDepartmentReviewedAt is not null;
+            && (approval.HeadOfDepartmentReviewedAt is not null || !workflow.HeadOfDepartmentReviewsWhenNotRequired);
 
         var afterDocuments = approval.Status == EthicsStatus.PendingVerification
             && (approval.SupervisorDocumentsReviewedAt is not null || !workflow.SupervisorReviewsDocuments)

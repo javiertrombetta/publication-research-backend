@@ -509,6 +509,27 @@ public class EthicsServiceTests : IDisposable
         (await _sut.GetApprovalAsync(container.Id, student.Id)).Status.Should().Be(EthicsStatus.Verified.ToString());
     }
 
+    [Fact]
+    public async Task Switching_the_head_of_department_off_releases_a_no_documents_ruling_parked_at_them()
+    {
+        var (student, supervisor, coordinator, container) = SeedAssignedContainer();
+        await _sut.SubmitDeclarationAsync(container.Id, student.Id, new EthicsDeclarationRequest("No"));
+        await _sut.SubmitSupervisorRequirementDecisionAsync(container.Id, supervisor.Id, new SupervisorRequirementDecisionRequest(false, "Not needed"));
+        await _sut.CoordinatorReviewNotRequiredAsync(container.Id, coordinator.Id, new CoordinatorNotRequiredReviewRequest(false, "Agreed"));
+
+        // Parked on the Head of Department. The administrator now takes that step out.
+        _settingService.Setup(s => s.GetEthicsWorkflowSettingsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new EthicsWorkflowSettingsDto(true, HeadOfDepartmentReviewsWhenNotRequired: false, SupervisorReviewsDocuments: true, CoordinatorReviewsDocuments: true));
+
+        // The coordinator is all that is left, so they must be able to close it. Refusing here
+        // left the publication on nobody's queue and closeable by nobody.
+        await _sut.CoordinatorFinalDecisionAsync(container.Id, coordinator.Id, new CoordinatorFinalDecisionRequest(true, "Closed"));
+
+        (await _sut.GetApprovalAsync(container.Id, student.Id)).Status.Should().Be(EthicsStatus.NotRequired.ToString());
+        (await _fixture.Context.PublicationContainers.FindAsync(container.Id))!.CurrentPipeline
+            .Should().Be(PipelineStage.ResearchPaper);
+    }
+
     private async Task<(ApplicationUser Student, ApplicationUser Supervisor, ApplicationUser Coordinator, PublicationContainer Container)> RequireEthicsAsync()
     {
         var (student, supervisor, coordinator, container) = SeedAssignedContainer();

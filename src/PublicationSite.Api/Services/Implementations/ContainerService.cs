@@ -600,14 +600,15 @@ public class ContainerService(
                 && (c.EthicsApproval.SupervisorDocumentsReviewedAt != null || !supervisorReadsDocuments)
                 && (c.EthicsApproval.CoordinatorDecisionAt != null || !coordinatorReadsDocuments)
                 && (c.EthicsApproval.HeadOfDepartmentReviewedAt != null || !headOfDepartmentReviews))
-            // A stage with no documentation only waits on the coordinator a second time where the
-            // Head of Department has been through it; otherwise their agreement already closed it.
+            // A stage with no documentation waits on the coordinator a second time once the Head
+            // of Department has been through it, and also where that step has since been switched
+            // off: an approval parked at it then has nobody left but the coordinator, and without
+            // this it would sit on no queue at all. Otherwise their agreement already closed it.
             || (coordinatorFinal
-                && headOfDepartmentReviewsNotRequired
                 && c.EthicsApproval.Status == EthicsStatus.NotRequired
                 && c.EthicsApproval.FinalDecisionAt == null
                 && c.EthicsApproval.CoordinatorDecisionAt != null
-                && c.EthicsApproval.HeadOfDepartmentReviewedAt != null)));
+                && (c.EthicsApproval.HeadOfDepartmentReviewedAt != null || !headOfDepartmentReviewsNotRequired))));
     }
 
     public async Task<PublicationContainerDto> MoveToAsync(
@@ -636,6 +637,7 @@ public class ContainerService(
         }
 
         var stage = (PipelineStage)request.Stage;
+        var workflowForMove = await EthicsWorkflowAsync(cancellationToken);
         var changes = new List<string>();
 
         if (container.CurrentPipeline != stage)
@@ -651,7 +653,7 @@ public class ContainerService(
                     "This publication has no ethics approval yet, so there is no step to put it at. "
                     + "The student makes their declaration first.");
 
-            MoveEthicsTo(approval, step);
+            MoveEthicsTo(approval, step, workflowForMove);
             changes.Add($"ethics set to {step}");
         }
 
@@ -716,7 +718,7 @@ public class ContainerService(
     /// timestamps are set, so putting one back means unsetting what came after it; leaving those
     /// behind would land the approval on a later step than the one asked for.
     /// </summary>
-    private static void MoveEthicsTo(EthicsApproval approval, string step)
+    private static void MoveEthicsTo(EthicsApproval approval, string step, EthicsWorkflowSettingsDto workflow)
     {
         var now = DateTime.UtcNow;
 
@@ -755,9 +757,12 @@ public class ContainerService(
                 RequireDocuments(approval);
                 approval.Status = EthicsStatus.PendingVerification;
                 approval.SupervisorDecisionAt ??= now;
-                approval.CoordinatorDecisionAt = null;
 
-                // The supervisor's step is defined by there being something they have not read.
+                // Whoever reads before them has to be done, or the approval lands on that earlier
+                // step instead of the one asked for.
+                approval.CoordinatorDecisionAt =
+                    workflow.CoordinatorReadsFirst && workflow.CoordinatorReviewsDocuments ? now : null;
+
                 foreach (var document in NewestPerRequirement(approval))
                 {
                     document.Status = EthicsDocumentStatus.PendingReview;
@@ -768,8 +773,12 @@ public class ContainerService(
                 RequireDocuments(approval);
                 approval.Status = EthicsStatus.PendingVerification;
                 approval.SupervisorDecisionAt ??= now;
-                approval.SupervisorDocumentsReviewedAt = now;
                 approval.CoordinatorDecisionAt = null;
+
+                // The same the other way round: the supervisor counts as done only where they
+                // read before the coordinator.
+                approval.SupervisorDocumentsReviewedAt =
+                    workflow.CoordinatorReadsFirst ? null : now;
 
                 foreach (var document in NewestPerRequirement(approval))
                 {

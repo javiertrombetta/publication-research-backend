@@ -345,4 +345,38 @@ public class PublicationServiceTests : IDisposable
 
         await act.Should().ThrowAsync<BusinessRuleException>();
     }
+
+    [Fact]
+    public async Task No_paper_is_offered_for_a_committee_where_this_institution_appoints_none()
+    {
+        var (student, supervisor, _, container) = SeedAtResearchPaperStage();
+        var publication = await _sut.GetOrCreateDraftAsync(container.Id, student.Id);
+        await _sut.UploadVersionAsync(publication.Id, student.Id, new MemoryStream([1]), "v1.pdf", null, null, null);
+        await _sut.SubmitAsync(publication.Id, student.Id);
+        await _sut.SupervisorReviewAsync(publication.Id, supervisor.Id, new PaperReviewDecisionRequest(true, "Fine"));
+
+        (await _sut.GetAwaitingCommitteeAsync()).Should().HaveCount(1);
+
+        _settingService.Setup(s => s.GetPaperWorkflowSettingsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PaperWorkflowSettingsDto(SupervisorReviews: true, CommitteeEvaluates: false, CoordinatorDecides: true));
+
+        // Offering it would be offering work the assignment itself refuses.
+        (await _sut.GetAwaitingCommitteeAsync()).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task A_paper_reaches_a_committee_where_no_supervisor_reads_it_first()
+    {
+        _settingService.Setup(s => s.GetPaperWorkflowSettingsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PaperWorkflowSettingsDto(SupervisorReviews: false, CommitteeEvaluates: true, CoordinatorDecides: true));
+
+        var (student, _, _, container) = SeedAtResearchPaperStage();
+        var publication = await _sut.GetOrCreateDraftAsync(container.Id, student.Id);
+        await _sut.UploadVersionAsync(publication.Id, student.Id, new MemoryStream([1]), "v1.pdf", null, null, null);
+        await _sut.SubmitAsync(publication.Id, student.Id);
+
+        // No supervisor approval exists, and none is coming. Asking for one regardless hid the
+        // paper from the only screen that could appoint its committee.
+        (await _sut.GetAwaitingCommitteeAsync()).Should().ContainSingle(p => p.Id == publication.Id);
+    }
 }
