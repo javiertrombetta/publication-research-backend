@@ -1,4 +1,5 @@
 using PublicationSite.Api.DTOs.Ethics;
+using PublicationSite.Api.DTOs.Common;
 
 namespace PublicationSite.Api.Services.Interfaces;
 
@@ -37,7 +38,7 @@ public interface IEthicsService
     Task<(Stream Content, string FileName)> DownloadDocumentAsync(
         Guid publicationContainerId, Guid documentId, Guid requestingUserId, CancellationToken cancellationToken = default);
 
-    Task<IReadOnlyList<EthicsDocumentDto>> GetDocumentsAsync(Guid publicationContainerId, Guid requestingUserId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<EthicsDocumentDto>> GetDocumentsAsync(Guid publicationContainerId, Guid requestingUserId, SortRequest? sort = null, CancellationToken cancellationToken = default);
 
     Task SupervisorReviewDocumentsAsync(Guid publicationContainerId, Guid supervisorId, DocumentReviewDecisionRequest request, CancellationToken cancellationToken = default);
     Task CoordinatorReviewNotRequiredAsync(Guid publicationContainerId, Guid coordinatorId, CoordinatorNotRequiredReviewRequest request, CancellationToken cancellationToken = default);

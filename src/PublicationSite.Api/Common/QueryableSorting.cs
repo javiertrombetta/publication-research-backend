@@ -46,6 +46,27 @@ public static class QueryableSorting
     }
 
     /// <summary>
+    /// The same ordering, for a listing returned whole rather than a page at a time. Bounded by
+    /// the process instead of the database: three proposals in a round, three seats on a
+    /// committee. There is no page to keep stable, so no tiebreaker is asked for.
+    /// </summary>
+    public static IOrderedQueryable<T> SortBy<T>(
+        this IQueryable<T> query,
+        SortRequest request,
+        Expression<Func<T, object?>> fallback,
+        Dictionary<string, Expression<Func<T, object?>>> columns,
+        bool fallbackDescending = false)
+    {
+        if (request.SortBy is { Length: > 0 } requested
+            && columns.TryGetValue(requested, out var column))
+        {
+            return request.SortDescending ? query.OrderByDescending(column) : query.OrderBy(column);
+        }
+
+        return fallbackDescending ? query.OrderByDescending(fallback) : query.OrderBy(fallback);
+    }
+
+    /// <summary>
     /// The same, for a list already in memory. Used where the rows a screen shows are assembled
     /// from more than one source and cannot be ordered in SQL.
     /// </summary>

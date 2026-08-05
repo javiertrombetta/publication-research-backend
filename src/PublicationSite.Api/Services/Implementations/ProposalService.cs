@@ -79,13 +79,24 @@ public class ProposalService(
         return ToDto(proposal);
     }
 
-    public async Task<IReadOnlyList<ProposalDto>> GetByContainerAsync(Guid publicationContainerId, Guid requestingUserId, CancellationToken cancellationToken = default)
+    /// <summary>What one publication's proposals can be ordered by, one per column of the screen.</summary>
+    private static readonly Dictionary<string, Expression<Func<ResearchProposal, object?>>> ContainerSorts =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["title"] = p => p.Title,
+            ["status"] = p => p.Status,
+            ["submitted"] = p => p.SubmittedAt
+        };
+
+    public async Task<IReadOnlyList<ProposalDto>> GetByContainerAsync(
+        Guid publicationContainerId, Guid requestingUserId, SortRequest? sort = null,
+        CancellationToken cancellationToken = default)
     {
         await accessService.EnsureAccessAsync(publicationContainerId, requestingUserId);
 
         return await db.ResearchProposals
             .Where(p => p.PublicationContainerId == publicationContainerId)
-            .OrderBy(p => p.CreatedAt)
+            .SortBy(sort ?? new SortRequest(), p => p.CreatedAt, ContainerSorts)
             .Select(p => ToDto(p))
             .ToListAsync(cancellationToken);
     }

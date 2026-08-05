@@ -204,9 +204,9 @@ public class PublicationsController(IPublicationService publicationService, ICur
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetVersions(Guid publicationId)
+    public async Task<IActionResult> GetVersions(Guid publicationId, [FromQuery] SortRequest sort)
     {
-        var result = await publicationService.GetVersionsAsync(publicationId, currentUser.UserId);
+        var result = await publicationService.GetVersionsAsync(publicationId, currentUser.UserId, sort);
         return Ok(ApiResponse<IReadOnlyList<PublicationVersionDto>>.Ok(result));
     }
 
@@ -331,9 +331,9 @@ public class PublicationsController(IPublicationService publicationService, ICur
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetReviews(Guid publicationId)
+    public async Task<IActionResult> GetReviews(Guid publicationId, [FromQuery] SortRequest sort)
     {
-        var result = await publicationService.GetReviewsAsync(publicationId, currentUser.UserId);
+        var result = await publicationService.GetReviewsAsync(publicationId, currentUser.UserId, sort);
         return Ok(ApiResponse<IReadOnlyList<ReviewDto>>.Ok(result));
     }
 

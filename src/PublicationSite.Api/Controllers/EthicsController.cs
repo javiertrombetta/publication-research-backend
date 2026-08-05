@@ -207,9 +207,9 @@ public class EthicsController(IEthicsService ethicsService, ICurrentUserService 
     [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<EthicsDocumentDto>>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status403Forbidden)]
-    public async Task<IActionResult> GetDocuments(Guid containerId)
+    public async Task<IActionResult> GetDocuments(Guid containerId, [FromQuery] SortRequest sort)
     {
-        var result = await ethicsService.GetDocumentsAsync(containerId, currentUser.UserId);
+        var result = await ethicsService.GetDocumentsAsync(containerId, currentUser.UserId, sort);
         return Ok(ApiResponse<IReadOnlyList<EthicsDocumentDto>>.Ok(result));
     }
 

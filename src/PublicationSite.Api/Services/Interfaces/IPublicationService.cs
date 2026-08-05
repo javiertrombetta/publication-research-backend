@@ -33,7 +33,7 @@ public interface IPublicationService
     Task AdminRemoveVersionAsync(
         Guid publicationId, Guid adminId, Guid versionId, string comments,
         CancellationToken cancellationToken = default);
-    Task<IReadOnlyList<PublicationVersionDto>> GetVersionsAsync(Guid publicationId, Guid requestingUserId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<PublicationVersionDto>> GetVersionsAsync(Guid publicationId, Guid requestingUserId, SortRequest? sort = null, CancellationToken cancellationToken = default);
 
     Task SubmitAsync(Guid publicationId, Guid studentId, CancellationToken cancellationToken = default);
 
@@ -54,7 +54,7 @@ public interface IPublicationService
         PageRequest paging, string? search = null, CancellationToken cancellationToken = default);
     Task SupervisorReviewAsync(Guid publicationId, Guid supervisorId, PaperReviewDecisionRequest request, CancellationToken cancellationToken = default);
 
-    Task<IReadOnlyList<ReviewDto>> GetReviewsAsync(Guid publicationId, Guid requestingUserId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<ReviewDto>> GetReviewsAsync(Guid publicationId, Guid requestingUserId, SortRequest? sort = null, CancellationToken cancellationToken = default);
 
     Task CoordinatorFinalDecisionAsync(Guid publicationId, Guid coordinatorId, PaperReviewDecisionRequest request, CancellationToken cancellationToken = default);
     /// <param name="actingAsAdmin">True when an administrator is deciding. Otherwise the caller has to be the author or the coordinator of their publication.</param>

@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using PublicationSite.Api.Common;
@@ -8,6 +9,7 @@ using PublicationSite.Api.DTOs.Settings;
 using PublicationSite.Api.Entities;
 using PublicationSite.Api.Enums;
 using PublicationSite.Api.Services.Interfaces;
+using PublicationSite.Api.DTOs.Common;
 
 namespace PublicationSite.Api.Services.Implementations;
 
@@ -340,7 +342,20 @@ public class EthicsService(
             document.Status.ToString(), document.UploadedAt, document.ReviewComments);
     }
 
-    public async Task<IReadOnlyList<EthicsDocumentDto>> GetDocumentsAsync(Guid publicationContainerId, Guid requestingUserId, CancellationToken cancellationToken = default)
+    /// <summary>What one publication's ethics documents can be ordered by.</summary>
+    private static readonly Dictionary<string, Expression<Func<EthicsDocument, object?>>> DocumentSorts =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["document"] = d => d.EthicsDocumentRequirement.Name,
+            ["file"] = d => d.FileName,
+            ["version"] = d => d.Version,
+            ["status"] = d => d.Status,
+            ["uploaded"] = d => d.UploadedAt
+        };
+
+    public async Task<IReadOnlyList<EthicsDocumentDto>> GetDocumentsAsync(
+        Guid publicationContainerId, Guid requestingUserId, SortRequest? sort = null,
+        CancellationToken cancellationToken = default)
     {
         await accessService.EnsureAccessAsync(publicationContainerId, requestingUserId);
 
@@ -350,7 +365,7 @@ public class EthicsService(
         // 500. Written this way the name is joined in SQL and there is no navigation to miss.
         return await db.EthicsDocuments
             .Where(d => d.EthicsApproval.PublicationContainerId == publicationContainerId)
-            .OrderByDescending(d => d.UploadedAt)
+            .SortBy(sort ?? new SortRequest(), d => d.UploadedAt, DocumentSorts, fallbackDescending: true)
             .Select(d => new EthicsDocumentDto(
                 d.Id,
                 d.EthicsDocumentRequirement.Name,

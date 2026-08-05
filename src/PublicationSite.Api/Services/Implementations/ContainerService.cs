@@ -183,7 +183,12 @@ public class ContainerService(
         return new Dictionary<string, Expression<Func<PublicationContainer, object?>>>(SortColumnsFor(workflow, paper))
         {
             ["waiting"] = c =>
-                c.EthicsApproval != null
+                // A proposal sent to them and not yet answered. First, because it is the earliest
+                // thing the pipeline can be waiting on them for and the one they were not shown
+                // at all until this listing began including it.
+                c.CurrentPipeline == PipelineStage.ResearchProposals
+                    ? 0
+                : c.EthicsApproval != null
                 && (c.EthicsApproval.Status == EthicsStatus.PendingSupervisorDecision
                     || (supervisorReads
                         && c.EthicsApproval.Status == EthicsStatus.PendingVerification
@@ -216,9 +221,10 @@ public class ContainerService(
     /// prints. Sharing the coordinator's version would order this screen by somebody else's
     /// workload, which is exactly how that column looked broken on the supervisor's.
     ///
-    /// Ranked in the order the filter beside it lists the roles, so the sorted listing and the
-    /// dropdown agree, and with nobody's turn last: a row nobody owes anything on is the one a
-    /// reader scanning for hold-ups wants furthest away.
+    /// Their own step first, then the rest in the order the pipeline runs, and nobody's turn
+    /// last. Ranked by the pipeline alone this column put the student's turn at the top and the
+    /// head's fourth, so the one thing on the screen that is theirs to do was the one thing not
+    /// on the first page. The other two dashboards already rank their reader's own step first.
     /// </summary>
     private static Dictionary<string, Expression<Func<PublicationContainer, object?>>> DepartmentSortColumnsFor(
         EthicsWorkflowSettingsDto workflow, PaperWorkflowSettingsDto paper)
@@ -241,40 +247,40 @@ public class ContainerService(
                 c.Status == ContainerStatus.Completed
                     ? 6
                 : c.EthicsApproval != null && c.EthicsApproval.Status == EthicsStatus.PendingSupervisorDecision
-                    ? 1
+                    ? 2
                 : c.EthicsApproval != null && c.EthicsApproval.Status == EthicsStatus.NotRequired
                   && c.EthicsApproval.FinalDecisionAt == null
                     ? (c.EthicsApproval.CoordinatorDecisionAt == null
-                        ? 2
+                        ? 3
                         : headReviewsNotRequired && c.EthicsApproval.HeadOfDepartmentReviewedAt == null
-                            ? 3
-                            : 2)
+                            ? 0
+                            : 3)
                 : c.EthicsApproval != null && c.EthicsApproval.Status == EthicsStatus.PendingUpload
-                    ? 0
+                    ? 1
                 : c.EthicsApproval != null && c.EthicsApproval.Status == EthicsStatus.PendingVerification
                     ? (coordinatorFirst
                         ? (coordinatorReads && c.EthicsApproval.CoordinatorDecisionAt == null
-                            ? 2
+                            ? 3
                             : supervisorReads && c.EthicsApproval.SupervisorDocumentsReviewedAt == null
-                                ? 1
-                                : headReviews && c.EthicsApproval.HeadOfDepartmentReviewedAt == null
-                                    ? 3
-                                    : 2)
-                        : (supervisorReads && c.EthicsApproval.SupervisorDocumentsReviewedAt == null
-                            ? 1
-                            : coordinatorReads && c.EthicsApproval.CoordinatorDecisionAt == null
                                 ? 2
                                 : headReviews && c.EthicsApproval.HeadOfDepartmentReviewedAt == null
-                                    ? 3
-                                    : 2))
+                                    ? 0
+                                    : 3)
+                        : (supervisorReads && c.EthicsApproval.SupervisorDocumentsReviewedAt == null
+                            ? 2
+                            : coordinatorReads && c.EthicsApproval.CoordinatorDecisionAt == null
+                                ? 3
+                                : headReviews && c.EthicsApproval.HeadOfDepartmentReviewedAt == null
+                                    ? 0
+                                    : 3))
                 : c.Publication == null
                     ? 6
                 : c.Publication.Status == PublicationStatus.Draft
                   || c.Publication.Status == PublicationStatus.RevisionsRequested
                   || c.Publication.Status == PublicationStatus.Accepted
-                    ? 0
-                : c.Publication.Status == PublicationStatus.Resubmitted && supervisorReadsPapers
                     ? 1
+                : c.Publication.Status == PublicationStatus.Resubmitted && supervisorReadsPapers
+                    ? 2
                 : c.Publication.Status == PublicationStatus.UnderReview
                   || c.Publication.Status == PublicationStatus.Resubmitted
                     ? (supervisorReadsPapers
@@ -283,12 +289,12 @@ public class ContainerService(
                             .Take(1)
                             .SelectMany(v => v.Reviews)
                             .Any(r => r.ReviewerType == ReviewerType.Supervisor && r.Decision == ReviewDecision.Approve)
-                        ? 1
+                        ? 2
                         : committeeEvaluates && c.Publication.Committee == null
                             ? 4
                             : committeeEvaluates && c.Publication.Committee!.Status != CommitteeStatus.Completed
                                 ? 5
-                                : coordinatorDecides ? 2 : 6)
+                                : coordinatorDecides ? 3 : 6)
                 : 6
         };
     }
@@ -320,7 +326,16 @@ public class ContainerService(
         return await ProjectToDto(
                 WhereMatches(
                     WhereEthicsStep(
-                        db.PublicationContainers.Where(c => c.AssignedSupervisorId == supervisorUserId),
+                        // Theirs to supervise, and also theirs to answer. A proposal sent to a
+                        // supervisor does not appoint them, so a publication waiting on their
+                        // reply was in nobody's listing: the dashboard said nothing was waiting
+                        // while the coordinator was waiting on them.
+                        db.PublicationContainers.Where(c =>
+                            c.AssignedSupervisorId == supervisorUserId
+                            || c.Proposals.Any(p =>
+                                p.Status == ProposalStatus.Submitted
+                                && p.SupervisorSelections.Any(sel =>
+                                    sel.SupervisorId == supervisorUserId && sel.SelectedAt == null))),
                         query.EthicsStep, workflow),
                     query.Search)
                 .SortBy(query, c => c.CreatedAt, SupervisorSortColumnsFor(workflow, paperWorkflow), c => c.Id),
