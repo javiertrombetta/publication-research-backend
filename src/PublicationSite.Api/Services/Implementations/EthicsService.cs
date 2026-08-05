@@ -4,6 +4,7 @@ using PublicationSite.Api.Common;
 using PublicationSite.Api.Common.Exceptions;
 using PublicationSite.Api.Data;
 using PublicationSite.Api.DTOs.Ethics;
+using PublicationSite.Api.DTOs.Settings;
 using PublicationSite.Api.Entities;
 using PublicationSite.Api.Enums;
 using PublicationSite.Api.Services.Interfaces;
@@ -306,34 +307,17 @@ public class EthicsService(
         {
             approval.Status = EthicsStatus.PendingVerification;
 
-            var workflow = await settingService.GetEthicsWorkflowSettingsAsync(cancellationToken);
-
-            // Where the supervisor does not read documents, the set is already past them: without
-            // this it would sit at a step nobody works, waiting on a review that never comes.
-            if (!workflow.SupervisorReviewsDocuments)
-            {
-                foreach (var unread in approval.Documents.Where(d => d.Status == EthicsDocumentStatus.PendingReview))
-                {
-                    unread.Status = EthicsDocumentStatus.Accepted;
-                }
-            }
+            // A fresh set is unread by everybody, whatever either of them said about the set it
+            // replaces. Without this a second upload would arrive already approved.
+            approval.SupervisorDocumentsReviewedAt = null;
+            approval.CoordinatorDecisionAt = null;
+            approval.HeadOfDepartmentReviewedAt = null;
+            approval.HeadOfDepartmentUserId = null;
 
             await db.SaveChangesAsync(cancellationToken);
 
-            if (workflow.SupervisorReviewsDocuments && container.AssignedSupervisorId is Guid supervisorId)
-            {
-                await notificationService.NotifyAsync(supervisorId, NotificationType.EthicsDocumentationReadyForReview,
-                    "Ethics documentation ready for review",
-                    "The student has uploaded all required ethics documentation. Please log in to review it.",
-                    nameof(PublicationContainer), container.Id, cancellationToken);
-            }
-            else if (workflow.CoordinatorReviewsDocuments)
-            {
-                await notificationService.NotifyAsync(container.CoordinatorId, NotificationType.EthicsCoordinatorReviewRequested,
-                    "Ethics documentation review requested",
-                    "The student has uploaded all required ethics documentation. Please log in to review it.",
-                    nameof(PublicationContainer), container.Id, cancellationToken);
-            }
+            var workflow = await settingService.GetEthicsWorkflowSettingsAsync(cancellationToken);
+            await NotifyNextReaderAsync(container, approval, workflow, cancellationToken);
         }
 
         await auditService.LogActivityAsync(container.Id, studentId, "EthicsDocumentUploaded",
@@ -396,10 +380,24 @@ public class EthicsService(
             throw new BusinessRuleException("There is no ethics documentation currently awaiting review.");
         }
 
-        if (!(await settingService.GetEthicsWorkflowSettingsAsync(cancellationToken)).SupervisorReviewsDocuments)
+        var workflow = await settingService.GetEthicsWorkflowSettingsAsync(cancellationToken);
+
+        if (!workflow.SupervisorReviewsDocuments)
         {
             throw new BusinessRuleException(
                 "This institution does not ask the supervisor to read ethics documentation.");
+        }
+
+        if (approval.SupervisorDocumentsReviewedAt is not null)
+        {
+            throw new BusinessRuleException("You have already read this ethics documentation.");
+        }
+
+        // Where the coordinator reads first, the supervisor waits for them.
+        if (workflow.CoordinatorReadsFirst && workflow.CoordinatorReviewsDocuments && approval.CoordinatorDecisionAt is null)
+        {
+            throw new BusinessRuleException(
+                "The coordinator reads this documentation first at this institution. It comes to you afterwards.");
         }
 
         await commentPolicy.EnsureAsync(request.Accept
@@ -407,6 +405,10 @@ public class EthicsService(
             : DecisionPoints.EthicsSupervisorDocumentsReturn, request.Comments, cancellationToken);
 
         ApplyDocumentReviewOutcome(approval, request.Accept, request.Comments, request.DocumentIds);
+
+        // Their own mark, set only on acceptance: sending the set back puts it with the student,
+        // and the reading starts again when it comes back.
+        approval.SupervisorDocumentsReviewedAt = request.Accept ? DateTime.UtcNow : null;
         await db.SaveChangesAsync(cancellationToken);
 
         var container = await db.PublicationContainers.FindAsync([publicationContainerId], cancellationToken);
@@ -416,27 +418,7 @@ public class EthicsService(
 
         if (request.Accept)
         {
-            var workflow = await settingService.GetEthicsWorkflowSettingsAsync(cancellationToken);
-
-            if (workflow.CoordinatorReviewsDocuments)
-            {
-                await notificationService.NotifyAsync(container!.CoordinatorId, NotificationType.EthicsCoordinatorReviewRequested,
-                    "Ethics documentation review requested",
-                    "A Supervisor has approved the submitted ethics documentation. Please log in to review it.",
-                    nameof(PublicationContainer), publicationContainerId, cancellationToken);
-            }
-            else if (workflow.HeadOfDepartmentReviews)
-            {
-                await AssignHeadOfDepartmentAsync(container!, approval, cancellationToken);
-            }
-            else
-            {
-                await notificationService.NotifyAsync(container!.CoordinatorId, NotificationType.EthicsFinalDecisionRequested,
-                    "Final ethics decision requested",
-                    "A Supervisor has approved the submitted ethics documentation, and this institution asks nobody "
-                    + "else to read it. The final decision is yours to make now.",
-                    nameof(PublicationContainer), publicationContainerId, cancellationToken);
-            }
+            await NotifyNextReaderAsync(container!, approval, workflow, cancellationToken);
         }
         else
         {
@@ -511,26 +493,36 @@ public class EthicsService(
     {
         var (container, approval) = await GetApprovalForCoordinatorAsync(publicationContainerId, coordinatorId, cancellationToken, includeDocuments: true);
 
-        // The supervisor reads the documents first. Their acceptance is what puts every document
-        // past PendingReview, so anything still there means the set has not reached the
-        // coordinator yet.
-        //
-        // Only the status was checked, and it says PendingVerification for the whole of the run
-        // from upload to final decision. A coordinator opening the container by its id could
+        // Only the status was checked once, and it says PendingVerification for the whole of the
+        // run from upload to final decision. A coordinator opening the container by its id could
         // therefore approve documents nobody had read, and the head of department and the final
-        // decision after that: the stage reached Verified with every document still sitting at
-        // PendingReview, and the supervisor's screen went on offering a review of a stage that
-        // had closed.
-        if (approval.Status != EthicsStatus.PendingVerification
-            || approval.Documents.Any(d => d.Status == EthicsDocumentStatus.PendingReview))
+        // decision after that: the stage reached Verified with the set still unread, and the
+        // supervisor's screen went on offering a review of a stage that had closed.
+        if (approval.Status != EthicsStatus.PendingVerification)
         {
             throw new BusinessRuleException("There is no ethics documentation currently awaiting Coordinator review.");
         }
 
-        if (!(await settingService.GetEthicsWorkflowSettingsAsync(cancellationToken)).CoordinatorReviewsDocuments)
+        var workflow = await settingService.GetEthicsWorkflowSettingsAsync(cancellationToken);
+
+        if (!workflow.CoordinatorReviewsDocuments)
         {
             throw new BusinessRuleException(
                 "This institution does not ask the coordinator to read ethics documentation.");
+        }
+
+        if (approval.CoordinatorDecisionAt is not null)
+        {
+            throw new BusinessRuleException("You have already read this ethics documentation.");
+        }
+
+        // Where the supervisor reads first, the coordinator waits for them. Their own mark, not
+        // the documents' status, which only says what was accepted rather than by whom.
+        if (!workflow.CoordinatorReadsFirst && workflow.SupervisorReviewsDocuments
+            && approval.SupervisorDocumentsReviewedAt is null)
+        {
+            throw new BusinessRuleException(
+                "The supervisor reads this documentation first at this institution. It comes to you afterwards.");
         }
 
         await commentPolicy.EnsureAsync(request.Approve
@@ -548,26 +540,13 @@ public class EthicsService(
             await auditService.LogActivityAsync(publicationContainerId, coordinatorId, "CoordinatorApprovedEthicsDocuments",
                 request.Comments);
 
-            var workflow = await settingService.GetEthicsWorkflowSettingsAsync(cancellationToken);
-
-            if (workflow.HeadOfDepartmentReviews)
-            {
-                await AssignHeadOfDepartmentAsync(container, approval, cancellationToken);
-            }
-            else
-            {
-                // Nobody stands between the approval and the close, so the coordinator is told
-                // the decision is now theirs rather than left waiting for a step that never comes.
-                await notificationService.NotifyAsync(coordinatorId, NotificationType.EthicsFinalDecisionRequested,
-                    "Final ethics decision requested",
-                    "You have approved this student's ethics documentation. This institution does not use a Head of "
-                    + "Department review, so the final decision is yours to make now.",
-                    nameof(PublicationContainer), publicationContainerId, cancellationToken);
-            }
+            await NotifyNextReaderAsync(container, approval, workflow, cancellationToken);
         }
         else
         {
             ApplyDocumentReviewOutcome(approval, accept: false, request.Comments, request.DocumentIds);
+            approval.CoordinatorDecisionAt = null;
+            approval.SupervisorDocumentsReviewedAt = null;
             await db.SaveChangesAsync(cancellationToken);
 
             await auditService.LogActivityAsync(publicationContainerId, coordinatorId, "CoordinatorRequestedEthicsRevision",
@@ -604,12 +583,14 @@ public class EthicsService(
                 "This institution does not put the Head of Department between the coordinator's decision and the close of this stage.");
         }
 
-        // The coordinator's reading is one of the steps that can be switched off, and where it is,
-        // there is no decision of theirs to wait for.
-        var coordinatorHasHadTheirTurn = approval.CoordinatorDecisionAt is not null
-            || (onDocuments && !workflow.CoordinatorReviewsDocuments);
+        // Both readings can be switched off, and where one is there is nothing of theirs to wait
+        // for. On the route with no documentation the coordinator's agreement is the only mark.
+        var readingsDone = onDocuments
+            ? (approval.SupervisorDocumentsReviewedAt is not null || !workflow.SupervisorReviewsDocuments)
+              && (approval.CoordinatorDecisionAt is not null || !workflow.CoordinatorReviewsDocuments)
+            : approval.CoordinatorDecisionAt is not null;
 
-        if (!coordinatorHasHadTheirTurn || approval.HeadOfDepartmentReviewedAt is not null)
+        if (!readingsDone || approval.HeadOfDepartmentReviewedAt is not null)
         {
             throw new BusinessRuleException("This container's ethics decision is not awaiting Head of Department review.");
         }
@@ -685,6 +666,56 @@ public class EthicsService(
             nameof(PublicationContainer), container.Id, cancellationToken);
     }
 
+    /// <summary>
+    /// Tells whoever the documents are now in front of, in the order this institution reads them.
+    ///
+    /// One place, because every hand-on asks the same question: after an upload, after either
+    /// reading, and after the Head of Department. Working it out at each of those separately is
+    /// how a set ends up announced to somebody whose step is switched off.
+    /// </summary>
+    private async Task NotifyNextReaderAsync(
+        PublicationContainer container, EthicsApproval approval, EthicsWorkflowSettingsDto workflow,
+        CancellationToken cancellationToken)
+    {
+        var supervisorPending = workflow.SupervisorReviewsDocuments && approval.SupervisorDocumentsReviewedAt is null;
+        var coordinatorPending = workflow.CoordinatorReviewsDocuments && approval.CoordinatorDecisionAt is null;
+
+        // The first of the two who still has it, in this institution's order.
+        var next = workflow.CoordinatorReadsFirst
+            ? coordinatorPending ? RoleNames.Coordinator : supervisorPending ? RoleNames.Supervisor : null
+            : supervisorPending ? RoleNames.Supervisor : coordinatorPending ? RoleNames.Coordinator : null;
+
+        if (next == RoleNames.Supervisor && container.AssignedSupervisorId is Guid supervisorId)
+        {
+            await notificationService.NotifyAsync(supervisorId, NotificationType.EthicsDocumentationReadyForReview,
+                "Ethics documentation ready for review",
+                "Ethics documentation is waiting on your reading. Please log in to review it.",
+                nameof(PublicationContainer), container.Id, cancellationToken);
+            return;
+        }
+
+        if (next == RoleNames.Coordinator)
+        {
+            await notificationService.NotifyAsync(container.CoordinatorId, NotificationType.EthicsCoordinatorReviewRequested,
+                "Ethics documentation review requested",
+                "Ethics documentation is waiting on your reading. Please log in to review it.",
+                nameof(PublicationContainer), container.Id, cancellationToken);
+            return;
+        }
+
+        // Nobody is left to read it, so it moves to the Head of Department, or to the close.
+        if (workflow.HeadOfDepartmentReviews && approval.HeadOfDepartmentReviewedAt is null)
+        {
+            await AssignHeadOfDepartmentAsync(container, approval, cancellationToken);
+            return;
+        }
+
+        await notificationService.NotifyAsync(container.CoordinatorId, NotificationType.EthicsFinalDecisionRequested,
+            "Final ethics decision requested",
+            "Everybody this institution asks has read the ethics documentation. The final decision is yours to make now.",
+            nameof(PublicationContainer), container.Id, cancellationToken);
+    }
+
     public async Task CoordinatorFinalDecisionAsync(Guid publicationContainerId, Guid coordinatorId, CoordinatorFinalDecisionRequest request, CancellationToken cancellationToken = default)
     {
         // With the documents, because turning this down sends them back to the student and has to
@@ -708,6 +739,7 @@ public class EthicsService(
             && approval.HeadOfDepartmentReviewedAt is not null;
 
         var afterDocuments = approval.Status == EthicsStatus.PendingVerification
+            && (approval.SupervisorDocumentsReviewedAt is not null || !workflow.SupervisorReviewsDocuments)
             && (approval.CoordinatorDecisionAt is not null || !workflow.CoordinatorReviewsDocuments)
             && (approval.HeadOfDepartmentReviewedAt is not null || !workflow.HeadOfDepartmentReviews);
 
@@ -755,6 +787,10 @@ public class EthicsService(
         else
         {
             ApplyDocumentReviewOutcome(approval, accept: false, request.Comments, request.DocumentIds);
+            approval.SupervisorDocumentsReviewedAt = null;
+            approval.CoordinatorDecisionAt = null;
+            approval.HeadOfDepartmentReviewedAt = null;
+            approval.HeadOfDepartmentUserId = null;
             await db.SaveChangesAsync(cancellationToken);
 
             await auditService.LogActivityAsync(publicationContainerId, coordinatorId, "EthicsFinalRevisionRequested",
