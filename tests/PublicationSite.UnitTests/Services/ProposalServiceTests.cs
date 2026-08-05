@@ -143,6 +143,24 @@ public class ProposalServiceTests : IDisposable
         await act.Should().ThrowAsync<BusinessRuleException>();
     }
 
+    /// <summary>
+    /// Pressing the button twice, or going back to the form after sending, used to be answered with
+    /// the count check below it: a student with three proposals sitting with their supervisor was
+    /// told they had written none.
+    /// </summary>
+    [Fact]
+    public async Task FinishSubmissionAsync_says_so_when_the_proposals_have_already_gone()
+    {
+        var (student, _, container) = SeedContainer();
+        await _sut.CreateAsync(container.Id, student.Id, new SaveProposalRequest("A", "Abstract A"));
+        await _sut.FinishSubmissionAsync(container.Id, student.Id);
+
+        var act = () => _sut.FinishSubmissionAsync(container.Id, student.Id);
+
+        (await act.Should().ThrowAsync<BusinessRuleException>())
+            .WithMessage("These research proposals have already been sent.");
+    }
+
     [Fact]
     public async Task RequestNewSubmissionAsync_rejects_existing_proposals_and_notifies_student()
     {

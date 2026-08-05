@@ -103,6 +103,24 @@ public class ProposalService(
         // fewer would give the supervisor less to choose between than the first was refused for.
         var (fewest, most) = await ProposalsPerRoundAsync(cancellationToken);
 
+        // Having nothing in draft means one of two things, and the count check below can only tell
+        // the student the one that is often untrue. Anybody who submitted and then went back, or
+        // pressed the button twice, was told they had written no proposals at all while three of
+        // theirs sat with a supervisor.
+        if (drafts.Count == 0)
+        {
+            var alreadySent = await db.ResearchProposals.AnyAsync(
+                p => p.PublicationContainerId == container.Id
+                     && p.Status != ProposalStatus.Draft
+                     && p.Status != ProposalStatus.Rejected,
+                cancellationToken);
+
+            if (alreadySent)
+            {
+                throw new BusinessRuleException("These research proposals have already been sent.");
+            }
+        }
+
         if (drafts.Count < fewest)
         {
             throw new BusinessRuleException(fewest == 1
