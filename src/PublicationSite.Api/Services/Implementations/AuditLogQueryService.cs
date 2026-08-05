@@ -87,7 +87,24 @@ public class AuditLogQueryService(ApplicationDbContext db) : IAuditLogQueryServi
         return result;
     }
 
-    private static string CsvEscape(string value) => $"\"{value.Replace("\"", "\"\"")}\"";
+    /// <summary>
+    /// Quoted the way the file format asks, and made inert the way a spreadsheet needs.
+    ///
+    /// Excel and Sheets treat a cell opening with =, +, - or @ as a formula, and every value here
+    /// is text that the people in the log wrote themselves: their own names, and the comments they
+    /// left on a publication. Anyone could put a formula in front of an administrator by renaming
+    /// themselves. Quoting does not stop it, because the quotes belong to the CSV and are gone by
+    /// the time the cell is read. A leading apostrophe is what both applications take as "this is
+    /// text", and neither of them shows it.
+    /// </summary>
+    private static string CsvEscape(string value)
+    {
+        var inert = value.Length > 0 && value[0] is '=' or '+' or '-' or '@' or '\t' or '\r'
+            ? $"'{value}"
+            : value;
+
+        return $"\"{inert.Replace("\"", "\"\"")}\"";
+    }
 
     /// <summary>
     /// An expression rather than a method, so EF Core translates it into the SQL SELECT and joins

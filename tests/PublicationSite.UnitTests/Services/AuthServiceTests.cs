@@ -281,6 +281,48 @@ public class AuthServiceTests : IDisposable
         _emailSender.Verify(e => e.SendAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
+    private ApplicationUser SeedUserHoldingRefreshToken(UserStatus status, string token)
+    {
+        var user = TestDataBuilder.User(_fixture.Context, status: status);
+        _fixture.Context.RefreshTokens.Add(new RefreshToken
+        {
+            Token = token, UserId = user.Id, ExpiresAt = DateTime.UtcNow.AddDays(7)
+        });
+        _fixture.Context.SaveChanges();
+
+        _userManager.Setup(m => m.GetRolesAsync(It.IsAny<ApplicationUser>())).ReturnsAsync([RoleNames.Supervisor]);
+        _tokenService.Setup(t => t.RefreshAsync(token))
+            .ReturnsAsync(new TokenPair("new-access", "new-refresh", DateTime.UtcNow.AddHours(1)));
+
+        return user;
+    }
+
+    /// <summary>
+    /// Disabling an account stopped it signing in and left the session it already had alone, and
+    /// that session renewed itself every hour without anybody being asked. Deleting an account went
+    /// the same way, since deletion disables rather than removes the row.
+    /// </summary>
+    [Fact]
+    public async Task RefreshAsync_refuses_an_account_that_has_been_disabled()
+    {
+        SeedUserHoldingRefreshToken(UserStatus.Disabled, "held-token");
+
+        var act = () => _sut.RefreshAsync("held-token");
+
+        await act.Should().ThrowAsync<ForbiddenException>();
+        _tokenService.Verify(t => t.RefreshAsync(It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task RefreshAsync_renews_a_session_for_an_account_still_in_good_standing()
+    {
+        SeedUserHoldingRefreshToken(UserStatus.Enabled, "held-token");
+
+        var response = await _sut.RefreshAsync("held-token");
+
+        response.AccessToken.Should().Be("new-access");
+    }
+
     [Fact]
     public async Task ChangePasswordAsync_surfaces_identity_errors()
     {

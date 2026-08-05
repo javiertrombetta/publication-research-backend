@@ -101,8 +101,18 @@ public class AuthService(
 
     public async Task<AuthResponse> RefreshAsync(string refreshToken, CancellationToken cancellationToken = default)
     {
+        // Asked about the account before the token is exchanged, and the exchange refused if the
+        // answer is no. Refresh used to ask nothing at all, so disabling somebody stopped them
+        // signing in again and did nothing whatever to the session they already had: it renewed
+        // itself every hour for as long as their browser stayed open. Deleting an account left the
+        // same door open, since deletion disables rather than removes.
+        // The status and nothing else. A lockout is five wrong passwords, which anybody who knows
+        // an address can produce, so ending live sessions on it would hand out a way to throw
+        // people off the site. Sign-in is already refused while it lasts, which is what it is for.
+        var user = await GetUserByRefreshTokenAsync(refreshToken);
+        EnsureUserCanLogIn(user);
+
         var pair = await tokenService.RefreshAsync(refreshToken);
-        var user = await GetUserByRefreshTokenAsync(pair.RefreshToken);
         return await BuildAuthResponseAsync(user, pair);
     }
 

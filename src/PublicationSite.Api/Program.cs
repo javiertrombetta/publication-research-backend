@@ -130,6 +130,8 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
             IssuerSigningKey = new SymmetricSecurityKey(Convert.FromBase64String(jwtSettings.SigningKey)),
             ClockSkew = TimeSpan.FromMinutes(1)
         };
+
+        options.Events = AccountStillValidEvents.Create();
     });
 
 // Second scheme, "AzureAd": validates tokens issued by Microsoft Entra ID for this API's app
