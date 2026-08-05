@@ -87,6 +87,13 @@ public class ContainerService(
 
         return new Dictionary<string, Expression<Func<PublicationContainer, object?>>>
         {
+            // When anything last happened, from the trail rather than the row's own timestamp.
+            // A queue is read to find what has been sitting untouched, so this is the column that
+            // answers it, and ordering has to agree with the figure beside it.
+            ["activity"] = c => c.ActivityHistory
+                .OrderByDescending(a => a.CreatedAt)
+                .Select(a => (DateTime?)a.CreatedAt)
+                .FirstOrDefault(),
             ["student"] = c => c.Student.LastName,
             // Which of the three stages it is on. Three dashboards have offered this column all
             // along and nothing accepted the name, so clicking it moved the arrow, fell back to
@@ -1495,6 +1502,14 @@ public class ContainerService(
             c.EthicsApproval == null || c.EthicsApproval.HeadOfDepartmentUser == null
                 ? null
                 : c.EthicsApproval.HeadOfDepartmentUser.FirstName + " " + c.EthicsApproval.HeadOfDepartmentUser.LastName,
-            c.Publication == null ? null : c.Publication.Id));
+            c.Publication == null ? null : c.Publication.Id,
+            // The newest thing on this publication's own trail. Read from the trail rather than
+            // from the row's UpdatedAt, which is set at a fraction of the places that record an
+            // action and would report a publication as untouched for a month when somebody
+            // commented on it yesterday.
+            c.ActivityHistory
+                .OrderByDescending(a => a.CreatedAt)
+                .Select(a => (DateTime?)a.CreatedAt)
+                .FirstOrDefault()));
     }
 }
