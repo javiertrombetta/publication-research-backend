@@ -29,6 +29,10 @@ public class PageRequest
     /// </summary>
     public const int MaximumPageSize = 100;
 
+    /// <summary>
+    /// Which page to return, counted from one. Out-of-range numbers are clamped rather than
+    /// refused: they arrive from stale links as often as from a working client.
+    /// </summary>
     public int Page { get; set; } = 1;
 
     /// <summary>
@@ -52,6 +56,10 @@ public class PageRequest
     /// </summary>
     public string? SortBy { get; set; }
 
+    /// <summary>
+    /// Reverses <see cref="SortBy"/>. Ignored where no column has been named, since there is
+    /// nothing to reverse but the endpoint's own default order.
+    /// </summary>
     public bool SortDescending { get; set; }
 
     /// <summary>

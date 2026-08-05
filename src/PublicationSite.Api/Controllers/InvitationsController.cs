@@ -29,6 +29,7 @@ public class InvitationsController(IInvitationService invitationService, ICurren
     /// <response code="200">One page of invitations, with the total count alongside it so a pager can be drawn without a second request.</response>
     /// <response code="401">No access token was sent, or the one sent has expired.</response>
     /// <response code="403">Signed in, but this is not something your role may do.</response>
+    /// <param name="state">Which invitations to return: Pending, Accepted, Revoked or Expired. All of them where this is left out.</param>
     [HttpGet]
     [ProducesResponseType(typeof(ApiResponse<PagedResult<UserInvitationDto>>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]

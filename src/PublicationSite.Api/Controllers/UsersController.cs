@@ -166,7 +166,7 @@ public class UsersController(IUserService userService, ICurrentUserService curre
     /// <response code="401">No access token was sent, or the one sent has expired.</response>
     /// <response code="404">No application user with that id.</response>
     [HttpGet("{id:guid}/photo")]
-    [ProducesResponseType(typeof(FileResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(FileResult), StatusCodes.Status200OK, "image/jpeg", "image/png", "image/webp")]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetPhoto(Guid id)
@@ -182,6 +182,8 @@ public class UsersController(IUserService userService, ICurrentUserService curre
     /// <response code="401">No access token was sent, or the one sent has expired.</response>
     /// <response code="403">Signed in, but this is not something your role may do.</response>
     /// <remarks>Orders by <c>name</c>, <c>email</c>, <c>status</c> or <c>created</c>. Surname by default.</remarks>
+    /// <param name="role">Only accounts holding this role, by name.</param>
+    /// <param name="status">Only accounts in this state: Pending, Enabled or Disabled.</param>
     [HttpGet]
     [Authorize(Roles = RoleNames.Admin)]
     [ProducesResponseType(typeof(ApiResponse<PagedResult<UserListItemDto>>), StatusCodes.Status200OK)]

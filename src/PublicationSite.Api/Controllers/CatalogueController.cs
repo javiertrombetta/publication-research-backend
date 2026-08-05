@@ -48,7 +48,7 @@ public class CatalogueController(ICatalogueService catalogueService) : Controlle
     /// <summary>
     /// One published paper in full, for its own page.
     /// </summary>
-    /// <response code="200">The catalogue entrie.</response>
+    /// <response code="200">The published paper, in full.</response>
     /// <response code="404">No publication with that id.</response>
     [HttpGet("{id:guid}")]
     [AllowAnonymous]
@@ -68,7 +68,7 @@ public class CatalogueController(ICatalogueService catalogueService) : Controlle
     /// <response code="404">Neither the publication nor the publication version was found by that id.</response>
     [HttpGet("{id:guid}/download")]
     [Authorize]
-    [ProducesResponseType(typeof(FileResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(FileResult), StatusCodes.Status200OK, "application/pdf")]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Download(Guid id)
     {

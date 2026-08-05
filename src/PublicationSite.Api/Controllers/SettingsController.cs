@@ -228,6 +228,7 @@ public class SettingsController(
     /// <response code="403">Signed in, but this is not something your role may do.</response>
     /// <response code="404">No ethics document requirement with that id.</response>
     /// <response code="422">Understood, and refused: the workflow does not allow this at the point it has reached.</response>
+    /// <param name="isActive">Whether new publications should ask for this document. Publications already under way keep the set they started with.</param>
     [HttpPut("ethics-documents/{id:guid}/active")]
     [ProducesResponseType(typeof(ApiResponse<EthicsDocumentRequirementDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -422,6 +423,7 @@ public class SettingsController(
     /// <response code="200">Whether it answered, and what it said if it did not.</response>
     /// <response code="401">No access token was sent, or the one sent has expired.</response>
     /// <response code="403">Signed in, but this is not something your role may do.</response>
+    /// <param name="provider">Which destination to try: Local, S3 or AzureBlob. The one in force is tried where this is left out.</param>
     [HttpPost("storage/check")]
     [ProducesResponseType(typeof(ApiResponse<StorageCheckResultDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]

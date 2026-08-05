@@ -273,10 +273,11 @@ builder.Services.AddSwaggerGen(options =>
         Description = "Enter the JWT access token."
     };
     options.AddSecurityDefinition("Bearer", jwtScheme);
-    options.AddSecurityRequirement(new OpenApiSecurityRequirement
-    {
-        { new OpenApiSecurityScheme { Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" } }, [] }
-    });
+
+    // The requirement itself is attached per operation by BearerRequirementFilter rather than
+    // declared for the whole document, so the endpoints that take no token are not described as
+    // needing one. See the filter for why the specification's own way round does not survive
+    // being written out.
 
     // The summaries written against each action and DTO, which is where the reasoning behind an
     // endpoint already lives: why a decision needs a comment, which figures a committee is judged
@@ -292,6 +293,25 @@ builder.Services.AddSwaggerGen(options =>
     // controller's own summary. /health is a minimal endpoint with no class to hang one on, so
     // its group would be the only heading in the document with nothing under it but a route.
     options.DocumentFilter<HealthTagDescriptionFilter>();
+
+    // Which endpoints carry the padlock, worked out from what each one actually requires.
+    options.OperationFilter<BearerRequirementFilter>();
+
+    // A stable name per operation. Absent, generators and the Postman collection fall back to
+    // inventing one from the path, so the same endpoint is called something different by each tool
+    // and a saved request stops matching after a route changes.
+    options.CustomOperationIds(api => api.ActionDescriptor is Microsoft.AspNetCore.Mvc.Controllers.ControllerActionDescriptor descriptor
+        ? $"{descriptor.ControllerName}_{descriptor.ActionName}"
+        : api.RelativePath?.Replace("/", "_"));
+
+    // What the identifiers in a route identify. The same sentence at eighty actions is the kind of
+    // duplication nobody keeps up, so the ones that mean the same thing everywhere are named once.
+    options.OperationFilter<RouteParameterDescriptionFilter>();
+
+    // The summaries are written as XML comments, so their second and later lines arrive carrying
+    // the indentation of the source file. Harmless in the browser, and not harmless anywhere the
+    // text is reused: it lands in the Postman collection as ragged whitespace.
+    options.DocumentFilter<DescriptionWhitespaceFilter>();
 });
 
 var app = builder.Build();

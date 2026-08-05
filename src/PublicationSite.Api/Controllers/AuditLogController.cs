@@ -45,7 +45,7 @@ public class AuditLogController(IAuditLogQueryService auditLogQueryService) : Co
     /// <response code="401">No access token was sent, or the one sent has expired.</response>
     /// <response code="403">Signed in, but this is not something your role may do.</response>
     [HttpGet("export")]
-    [ProducesResponseType(typeof(FileResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(FileResult), StatusCodes.Status200OK, "text/csv")]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> Export([FromQuery] AuditLogQuery query)
