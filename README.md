@@ -82,7 +82,7 @@ dotnet ef database update
 ```
 
 This creates the schema and seeds the eight fixed roles (Admin, HeadOfDepartment, Coordinator, Supervisor,
-InternalCommitteeMember, ExternalCommitteeMember, Student, Staff) on first run via `DbSeeder`.
+Reviewer, ExternalCommitteeMember, Student, Staff) on first run via `DbSeeder`.
 
 ### 5. Run the API
 
@@ -189,10 +189,19 @@ credentials open.
 
 #### The demonstration dataset
 
-Nineteen accounts across two departments, and twenty-one publications parked at every point in the three
+Twenty-two accounts across two departments, and thirty publications parked at every point in the three
 pipelines where somebody has to act, so each role signs in to find work of its own waiting, at every
 decision the system asks anyone to make, without having to walk a publication through ten prior steps to
 reach the eleventh.
+
+Each publication carries its own proposals and its own words: what the coordinator wrote when sending it
+out, what each supervisor replied, what the ethics readers said about that particular study, and how each
+committee member voted. None of those sentences is shared with another publication. That matters for
+judging the system rather than only demonstrating it: a screen full of one repeated sentence cannot show
+whether a search works, and a column of identical dates sorts the same both ways, so the control that
+orders by it looks broken. Each publication is also dated back by its own amount, so the set spans two
+academic years, some queues have genuinely been waiting longer than others, and one ethics review is far
+enough past the institution's window to be overdue.
 
 Every account uses the password `DevTest123!`.
 
@@ -207,19 +216,21 @@ effect.
 | Role | Accounts |
 | --- | --- |
 | Admin | `admin.test@ais.ac.nz` |
-| Head of Department | `hod.test@ais.ac.nz` (Computing), `hod.business@ais.ac.nz` (Business) |
-| Coordinator | `coordinator.test@ais.ac.nz` (Computing), `coordinator.business@ais.ac.nz` (Business) |
+| Head of Department | `hod.test@ais.ac.nz` (Information Technology), `hod.business@ais.ac.nz` (Business) |
+| Coordinator | `coordinator.test@ais.ac.nz` (Information Technology), `coordinator.business@ais.ac.nz` (Business) |
 | Supervisor | `supervisor.test@ais.ac.nz`, `supervisor.second@ais.ac.nz`, `supervisor.business@ais.ac.nz`, `supervisor.business.second@ais.ac.nz` |
-| Internal committee member | `internal.test@ais.ac.nz`, `internal.second@ais.ac.nz` |
+| Reviewer | `reviewer.test@ais.ac.nz`, `reviewer.second@ais.ac.nz`, `reviewer.third@ais.ac.nz` |
 | External committee member | `external.test@ais.ac.nz`, `external.second@ais.ac.nz` |
-| Student | `student.test@aisstudent.ac.nz`, `student.second@…`, `student.third@…`, `student.fourth@…`, `student.business@…` |
+| Student | `student.test@aisstudent.ac.nz`, `student.second@…`, `student.third@…`, `student.fourth@…`, `student.fifth@…`, `student.business@…`, `student.business.second@…` |
 | Staff (no operational role yet) | `staff.test@ais.ac.nz` |
 
-Two of each kind of committee member, because the default composition asks for two internal and one
-. With one of each, the standard committee could not be built at all. Two departments, so a Head
-of Department can be seen to have sight of their own students and not everyone's. Two Supervisors per
-department, so a Coordinator allocating a proposal has a real choice rather than a single option to
-rubber-stamp.
+Three Reviewers and two externals, against a default composition of two Reviewers and one external. Two of
+each would satisfy the rule and then produce the same three names on every committee; the extra Reviewer is
+what lets committees differ from one another. Two departments, so a Head of Department can be seen to have
+sight of their own students and not everyone's, and enough work in each that both have a queue rather than
+an example. Two Supervisors per department, so a Coordinator allocating a proposal has a real choice rather
+than a single option to rubber-stamp, and both of them supervise something: one of them has also stopped
+taking new work while keeping what she already had, which is a state nothing else in the data shows.
 
 `student.test@aisstudent.ac.nz` carries the stages a student acts on, from an empty publication through to
 one in the public catalogue, so one account demonstrates the whole route. The other students carry the
