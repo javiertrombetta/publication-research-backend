@@ -814,5 +814,5 @@ public class PublicationService(
         publication.IsPublished, publication.PublishedAt,
         publication.Keywords.Select(k => k.Name).ToList(),
         publication.ResearchAreas.Select(r => r.Name).ToList(),
-        studentName);
+        studentName, publication.UpdatedAt);
 }
