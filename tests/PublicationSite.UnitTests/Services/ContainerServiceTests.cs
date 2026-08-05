@@ -38,6 +38,10 @@ public class ContainerServiceTests : IDisposable
         _settingService.Setup(s => s.GetEthicsWorkflowSettingsAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(new EthicsWorkflowSettingsDto(true, true, true, true));
 
+        // The research paper stage as it ships: all three readings run.
+        _settingService.Setup(s => s.GetPaperWorkflowSettingsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PaperWorkflowSettingsDto(true, true, true));
+
         _sut = new ContainerService(_fixture.Context, _departmentService.Object, _accessService.Object,
             _auditService.Object, _notificationService.Object, _settingService.Object);
     }

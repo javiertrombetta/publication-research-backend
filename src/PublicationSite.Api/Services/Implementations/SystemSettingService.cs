@@ -636,6 +636,42 @@ public class SystemSettingService(
         return await GetEthicsWorkflowSettingsAsync(cancellationToken);
     }
 
+    // ---------- Steps of the research paper stage ----------
+
+    public async Task<PaperWorkflowSettingsDto> GetPaperWorkflowSettingsAsync(CancellationToken cancellationToken = default) =>
+        new(
+            await settings.GetBoolAsync(SettingKeys.PaperSupervisorReviews, SettingKeys.DefaultPaperSupervisorReviews, cancellationToken),
+            await settings.GetBoolAsync(SettingKeys.PaperCommitteeEvaluates, SettingKeys.DefaultPaperCommitteeEvaluates, cancellationToken),
+            await settings.GetBoolAsync(SettingKeys.PaperCoordinatorDecides, SettingKeys.DefaultPaperCoordinatorDecides, cancellationToken));
+
+    public async Task<PaperWorkflowSettingsDto> UpdatePaperWorkflowSettingsAsync(
+        UpdatePaperWorkflowSettingsRequest request, Guid actingAdminId, CancellationToken cancellationToken = default)
+    {
+        // Whichever reading is last accepts the paper. With none of them left a submitted paper
+        // would go into nothing, and no screen would ever offer it to anybody.
+        if (!request.SupervisorReviews && !request.CommitteeEvaluates && !request.CoordinatorDecides)
+        {
+            throw new BusinessRuleException(
+                "Somebody has to judge a research paper. Leave at least one of the supervisor, "
+                + "the committee or the coordinator on the stage.");
+        }
+
+        await SetPendingAsync(SettingKeys.PaperSupervisorReviews, request.SupervisorReviews, actingAdminId, cancellationToken);
+        await SetPendingAsync(SettingKeys.PaperCommitteeEvaluates, request.CommitteeEvaluates, actingAdminId, cancellationToken);
+        await SetPendingAsync(SettingKeys.PaperCoordinatorDecides, request.CoordinatorDecides, actingAdminId, cancellationToken);
+
+        await CommitAsync(actingAdminId, "PaperWorkflowSettingsUpdated",
+            $"Supervisor reads a submitted paper: {Word(request.SupervisorReviews)}. "
+            + $"An evaluation committee judges it: {Word(request.CommitteeEvaluates)}. "
+            + $"The coordinator decides on it: {Word(request.CoordinatorDecides)}. "
+            + "These apply to papers already under way, which is the point of the switches.",
+            cancellationToken);
+
+        return await GetPaperWorkflowSettingsAsync(cancellationToken);
+
+        static string Word(bool on) => on ? "yes" : "no";
+    }
+
     // ---------- Research proposals ----------
 
     public async Task<ProposalSettingsDto> GetProposalSettingsAsync(CancellationToken cancellationToken = default) =>

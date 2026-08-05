@@ -40,6 +40,21 @@ public class WorkflowRulesController(ISystemSettingService systemSettingService)
     }
 
     /// <summary>
+    /// Which of the research paper's three readings this institution runs. Read by the screens
+    /// that offer them, so a step that is off is not offered to anybody.
+    /// </summary>
+    /// <response code="200">The paper workflow settings.</response>
+    /// <response code="401">No access token was sent, or the one sent has expired.</response>
+    [HttpGet("paper-workflow")]
+    [ProducesResponseType(typeof(ApiResponse<PaperWorkflowSettingsDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> GetPaperWorkflow()
+    {
+        var result = await systemSettingService.GetPaperWorkflowSettingsAsync();
+        return Ok(ApiResponse<PaperWorkflowSettingsDto>.Ok(result));
+    }
+
+    /// <summary>
     /// Which optional steps of the ethics pipeline this institution runs.
     ///
     /// Read by every ethics screen, which has to say who decides next. A coordinator told the

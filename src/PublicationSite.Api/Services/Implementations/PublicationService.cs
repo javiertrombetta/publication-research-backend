@@ -5,6 +5,7 @@ using PublicationSite.Api.Common.Exceptions;
 using PublicationSite.Api.Data;
 using PublicationSite.Api.DTOs.Common;
 using PublicationSite.Api.DTOs.Publications;
+using PublicationSite.Api.DTOs.Settings;
 using PublicationSite.Api.Entities;
 using PublicationSite.Api.Enums;
 using PublicationSite.Api.Services.Interfaces;
@@ -18,6 +19,7 @@ public class PublicationService(
     INotificationService notificationService,
     IFileStorageService fileStorageService,
     IDecisionCommentPolicy commentPolicy,
+    ISystemSettingService settingService,
     ILogger<PublicationService> logger) : IPublicationService
 {
     public async Task<PublicationVersionDto> AdminUploadVersionAsync(
@@ -449,6 +451,13 @@ public class PublicationService(
             throw new BusinessRuleException("This research paper is not awaiting Supervisor review.");
         }
 
+        var workflow = await settingService.GetPaperWorkflowSettingsAsync(cancellationToken);
+
+        if (!workflow.SupervisorReviews)
+        {
+            throw new BusinessRuleException("This institution does not ask the supervisor to read research papers.");
+        }
+
         var latestVersion = await GetLatestVersionAsync(publication.Id, cancellationToken);
 
         db.Reviews.Add(new Review
@@ -460,12 +469,27 @@ public class PublicationService(
             Comments = request.Comments
         });
 
-        publication.Status = request.Accept ? PublicationStatus.UnderReview : PublicationStatus.RevisionsRequested;
+        // Where nothing follows the supervisor, their acceptance is the acceptance of the paper:
+        // otherwise it would sit UnderReview waiting on a committee and a coordinator that this
+        // institution does not use.
+        var nobodyFollows = !workflow.CommitteeEvaluates && !workflow.CoordinatorDecides;
+
+        publication.Status = request.Accept
+            ? nobodyFollows ? PublicationStatus.Accepted : PublicationStatus.UnderReview
+            : PublicationStatus.RevisionsRequested;
         publication.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(cancellationToken);
 
         await auditService.LogActivityAsync(publication.PublicationContainerId, supervisorId, "SupervisorPaperReview",
             request.Comments, newStatus: publication.Status.ToString());
+
+        if (request.Accept && nobodyFollows)
+        {
+            await notificationService.NotifyAsync(publication.PublicationContainer.StudentId, NotificationType.PublicationApproved,
+                "Research paper accepted",
+                "Your Supervisor has accepted your research paper. You can now decide whether to publish it.",
+                nameof(PublicationContainer), publication.PublicationContainerId, cancellationToken);
+        }
 
         if (!request.Accept)
         {
@@ -530,7 +554,15 @@ public class PublicationService(
             throw new ForbiddenException();
         }
 
-        if (publication.Committee is null || publication.Committee.Status != CommitteeStatus.Completed)
+        var workflow = await settingService.GetPaperWorkflowSettingsAsync(cancellationToken);
+
+        if (!workflow.CoordinatorDecides)
+        {
+            throw new BusinessRuleException("This institution does not ask the coordinator to decide on research papers.");
+        }
+
+        if (workflow.CommitteeEvaluates
+            && (publication.Committee is null || publication.Committee.Status != CommitteeStatus.Completed))
         {
             throw new BusinessRuleException("The evaluation committee has not yet completed its review.");
         }

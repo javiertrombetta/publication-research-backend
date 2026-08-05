@@ -65,6 +65,12 @@ public interface ISystemSettingService
     /// <summary>Which optional steps of the ethics pipeline this institution runs.</summary>
     Task<EthicsWorkflowSettingsDto> GetEthicsWorkflowSettingsAsync(CancellationToken cancellationToken = default);
 
+    /// <summary>Which of the research paper's three readings this institution runs.</summary>
+    Task<PaperWorkflowSettingsDto> GetPaperWorkflowSettingsAsync(CancellationToken cancellationToken = default);
+
+    Task<PaperWorkflowSettingsDto> UpdatePaperWorkflowSettingsAsync(
+        UpdatePaperWorkflowSettingsRequest request, Guid actingAdminId, CancellationToken cancellationToken = default);
+
     Task<EthicsWorkflowSettingsDto> UpdateEthicsWorkflowSettingsAsync(
         UpdateEthicsWorkflowSettingsRequest request, Guid actingAdminId, CancellationToken cancellationToken = default);
 

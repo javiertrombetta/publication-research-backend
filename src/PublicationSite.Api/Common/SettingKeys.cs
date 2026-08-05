@@ -335,6 +335,22 @@ public static class SettingKeys
     public const string CoordinatorFirst = "CoordinatorFirst";
     public const string DefaultEthicsDocumentReviewOrder = SupervisorFirst;
 
+    // ---------- Steps of the research paper stage ----------
+
+    /// <summary>
+    /// The three readings a paper can go through: the supervisor's, the evaluation committee's and
+    /// the coordinator's decision. Any of them can go, and whichever is last accepts the paper, so
+    /// the settings refuse a stage with none of them left: a paper would then be submitted into
+    /// nothing.
+    /// </summary>
+    public const string PaperSupervisorReviews = "paper.supervisor-reviews";
+    public const string PaperCommitteeEvaluates = "paper.committee-evaluates";
+    public const string PaperCoordinatorDecides = "paper.coordinator-decides";
+
+    public const bool DefaultPaperSupervisorReviews = true;
+    public const bool DefaultPaperCommitteeEvaluates = true;
+    public const bool DefaultPaperCoordinatorDecides = true;
+
     // ---------- Where uploaded files are kept ----------
 
     /// <summary>
