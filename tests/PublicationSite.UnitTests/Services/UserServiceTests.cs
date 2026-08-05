@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Options;
+using Microsoft.EntityFrameworkCore;
 using Moq;
 using PublicationSite.Api.Common;
 using PublicationSite.Api.Common.Exceptions;
@@ -93,7 +94,7 @@ public class UserServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task CreateAsync_rejects_second_head_of_department_for_same_department()
+    public async Task CreateAsync_allows_a_department_a_second_head()
     {
         SetupCreateAsyncPersistsUser();
         _userManager.Setup(m => m.AddToRoleAsync(It.IsAny<ApplicationUser>(), RoleNames.HeadOfDepartment)).ReturnsAsync(IdentityResult.Success);
@@ -107,9 +108,12 @@ public class UserServiceTests : IDisposable
             Email = "hod2@ais.ac.nz", FirstName = "A", LastName = "B", Role = RoleNames.HeadOfDepartment, DepartmentId = department.Id
         };
 
-        var act = () => _sut.CreateAsync(request, Guid.NewGuid());
+        // A department large enough to need two heads can have them; the ethics reviews that wait
+        // on a head are then shared out between them.
+        await _sut.CreateAsync(request, Guid.NewGuid());
 
-        await act.Should().ThrowAsync<ConflictException>();
+        (await _fixture.Context.HeadOfDepartmentProfiles.CountAsync(h => h.DepartmentId == department.Id))
+            .Should().Be(2);
     }
 
     [Fact]

@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PublicationSite.Api.Common;
+using PublicationSite.Api.DTOs.Common;
 using PublicationSite.Api.DTOs.Ethics;
 using PublicationSite.Api.Services.Interfaces;
 
@@ -126,6 +127,57 @@ public class EthicsController(IEthicsService ethicsService, ICurrentUserService 
         await using var stream = form.File.OpenReadStream();
         var result = await ethicsService.UploadDocumentAsync(containerId, currentUser.UserId, form.DocumentType, stream, form.File.FileName);
         return Ok(ApiResponse<EthicsDocumentDto>.Ok(result));
+    }
+
+    /// <summary>
+    /// Admin-only: puts a document on a publication that is still running, whatever step it has
+    /// reached, and takes one off. For a file that arrived by another route, or one uploaded in
+    /// error. The reason is required and stays on the publication's history.
+    ///
+    /// Neither moves the stage. Where the publication should stand afterwards is its own decision,
+    /// made through PUT api/containers/{id}/position, so that correcting a file and deciding who
+    /// picks it up next stay separate acts.
+    /// </summary>
+    /// <response code="200">The ethics document.</response>
+    /// <response code="401">No access token was sent, or the one sent has expired.</response>
+    /// <response code="403">Signed in, but this is not something your role may do.</response>
+    /// <response code="404">No publication container with that id.</response>
+    /// <response code="422">Understood, and refused: the workflow does not allow this at the point it has reached.</response>
+    [HttpPost("api/containers/{containerId:guid}/ethics/documents/admin")]
+    [Authorize(Roles = RoleNames.Admin)]
+    [RequestSizeLimit(100_000_000)]
+    [ProducesResponseType(typeof(ApiResponse<EthicsDocumentDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status422UnprocessableEntity)]
+    public async Task<IActionResult> AdminUploadDocument(Guid containerId, [FromForm] AdminEthicsDocumentUploadForm form)
+    {
+        await using var stream = form.File.OpenReadStream();
+        var result = await ethicsService.AdminUploadDocumentAsync(
+            containerId, currentUser.UserId, form.DocumentType, stream, form.File.FileName, form.Comments);
+        return Ok(ApiResponse<EthicsDocumentDto>.Ok(result, "Document added."));
+    }
+
+    /// <summary>
+    /// Admin-only: takes a document off a publication that is still running, file and all.
+    /// </summary>
+    /// <response code="200">The document is gone.</response>
+    /// <response code="401">No access token was sent, or the one sent has expired.</response>
+    /// <response code="403">Signed in, but this is not something your role may do.</response>
+    /// <response code="404">No such document on that publication.</response>
+    /// <response code="422">Understood, and refused: the workflow does not allow this at the point it has reached.</response>
+    [HttpDelete("api/containers/{containerId:guid}/ethics/documents/{documentId:guid}")]
+    [Authorize(Roles = RoleNames.Admin)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status422UnprocessableEntity)]
+    public async Task<IActionResult> AdminRemoveDocument(Guid containerId, Guid documentId, [FromBody] CommentsRequest request)
+    {
+        await ethicsService.AdminRemoveDocumentAsync(containerId, currentUser.UserId, documentId, request.Comments);
+        return Ok(ApiResponse<object>.Ok(null!, "Document removed."));
     }
 
     /// <summary>

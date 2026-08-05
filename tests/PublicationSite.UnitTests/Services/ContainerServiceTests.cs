@@ -301,6 +301,87 @@ public class ContainerServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task MoveToAsync_puts_the_ethics_stage_back_to_the_student_and_clears_what_came_after()
+    {
+        var department = TestDataBuilder.Department(_fixture.Context);
+        var student = TestDataBuilder.User(_fixture.Context);
+        TestDataBuilder.StudentProfile(_fixture.Context, student, department);
+        var container = TestDataBuilder.Container(
+            _fixture.Context, student, TestDataBuilder.User(_fixture.Context),
+            stage: PipelineStage.ResearchPaper);
+
+        // As far on as it goes: everybody has decided.
+        _fixture.Context.EthicsApprovals.Add(new EthicsApproval
+        {
+            PublicationContainerId = container.Id,
+            Status = EthicsStatus.PendingVerification,
+            SupervisorDecisionAt = DateTime.UtcNow,
+            CoordinatorDecisionAt = DateTime.UtcNow,
+            HeadOfDepartmentReviewedAt = DateTime.UtcNow,
+            HeadOfDepartmentUserId = TestDataBuilder.User(_fixture.Context).Id
+        });
+        await _fixture.Context.SaveChangesAsync();
+
+        await _sut.MoveToAsync(container.Id,
+            new MoveContainerRequest((int)PipelineStage.EthicsApproval, "The consent form was the wrong one.",
+                EthicsSteps.StudentUpload),
+            Guid.NewGuid());
+
+        var approval = await _fixture.Context.EthicsApprovals.FirstAsync(a => a.PublicationContainerId == container.Id);
+        approval.Status.Should().Be(EthicsStatus.PendingUpload);
+
+        // Everything after the student's step is cleared, or it would land further on than asked.
+        approval.CoordinatorDecisionAt.Should().BeNull();
+        approval.HeadOfDepartmentReviewedAt.Should().BeNull();
+        approval.HeadOfDepartmentUserId.Should().BeNull();
+        approval.FinalDecisionAt.Should().BeNull();
+
+        (await _fixture.Context.PublicationContainers.FindAsync(container.Id))!.CurrentPipeline
+            .Should().Be(PipelineStage.EthicsApproval);
+    }
+
+    [Fact]
+    public async Task MoveToAsync_refuses_a_step_that_reads_documents_when_there_are_none()
+    {
+        var department = TestDataBuilder.Department(_fixture.Context);
+        var student = TestDataBuilder.User(_fixture.Context);
+        TestDataBuilder.StudentProfile(_fixture.Context, student, department);
+        var container = TestDataBuilder.Container(
+            _fixture.Context, student, TestDataBuilder.User(_fixture.Context),
+            stage: PipelineStage.EthicsApproval);
+
+        _fixture.Context.EthicsApprovals.Add(new EthicsApproval
+        {
+            PublicationContainerId = container.Id,
+            Status = EthicsStatus.PendingUpload
+        });
+        await _fixture.Context.SaveChangesAsync();
+
+        var act = () => _sut.MoveToAsync(container.Id,
+            new MoveContainerRequest((int)PipelineStage.EthicsApproval, "Trying to skip ahead.",
+                EthicsSteps.CoordinatorDocumentReview),
+            Guid.NewGuid());
+
+        await act.Should().ThrowAsync<BusinessRuleException>();
+    }
+
+    [Fact]
+    public async Task MoveToAsync_refuses_a_finished_publication()
+    {
+        var department = TestDataBuilder.Department(_fixture.Context);
+        var student = TestDataBuilder.User(_fixture.Context);
+        TestDataBuilder.StudentProfile(_fixture.Context, student, department);
+        var container = TestDataBuilder.Container(
+            _fixture.Context, student, TestDataBuilder.User(_fixture.Context),
+            status: ContainerStatus.Completed);
+
+        var act = () => _sut.MoveToAsync(container.Id,
+            new MoveContainerRequest((int)PipelineStage.EthicsApproval, "Reopening."), Guid.NewGuid());
+
+        await act.Should().ThrowAsync<BusinessRuleException>();
+    }
+
+    [Fact]
     public async Task ReassignAsync_throws_without_a_reason()
     {
         var department = TestDataBuilder.Department(_fixture.Context);

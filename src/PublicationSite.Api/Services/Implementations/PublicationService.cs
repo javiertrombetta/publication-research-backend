@@ -17,8 +17,108 @@ public class PublicationService(
     IAuditService auditService,
     INotificationService notificationService,
     IFileStorageService fileStorageService,
-    IDecisionCommentPolicy commentPolicy) : IPublicationService
+    IDecisionCommentPolicy commentPolicy,
+    ILogger<PublicationService> logger) : IPublicationService
 {
+    public async Task<PublicationVersionDto> AdminUploadVersionAsync(
+        Guid publicationId, Guid adminId, Stream content, string fileName, string comments,
+        CancellationToken cancellationToken = default)
+    {
+        var publication = await LoadForAdminAsync(publicationId, comments, cancellationToken);
+
+        var stored = await fileStorageService.SaveAsync(
+            content, fileName, $"papers/{publication.Id}", cancellationToken: cancellationToken);
+
+        var nextVersion = (await db.PublicationVersions
+            .Where(v => v.PublicationId == publication.Id)
+            .Select(v => (int?)v.VersionNumber)
+            .MaxAsync(cancellationToken) ?? 0) + 1;
+
+        var version = new PublicationVersion
+        {
+            PublicationId = publication.Id,
+            VersionNumber = nextVersion,
+            FilePath = stored.RelativePath,
+            UploadedByUserId = adminId
+        };
+
+        db.PublicationVersions.Add(version);
+        await db.SaveChangesAsync(cancellationToken);
+
+        // No change of status. Where the paper should now stand is the administrator's next
+        // decision rather than a side effect of attaching a file.
+        await auditService.LogActivityAsync(publication.PublicationContainerId, adminId, "PaperVersionAddedByAdmin",
+            $"Added version {nextVersion}. {comments}");
+
+        return new PublicationVersionDto(version.Id, version.VersionNumber, stored.FileName,
+            version.SupplementaryFilesPath, version.ReviewerNotes, "An administrator", version.UploadedAt);
+    }
+
+    public async Task AdminRemoveVersionAsync(
+        Guid publicationId, Guid adminId, Guid versionId, string comments,
+        CancellationToken cancellationToken = default)
+    {
+        var publication = await LoadForAdminAsync(publicationId, comments, cancellationToken);
+
+        var versions = await db.PublicationVersions
+            .Where(v => v.PublicationId == publication.Id)
+            .ToListAsync(cancellationToken);
+
+        var version = versions.FirstOrDefault(v => v.Id == versionId)
+            ?? throw new NotFoundException(nameof(PublicationVersion), versionId);
+
+        // A paper with no version at all is not a state the pipeline has: every reviewer's screen
+        // offers the newest one, and there would be nothing to offer.
+        if (versions.Count == 1)
+        {
+            throw new BusinessRuleException(
+                "This is the only version of the paper. Upload a replacement first, then remove this one.");
+        }
+
+        try
+        {
+            await fileStorageService.DeleteAsync(version.FilePath, cancellationToken);
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(exception,
+                "Removed paper version {VersionId} but could not delete its file at {Path}.",
+                version.Id, version.FilePath);
+        }
+
+        db.PublicationVersions.Remove(version);
+        await db.SaveChangesAsync(cancellationToken);
+
+        await auditService.LogActivityAsync(publication.PublicationContainerId, adminId, "PaperVersionRemovedByAdmin",
+            $"Removed version {version.VersionNumber}. {comments}");
+    }
+
+    /// <summary>
+    /// The paper, for an administrator correcting it. Refused once the publication has finished:
+    /// its versions are the record of what was judged.
+    /// </summary>
+    private async Task<Publication> LoadForAdminAsync(
+        Guid publicationId, string comments, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(comments))
+        {
+            throw new BusinessRuleException("Say why. It stays on the publication's history.");
+        }
+
+        var publication = await db.Publications
+            .Include(p => p.PublicationContainer)
+            .FirstOrDefaultAsync(p => p.Id == publicationId, cancellationToken)
+            ?? throw new NotFoundException(nameof(Publication), publicationId);
+
+        if (publication.PublicationContainer.Status == ContainerStatus.Completed)
+        {
+            throw new BusinessRuleException(
+                "This publication has finished. Its versions are the record of what was judged.");
+        }
+
+        return publication;
+    }
+
     public async Task<PublicationDto> GetOrCreateDraftAsync(Guid publicationContainerId, Guid studentId, CancellationToken cancellationToken = default)
     {
         var container = await GetOwnedContainerAsync(publicationContainerId, studentId, cancellationToken);

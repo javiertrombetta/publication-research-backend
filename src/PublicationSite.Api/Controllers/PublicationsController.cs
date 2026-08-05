@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PublicationSite.Api.Common;
 using PublicationSite.Api.DTOs.Common;
+using PublicationSite.Api.DTOs.Ethics;
 using PublicationSite.Api.DTOs.Publications;
 using PublicationSite.Api.Services.Interfaces;
 
@@ -19,6 +20,56 @@ namespace PublicationSite.Api.Controllers;
 [Authorize]
 public class PublicationsController(IPublicationService publicationService, ICurrentUserService currentUser) : ControllerBase
 {
+    /// <summary>
+    /// Admin-only: puts a version on a paper that is still running, and takes one off. For a file
+    /// that arrived by another route, or one uploaded in error. The reason is required and stays
+    /// on the publication's history.
+    ///
+    /// Neither changes the paper's status. Where it should stand afterwards is its own decision,
+    /// made through PUT api/containers/{id}/position.
+    /// </summary>
+    /// <response code="200">The version.</response>
+    /// <response code="401">No access token was sent, or the one sent has expired.</response>
+    /// <response code="403">Signed in, but this is not something your role may do.</response>
+    /// <response code="404">No paper with that id.</response>
+    /// <response code="422">Understood, and refused: the workflow does not allow this at the point it has reached.</response>
+    [HttpPost("api/publications/{publicationId:guid}/versions/admin")]
+    [Authorize(Roles = RoleNames.Admin)]
+    [RequestSizeLimit(200_000_000)]
+    [ProducesResponseType(typeof(ApiResponse<PublicationVersionDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status422UnprocessableEntity)]
+    public async Task<IActionResult> AdminUploadVersion(Guid publicationId, [FromForm] AdminPaperVersionUploadForm form)
+    {
+        await using var stream = form.File.OpenReadStream();
+        var result = await publicationService.AdminUploadVersionAsync(
+            publicationId, currentUser.UserId, stream, form.File.FileName, form.Comments);
+        return Ok(ApiResponse<PublicationVersionDto>.Ok(result, "Version added."));
+    }
+
+    /// <summary>
+    /// Admin-only: removes a version from a paper that is still running, file and all.
+    /// </summary>
+    /// <response code="200">The version is gone.</response>
+    /// <response code="401">No access token was sent, or the one sent has expired.</response>
+    /// <response code="403">Signed in, but this is not something your role may do.</response>
+    /// <response code="404">No such version on that paper.</response>
+    /// <response code="422">Understood, and refused: the workflow does not allow this at the point it has reached.</response>
+    [HttpDelete("api/publications/{publicationId:guid}/versions/{versionId:guid}")]
+    [Authorize(Roles = RoleNames.Admin)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status422UnprocessableEntity)]
+    public async Task<IActionResult> AdminRemoveVersion(Guid publicationId, Guid versionId, [FromBody] CommentsRequest request)
+    {
+        await publicationService.AdminRemoveVersionAsync(publicationId, currentUser.UserId, versionId, request.Comments);
+        return Ok(ApiResponse<object>.Ok(null!, "Version removed."));
+    }
+
     /// <summary>
     /// Opens the student's research paper on this publication, or hands back the one already
     /// open. There is one paper per publication, so asking twice is safe.
