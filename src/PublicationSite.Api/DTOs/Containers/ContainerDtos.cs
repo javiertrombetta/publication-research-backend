@@ -61,6 +61,13 @@ public class ActivityHistoryQuery : PageRequest
 
     /// <summary>Whoever did it. The person acted on behalf of counts too, since that is who it was for.</summary>
     public Guid? ActorUserId { get; set; }
+
+    /// <summary>
+    /// Free text over the action, the person and the comment they left. The filters above each
+    /// answer one question exactly; this answers the question somebody actually arrives with,
+    /// which is usually half a remembered phrase from a comment.
+    /// </summary>
+    public string? Search { get; set; }
 }
 
 /// <summary>What this publication's own trail can be filtered by, so a screen offers only what is there.</summary>
