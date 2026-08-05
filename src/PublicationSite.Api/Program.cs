@@ -365,6 +365,15 @@ if (swaggerEnabled)
             $"AIS Research Publication Site API {ApiVersion.Current}"));
 }
 
+// This API hands back files that people uploaded. Without this, a browser is free to decide for
+// itself that what was declared as a document is really something it should run, and it would run
+// it as this origin.
+app.Use(async (context, next) =>
+{
+    context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+    await next();
+});
+
 app.UseHttpsRedirection();
 app.UseCors("Frontend");
 app.UseAuthentication();
