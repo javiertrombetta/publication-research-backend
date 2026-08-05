@@ -358,7 +358,7 @@ public class UserService(
         // Images only, deliberately not the document extension list, so a photo can't be a PDF and
         // an ethics document can't be a PNG.
         var stored = await fileStorageService.SaveAsync(
-            content, fileName, $"profile-photos/{userId}", _fileStorage.AllowedImageExtensions, cancellationToken);
+            content, fileName, $"profile-photos/{userId}", _fileStorage.ImageExtensions, cancellationToken);
 
         var previousPath = user.ProfilePhotoPath;
         user.ProfilePhotoPath = stored.RelativePath;

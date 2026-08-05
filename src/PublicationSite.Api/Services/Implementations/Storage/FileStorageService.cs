@@ -154,7 +154,7 @@ public class FileStorageService(
         var raw = await settings.GetStringAsync(SettingKeys.AllowedUploadExtensions, cancellationToken);
 
         return string.IsNullOrWhiteSpace(raw)
-            ? _fallback.AllowedExtensions
+            ? _fallback.DocumentExtensions
             : raw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
     }
 
