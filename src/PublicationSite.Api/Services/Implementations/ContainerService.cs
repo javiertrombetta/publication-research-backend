@@ -5,6 +5,7 @@ using PublicationSite.Api.Common.Exceptions;
 using PublicationSite.Api.Data;
 using PublicationSite.Api.DTOs.Common;
 using PublicationSite.Api.DTOs.Containers;
+using PublicationSite.Api.DTOs.Settings;
 using PublicationSite.Api.Entities;
 using PublicationSite.Api.Enums;
 using PublicationSite.Api.Services.Interfaces;
@@ -225,7 +226,7 @@ public class ContainerService(
     public async Task<PagedResult<PublicationContainerDto>> GetMineAsync(
         Guid studentUserId, PageRequest page, CancellationToken cancellationToken = default)
     {
-        var hodReviews = await HeadOfDepartmentReviewsAsync(cancellationToken);
+        var workflow = await EthicsWorkflowAsync(cancellationToken);
 
         // Order before projecting: the DTO carries a correlated sub-query for Title, and EF Core
         // cannot translate an OrderBy applied on top of that projection.
@@ -233,14 +234,14 @@ public class ContainerService(
                 db.PublicationContainers
                     .Where(c => c.StudentId == studentUserId)
                     .SortBy(page, c => c.CreatedAt, SortColumns),
-                hodReviews)
+                workflow)
             .ToPageAsync(page, cancellationToken);
     }
 
     public async Task<PagedResult<PublicationContainerDto>> GetSupervisingAsync(
         Guid supervisorUserId, ContainerQuery query, CancellationToken cancellationToken = default)
     {
-        var hodReviews = await HeadOfDepartmentReviewsAsync(cancellationToken);
+        var workflow = await EthicsWorkflowAsync(cancellationToken);
 
         // Ordered before projecting, as in GetMineAsync: the DTO carries correlated sub-queries
         // that EF Core cannot order on top of.
@@ -248,10 +249,10 @@ public class ContainerService(
                 WhereMatches(
                     WhereEthicsStep(
                         db.PublicationContainers.Where(c => c.AssignedSupervisorId == supervisorUserId),
-                        query.EthicsStep, hodReviews),
+                        query.EthicsStep, workflow),
                     query.Search)
                 .SortBy(query, c => c.CreatedAt, SupervisorSortColumns),
-                hodReviews)
+                workflow)
             .ToPageAsync(query, cancellationToken);
     }
 
@@ -274,18 +275,18 @@ public class ContainerService(
         // same handles: narrow to a student, or to the papers waiting on somebody in particular.
         // Ordered by DepartmentSortColumns, which answers "waiting on" for the department rather
         // than for whoever is reading.
-        var hodReviews = await HeadOfDepartmentReviewsAsync(cancellationToken);
+        var workflow = await EthicsWorkflowAsync(cancellationToken);
 
         var department = WherePaperAwaiting(
             WhereMatches(
                 WhereEthicsStep(
                     db.PublicationContainers.Where(c => c.Student.StudentProfile != null
                                 && c.Student.StudentProfile.DepartmentId == departmentId),
-                    query.EthicsStep, hodReviews),
+                    query.EthicsStep, workflow),
                 query.Search),
             query.PaperAwaiting);
 
-        return await ProjectToDto(department.SortBy(query, c => c.CreatedAt, DepartmentSortColumns), hodReviews)
+        return await ProjectToDto(department.SortBy(query, c => c.CreatedAt, DepartmentSortColumns), workflow)
             .ToPageAsync(query, cancellationToken);
     }
 
@@ -432,12 +433,12 @@ public class ContainerService(
         containers = WherePaperAwaiting(containers, query.PaperAwaiting);
         containers = WhereMatches(containers, query.Search);
 
-        var hodReviews = await HeadOfDepartmentReviewsAsync(cancellationToken);
+        var workflow = await EthicsWorkflowAsync(cancellationToken);
 
         return await ProjectToDto(
-                WhereEthicsStep(containers, query.EthicsStep, hodReviews)
+                WhereEthicsStep(containers, query.EthicsStep, workflow)
                     .SortBy(query, c => c.CreatedAt, SortColumns),
-                hodReviews)
+                workflow)
             .ToPageAsync(query, cancellationToken);
     }
 
@@ -531,9 +532,12 @@ public class ContainerService(
     /// parameters rather than a list the database is asked to search.
     /// </summary>
     private static IQueryable<PublicationContainer> WhereEthicsStep(
-        IQueryable<PublicationContainer> query, IReadOnlyList<string>? steps, bool headOfDepartmentReviews)
+        IQueryable<PublicationContainer> query, IReadOnlyList<string>? steps, EthicsWorkflowSettingsDto workflow)
     {
         if (steps is null or { Count: 0 }) return query;
+
+        var headOfDepartmentReviews = workflow.HeadOfDepartmentReviews;
+        var headOfDepartmentReviewsNotRequired = workflow.HeadOfDepartmentReviewsWhenNotRequired;
 
         var supervisorDecision = steps.Contains(EthicsSteps.SupervisorDecision);
         var coordinatorConfirmation = steps.Contains(EthicsSteps.CoordinatorConfirmation);
@@ -547,7 +551,8 @@ public class ContainerService(
             (supervisorDecision && c.EthicsApproval.Status == EthicsStatus.PendingSupervisorDecision)
             || (coordinatorConfirmation
                 && c.EthicsApproval.Status == EthicsStatus.NotRequired
-                && c.EthicsApproval.FinalDecisionAt == null)
+                && c.EthicsApproval.FinalDecisionAt == null
+                && c.EthicsApproval.CoordinatorDecisionAt == null)
             || (studentUpload && c.EthicsApproval.Status == EthicsStatus.PendingUpload)
             || (supervisorDocuments
                 && c.EthicsApproval.Status == EthicsStatus.PendingVerification
@@ -562,11 +567,26 @@ public class ContainerService(
                 && !c.EthicsApproval.Documents.Any(d => d.Status == EthicsDocumentStatus.PendingReview)
                 && c.EthicsApproval.CoordinatorDecisionAt != null
                 && c.EthicsApproval.HeadOfDepartmentReviewedAt == null)
+            // The same step, reached by the other route: nothing to read, a ruling to weigh.
+            || (headOfDepartment
+                && headOfDepartmentReviewsNotRequired
+                && c.EthicsApproval.Status == EthicsStatus.NotRequired
+                && c.EthicsApproval.FinalDecisionAt == null
+                && c.EthicsApproval.CoordinatorDecisionAt != null
+                && c.EthicsApproval.HeadOfDepartmentReviewedAt == null)
             || (coordinatorFinal
                 && c.EthicsApproval.Status == EthicsStatus.PendingVerification
                 && !c.EthicsApproval.Documents.Any(d => d.Status == EthicsDocumentStatus.PendingReview)
                 && c.EthicsApproval.CoordinatorDecisionAt != null
-                && (c.EthicsApproval.HeadOfDepartmentReviewedAt != null || !headOfDepartmentReviews))));
+                && (c.EthicsApproval.HeadOfDepartmentReviewedAt != null || !headOfDepartmentReviews))
+            // A stage with no documentation only waits on the coordinator a second time where the
+            // Head of Department has been through it; otherwise their agreement already closed it.
+            || (coordinatorFinal
+                && headOfDepartmentReviewsNotRequired
+                && c.EthicsApproval.Status == EthicsStatus.NotRequired
+                && c.EthicsApproval.FinalDecisionAt == null
+                && c.EthicsApproval.CoordinatorDecisionAt != null
+                && c.EthicsApproval.HeadOfDepartmentReviewedAt != null)));
     }
 
     /// <summary>
@@ -737,9 +757,9 @@ public class ContainerService(
 
     private async Task<PublicationContainerDto> GetByIdInternalAsync(Guid id, CancellationToken cancellationToken)
     {
-        var hodReviews = await HeadOfDepartmentReviewsAsync(cancellationToken);
+        var workflow = await EthicsWorkflowAsync(cancellationToken);
 
-        return await ProjectToDto(db.PublicationContainers.Where(c => c.Id == id), hodReviews)
+        return await ProjectToDto(db.PublicationContainers.Where(c => c.Id == id), workflow)
                    .SingleOrDefaultAsync(cancellationToken)
             ?? throw new NotFoundException(nameof(PublicationContainer), id);
     }
@@ -749,12 +769,18 @@ public class ContainerService(
     /// their final decision. Read once per request and passed into the projections: they are
     /// expressions the database runs, so they cannot ask a setting for themselves.
     /// </summary>
-    private async Task<bool> HeadOfDepartmentReviewsAsync(CancellationToken cancellationToken) =>
-        (await settingService.GetEthicsWorkflowSettingsAsync(cancellationToken)).HeadOfDepartmentReviews;
+    private Task<EthicsWorkflowSettingsDto> EthicsWorkflowAsync(CancellationToken cancellationToken) =>
+        settingService.GetEthicsWorkflowSettingsAsync(cancellationToken);
 
     private static IQueryable<PublicationContainerDto> ProjectToDto(
-        IQueryable<PublicationContainer> query, bool headOfDepartmentReviews) =>
-        query.Select(c => new PublicationContainerDto(
+        IQueryable<PublicationContainer> query, EthicsWorkflowSettingsDto workflow)
+    {
+        // Read out here rather than off the record inside the expression: what the database runs
+        // takes two values, not an object it would have to know how to open.
+        var headOfDepartmentReviews = workflow.HeadOfDepartmentReviews;
+        var headOfDepartmentReviewsNotRequired = workflow.HeadOfDepartmentReviewsWhenNotRequired;
+
+        return query.Select(c => new PublicationContainerDto(
             c.Id,
             c.StudentId,
             c.Student.FirstName + " " + c.Student.LastName,
@@ -776,9 +802,15 @@ public class ContainerService(
                 // Nobody has ruled on the declaration yet.
                 : c.EthicsApproval.Status == EthicsStatus.PendingSupervisorDecision
                     ? RoleNames.Supervisor
-                // A Supervisor said no documentation is needed; the Coordinator confirms it.
+                // A Supervisor said no documentation is needed. The Coordinator agrees, then the
+                // Head of Department comments where this institution asks for it, then the
+                // Coordinator closes the stage.
                 : c.EthicsApproval.Status == EthicsStatus.NotRequired && c.EthicsApproval.FinalDecisionAt == null
-                    ? RoleNames.Coordinator
+                    ? (c.EthicsApproval.CoordinatorDecisionAt == null
+                        ? RoleNames.Coordinator
+                        : headOfDepartmentReviewsNotRequired && c.EthicsApproval.HeadOfDepartmentReviewedAt == null
+                            ? RoleNames.HeadOfDepartment
+                            : RoleNames.Coordinator)
                 // Documentation was asked for and the student has yet to upload it.
                 : c.EthicsApproval.Status == EthicsStatus.PendingUpload
                     ? RoleNames.Student
@@ -837,7 +869,11 @@ public class ContainerService(
                 : c.EthicsApproval.Status == EthicsStatus.PendingSupervisorDecision
                     ? EthicsSteps.SupervisorDecision
                 : c.EthicsApproval.Status == EthicsStatus.NotRequired && c.EthicsApproval.FinalDecisionAt == null
-                    ? EthicsSteps.CoordinatorConfirmation
+                    ? (c.EthicsApproval.CoordinatorDecisionAt == null
+                        ? EthicsSteps.CoordinatorConfirmation
+                        : headOfDepartmentReviewsNotRequired && c.EthicsApproval.HeadOfDepartmentReviewedAt == null
+                            ? EthicsSteps.HeadOfDepartmentReview
+                            : EthicsSteps.CoordinatorFinalDecision)
                 : c.EthicsApproval.Status == EthicsStatus.PendingUpload
                     ? EthicsSteps.StudentUpload
                 : c.EthicsApproval.Status == EthicsStatus.PendingVerification
@@ -856,4 +892,5 @@ public class ContainerService(
             c.EthicsApproval != null
                 && c.EthicsApproval.Status == EthicsStatus.PendingUpload
                 && c.EthicsApproval.Documents.Any(d => d.Status == EthicsDocumentStatus.RevisionRequested)));
+    }
 }

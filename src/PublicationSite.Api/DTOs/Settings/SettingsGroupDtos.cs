@@ -261,7 +261,8 @@ public record UpdateDecisionCommentSettingsRequest(IReadOnlyList<string> Require
 /// <summary>
 /// Which optional steps of the ethics pipeline this institution runs.
 /// </summary>
-/// <param name="HeadOfDepartmentReviews">Whether the Head of Department comments between the coordinator's approval and their final decision.</param>
-public record EthicsWorkflowSettingsDto(bool HeadOfDepartmentReviews);
+/// <param name="HeadOfDepartmentReviews">Whether the Head of Department comments between the coordinator's approval of the documents and their final decision.</param>
+/// <param name="HeadOfDepartmentReviewsWhenNotRequired">The same, on the route where no documentation was needed and the coordinator agreed.</param>
+public record EthicsWorkflowSettingsDto(bool HeadOfDepartmentReviews, bool HeadOfDepartmentReviewsWhenNotRequired);
 
-public record UpdateEthicsWorkflowSettingsRequest(bool HeadOfDepartmentReviews);
+public record UpdateEthicsWorkflowSettingsRequest(bool HeadOfDepartmentReviews, bool HeadOfDepartmentReviewsWhenNotRequired);

@@ -34,7 +34,7 @@ public class ContainerServiceTests : IDisposable
         // Every listing asks whether this institution runs the Head of Department step, because
         // the answer decides whose turn a publication says it is on.
         _settingService.Setup(s => s.GetEthicsWorkflowSettingsAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new EthicsWorkflowSettingsDto(true));
+            .ReturnsAsync(new EthicsWorkflowSettingsDto(true, true));
 
         _sut = new ContainerService(_fixture.Context, _departmentService.Object, _accessService.Object,
             _auditService.Object, _notificationService.Object, _settingService.Object);

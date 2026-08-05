@@ -575,8 +575,12 @@ public class SystemSettingService(
     // ---------- Steps of the ethics pipeline ----------
 
     public async Task<EthicsWorkflowSettingsDto> GetEthicsWorkflowSettingsAsync(CancellationToken cancellationToken = default) =>
-        new(await settings.GetBoolAsync(
-            SettingKeys.EthicsHeadOfDepartmentReview, SettingKeys.DefaultEthicsHeadOfDepartmentReview, cancellationToken));
+        new(
+            await settings.GetBoolAsync(
+                SettingKeys.EthicsHeadOfDepartmentReview, SettingKeys.DefaultEthicsHeadOfDepartmentReview, cancellationToken),
+            await settings.GetBoolAsync(
+                SettingKeys.EthicsHeadOfDepartmentReviewNotRequired,
+                SettingKeys.DefaultEthicsHeadOfDepartmentReviewNotRequired, cancellationToken));
 
     public async Task<EthicsWorkflowSettingsDto> UpdateEthicsWorkflowSettingsAsync(
         UpdateEthicsWorkflowSettingsRequest request, Guid actingAdminId, CancellationToken cancellationToken = default)
@@ -584,12 +588,17 @@ public class SystemSettingService(
         await SetPendingAsync(
             SettingKeys.EthicsHeadOfDepartmentReview, request.HeadOfDepartmentReviews, actingAdminId, cancellationToken);
 
+        await SetPendingAsync(
+            SettingKeys.EthicsHeadOfDepartmentReviewNotRequired, request.HeadOfDepartmentReviewsWhenNotRequired,
+            actingAdminId, cancellationToken);
+
         await CommitAsync(actingAdminId, "EthicsWorkflowSettingsUpdated",
-            request.HeadOfDepartmentReviews
-                ? "The Head of Department comments on ethics documentation before the coordinator closes it."
-                : "The Head of Department step is off. The coordinator's approval goes straight to their final decision, "
-                  + "including for publications already waiting at that step.",
+            $"Head of Department reviews ethics documentation: {Word(request.HeadOfDepartmentReviews)}. "
+            + $"Reviews where no documentation was needed: {Word(request.HeadOfDepartmentReviewsWhenNotRequired)}. "
+            + "Both apply to approvals already waiting at that step, which is the point of the switches.",
             cancellationToken);
+
+        static string Word(bool on) => on ? "yes" : "no";
 
         return await GetEthicsWorkflowSettingsAsync(cancellationToken);
     }

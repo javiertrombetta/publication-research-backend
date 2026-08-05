@@ -27,6 +27,7 @@ public class FullPublicationJourneyTests(ApiTestFactory factory)
         var department = await TestSeeder.CreateDepartmentAsync(factory);
         var coordinator = await TestSeeder.CreateEnabledUserAsync(factory, RoleNames.Coordinator, departmentId: department.Id);
         var supervisor = await TestSeeder.CreateEnabledUserAsync(factory, RoleNames.Supervisor, departmentId: department.Id);
+        var headOfDepartment = await TestSeeder.CreateEnabledUserAsync(factory, RoleNames.HeadOfDepartment, departmentId: department.Id);
         var internalMember = await TestSeeder.CreateEnabledUserAsync(factory, RoleNames.Reviewer);
         var externalMember = await TestSeeder.CreateEnabledUserAsync(factory, RoleNames.ExternalCommitteeMember);
         var admin = await TestSeeder.CreateEnabledUserAsync(factory, RoleNames.Admin);
@@ -50,6 +51,7 @@ public class FullPublicationJourneyTests(ApiTestFactory factory)
         studentClient.AuthenticateWith(await LoginAsync(studentClient, studentEmail));
         var coordinatorClient = AuthenticatedClient(coordinator.Email!);
         var supervisorClient = AuthenticatedClient(supervisor.Email!);
+        var headOfDepartmentClient = AuthenticatedClient(headOfDepartment.Email!);
         var internalMemberClient = AuthenticatedClient(internalMember.Email!);
         var externalMemberClient = AuthenticatedClient(externalMember.Email!);
         var adminClient = AuthenticatedClient(admin.Email!);
@@ -128,8 +130,24 @@ public class FullPublicationJourneyTests(ApiTestFactory factory)
             $"/api/containers/{container.Id}/ethics/coordinator-not-required-review", new { requireDocumentation = false, comments = "Agreed" });
         coordinatorEthicsStatus.Should().Be(HttpStatusCode.OK);
 
+        // Agreeing that no documentation is needed does not close the stage on its own: this
+        // institution runs the Head of Department step on that route too, so the ruling goes to
+        // them and comes back for the coordinator to close.
+        var (_, awaitingHeadBody) = await studentClient.GetAsync<PublicationContainerDto>($"/api/containers/{container.Id}");
+        awaitingHeadBody!.Data!.CurrentPipeline.Should().Be(2); // still EthicsApproval
+        awaitingHeadBody.Data.EthicsAwaitingStep.Should().Be(EthicsSteps.HeadOfDepartmentReview);
+
+        var (headReviewStatus, headReviewBody) = await headOfDepartmentClient.PostAsync<object>(
+            $"/api/containers/{container.Id}/ethics/hod-review", new { comments = "No concerns about the ruling" });
+        headReviewStatus.Should().Be(HttpStatusCode.OK, headReviewBody?.Message);
+
+        var (closeEthicsStatus, closeEthicsBody) = await coordinatorClient.PostAsync<object>(
+            $"/api/containers/{container.Id}/ethics/coordinator-final-decision", new { approve = true, comments = "Closed" });
+        closeEthicsStatus.Should().Be(HttpStatusCode.OK, closeEthicsBody?.Message);
+
         var (_, containerAfterEthicsBody) = await studentClient.GetAsync<PublicationContainerDto>($"/api/containers/{container.Id}");
         containerAfterEthicsBody!.Data!.CurrentPipeline.Should().Be(3); // ResearchPaper
+        containerAfterEthicsBody.Data.EthicsStatus.Should().Be("NotRequired");
 
         // ---------- Pipeline 3: Research Paper ----------
         var (_, draftBody) = await studentClient.PostAsync<PublicationDto>($"/api/containers/{container.Id}/publications", new { });
