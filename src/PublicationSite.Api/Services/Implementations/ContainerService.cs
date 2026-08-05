@@ -1437,7 +1437,14 @@ public class ContainerService(
             // that tried to work it out from the status alone got it wrong in the same way, by
             // offering people work that was not theirs yet.
             c.Publication == null
-                ? null
+                // Ethics is settled and there is no paper yet, so writing one is the whole of what
+                // is left and it is the student's to write. Reading this as "nobody" was wrong in
+                // the way that matters: the publication dropped to the bottom of every listing
+                // ordered by whose turn it is, on the student's own dashboard as well as on the
+                // screens their coordinator and head of department oversee them from, at exactly
+                // the point somebody should have been chasing it. A row appeared only when the
+                // student happened to open the paper screen, which is not what made it their turn.
+                ? (c.CurrentPipeline == PipelineStage.ResearchPaper ? RoleNames.Student : null)
                 : c.Publication.Status == PublicationStatus.Draft
                         || c.Publication.Status == PublicationStatus.RevisionsRequested
                     // Nothing to submit yet, or sent back for another version. Either way the

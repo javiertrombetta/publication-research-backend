@@ -351,6 +351,51 @@ public class ContainerServiceTests : IDisposable
         await act.Should().ThrowAsync<BusinessRuleException>();
     }
 
+    /// <summary>
+    /// Ethics settled and no paper started yet. There is no publication row until the student
+    /// opens the paper screen, and reading that absence as "nobody" dropped the publication to the
+    /// bottom of every listing ordered by whose turn it is, on the screens their coordinator and
+    /// head of department chase them from, at the one point somebody should have been chasing it.
+    /// </summary>
+    [Fact]
+    public async Task A_publication_at_the_paper_stage_with_nothing_written_is_waiting_on_the_student()
+    {
+        var department = TestDataBuilder.Department(_fixture.Context);
+        var student = TestDataBuilder.User(_fixture.Context);
+        TestDataBuilder.StudentProfile(_fixture.Context, student, department);
+        var container = TestDataBuilder.Container(
+            _fixture.Context, student, TestDataBuilder.User(_fixture.Context),
+            stage: PipelineStage.ResearchPaper);
+        await _fixture.Context.SaveChangesAsync();
+
+        var mine = await _sut.GetMineAsync(student.Id, new PageRequest());
+
+        mine.Items.Should().ContainSingle(c => c.Id == container.Id)
+            .Which.PaperAwaitingRole.Should().Be(RoleNames.Student);
+    }
+
+    /// <summary>
+    /// And not before: a publication still choosing a topic or working through ethics is somebody
+    /// else's turn, and the paper is not yet anybody's.
+    /// </summary>
+    [Theory]
+    [InlineData(PipelineStage.ResearchProposals)]
+    [InlineData(PipelineStage.EthicsApproval)]
+    public async Task A_publication_short_of_the_paper_stage_is_waiting_on_nobody_for_a_paper(PipelineStage stage)
+    {
+        var department = TestDataBuilder.Department(_fixture.Context);
+        var student = TestDataBuilder.User(_fixture.Context);
+        TestDataBuilder.StudentProfile(_fixture.Context, student, department);
+        var container = TestDataBuilder.Container(
+            _fixture.Context, student, TestDataBuilder.User(_fixture.Context), stage: stage);
+        await _fixture.Context.SaveChangesAsync();
+
+        var mine = await _sut.GetMineAsync(student.Id, new PageRequest());
+
+        mine.Items.Should().ContainSingle(c => c.Id == container.Id)
+            .Which.PaperAwaitingRole.Should().BeNull();
+    }
+
     [Fact]
     public async Task MoveToAsync_puts_the_ethics_stage_back_to_the_student_and_clears_what_came_after()
     {
