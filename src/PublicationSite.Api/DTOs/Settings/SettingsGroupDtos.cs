@@ -263,6 +263,19 @@ public record UpdateDecisionCommentSettingsRequest(IReadOnlyList<string> Require
 /// </summary>
 /// <param name="HeadOfDepartmentReviews">Whether the Head of Department comments between the coordinator's approval of the documents and their final decision.</param>
 /// <param name="HeadOfDepartmentReviewsWhenNotRequired">The same, on the route where no documentation was needed and the coordinator agreed.</param>
+/// <param name="SupervisorReviews">Whether the supervisor reads a submitted paper.</param>
+/// <param name="CommitteeEvaluates">Whether an evaluation committee judges it.</param>
+/// <param name="CoordinatorDecides">Whether the coordinator makes the final decision on it.</param>
+public record PaperWorkflowSettingsDto(
+    bool SupervisorReviews = true,
+    bool CommitteeEvaluates = true,
+    bool CoordinatorDecides = true);
+
+public record UpdatePaperWorkflowSettingsRequest(
+    bool SupervisorReviews = true,
+    bool CommitteeEvaluates = true,
+    bool CoordinatorDecides = true);
+
 /// <param name="SupervisorReviewsDocuments">Whether the supervisor reads the uploaded documents before anybody else.</param>
 /// <param name="CoordinatorReviewsDocuments">Whether the coordinator reads them before handing on.</param>
 public record EthicsWorkflowSettingsDto(

@@ -227,6 +227,7 @@ public class ContainerService(
         Guid studentUserId, PageRequest page, CancellationToken cancellationToken = default)
     {
         var workflow = await EthicsWorkflowAsync(cancellationToken);
+        var paperWorkflow = await PaperWorkflowAsync(cancellationToken);
 
         // Order before projecting: the DTO carries a correlated sub-query for Title, and EF Core
         // cannot translate an OrderBy applied on top of that projection.
@@ -234,7 +235,7 @@ public class ContainerService(
                 db.PublicationContainers
                     .Where(c => c.StudentId == studentUserId)
                     .SortBy(page, c => c.CreatedAt, SortColumns),
-                workflow)
+                workflow, paperWorkflow)
             .ToPageAsync(page, cancellationToken);
     }
 
@@ -242,6 +243,7 @@ public class ContainerService(
         Guid supervisorUserId, ContainerQuery query, CancellationToken cancellationToken = default)
     {
         var workflow = await EthicsWorkflowAsync(cancellationToken);
+        var paperWorkflow = await PaperWorkflowAsync(cancellationToken);
 
         // Ordered before projecting, as in GetMineAsync: the DTO carries correlated sub-queries
         // that EF Core cannot order on top of.
@@ -252,7 +254,7 @@ public class ContainerService(
                         query.EthicsStep, workflow),
                     query.Search)
                 .SortBy(query, c => c.CreatedAt, SupervisorSortColumns),
-                workflow)
+                workflow, paperWorkflow)
             .ToPageAsync(query, cancellationToken);
     }
 
@@ -277,6 +279,7 @@ public class ContainerService(
         // Ordered by DepartmentSortColumns, which answers "waiting on" for the department rather
         // than for whoever is reading.
         var workflow = await EthicsWorkflowAsync(cancellationToken);
+        var paperWorkflow = await PaperWorkflowAsync(cancellationToken);
 
         var department = WherePaperAwaiting(
             WhereMatches(
@@ -296,7 +299,7 @@ public class ContainerService(
                 || c.EthicsApproval.HeadOfDepartmentUserId == headOfDepartmentUserId);
         }
 
-        return await ProjectToDto(department.SortBy(query, c => c.CreatedAt, DepartmentSortColumns), workflow)
+        return await ProjectToDto(department.SortBy(query, c => c.CreatedAt, DepartmentSortColumns), workflow, paperWorkflow)
             .ToPageAsync(query, cancellationToken);
     }
 
@@ -444,11 +447,12 @@ public class ContainerService(
         containers = WhereMatches(containers, query.Search);
 
         var workflow = await EthicsWorkflowAsync(cancellationToken);
+        var paperWorkflow = await PaperWorkflowAsync(cancellationToken);
 
         return await ProjectToDto(
                 WhereEthicsStep(containers, query.EthicsStep, workflow)
                     .SortBy(query, c => c.CreatedAt, SortColumns),
-                workflow)
+                workflow, paperWorkflow)
             .ToPageAsync(query, cancellationToken);
     }
 
@@ -702,7 +706,7 @@ public class ContainerService(
         }
 
         return await ProjectToDto(db.PublicationContainers.Where(c => c.Id == container.Id),
-                await EthicsWorkflowAsync(cancellationToken))
+                await EthicsWorkflowAsync(cancellationToken), await PaperWorkflowAsync(cancellationToken))
             .FirstAsync(cancellationToken);
     }
 
@@ -823,7 +827,7 @@ public class ContainerService(
         PublicationContainer container, CancellationToken cancellationToken)
     {
         var moved = await ProjectToDto(db.PublicationContainers.Where(c => c.Id == container.Id),
-                await EthicsWorkflowAsync(cancellationToken))
+                await EthicsWorkflowAsync(cancellationToken), await PaperWorkflowAsync(cancellationToken))
             .FirstAsync(cancellationToken);
 
         var role = moved.EthicsAwaitingRole ?? moved.PaperAwaitingRole;
@@ -1083,8 +1087,9 @@ public class ContainerService(
     private async Task<PublicationContainerDto> GetByIdInternalAsync(Guid id, CancellationToken cancellationToken)
     {
         var workflow = await EthicsWorkflowAsync(cancellationToken);
+        var paperWorkflow = await PaperWorkflowAsync(cancellationToken);
 
-        return await ProjectToDto(db.PublicationContainers.Where(c => c.Id == id), workflow)
+        return await ProjectToDto(db.PublicationContainers.Where(c => c.Id == id), workflow, paperWorkflow)
                    .SingleOrDefaultAsync(cancellationToken)
             ?? throw new NotFoundException(nameof(PublicationContainer), id);
     }
@@ -1097,9 +1102,16 @@ public class ContainerService(
     private Task<EthicsWorkflowSettingsDto> EthicsWorkflowAsync(CancellationToken cancellationToken) =>
         settingService.GetEthicsWorkflowSettingsAsync(cancellationToken);
 
+    private Task<PaperWorkflowSettingsDto> PaperWorkflowAsync(CancellationToken cancellationToken) =>
+        settingService.GetPaperWorkflowSettingsAsync(cancellationToken);
+
     private static IQueryable<PublicationContainerDto> ProjectToDto(
-        IQueryable<PublicationContainer> query, EthicsWorkflowSettingsDto workflow)
+        IQueryable<PublicationContainer> query, EthicsWorkflowSettingsDto workflow, PaperWorkflowSettingsDto paper)
     {
+        var supervisorReadsPapers = paper.SupervisorReviews;
+        var committeeEvaluates = paper.CommitteeEvaluates;
+        var coordinatorDecidesOnPapers = paper.CoordinatorDecides;
+
         // Read out here rather than off the record inside the expression: what the database runs
         // takes two values, not an object it would have to know how to open.
         var headOfDepartmentReviews = workflow.HeadOfDepartmentReviews;
@@ -1180,22 +1192,28 @@ public class ContainerService(
                     ? RoleNames.Student
                 : c.Publication.Status == PublicationStatus.Published
                     ? null
-                : c.Publication.Status == PublicationStatus.Resubmitted
+                : c.Publication.Status == PublicationStatus.Resubmitted && supervisorReadsPapers
                     // A new version needs a fresh reading; the approval on record is of a draft
                     // the student has already replaced.
                     ? RoleNames.Supervisor
                 : c.Publication.Status == PublicationStatus.UnderReview
-                    ? (!c.Publication.Versions
+                        || c.Publication.Status == PublicationStatus.Resubmitted
+                    // Each reading is skipped where this institution does not run it, so a paper
+                    // cannot sit waiting on a step nobody works.
+                    ? (supervisorReadsPapers
+                        && !c.Publication.Versions
                             .OrderByDescending(v => v.VersionNumber)
                             .Take(1)
                             .SelectMany(v => v.Reviews)
                             .Any(r => r.ReviewerType == ReviewerType.Supervisor && r.Decision == ReviewDecision.Approve)
                         ? RoleNames.Supervisor
-                        : c.Publication.Committee == null
+                        : committeeEvaluates && c.Publication.Committee == null
                             ? RoleNames.Admin
-                            : c.Publication.Committee.Status != CommitteeStatus.Completed
+                            : committeeEvaluates && c.Publication.Committee!.Status != CommitteeStatus.Completed
                                 ? RoleNames.EvaluationCommittee
-                                : RoleNames.Coordinator)
+                                : coordinatorDecidesOnPapers
+                                    ? RoleNames.Coordinator
+                                    : null)
                     : null,
             // The same waits as EthicsAwaitingRole, named individually. Two of them belong to the
             // Coordinator and are different screens, so a role alone cannot select either.

@@ -561,6 +561,25 @@ public class SettingsController(
         return Ok(ApiResponse<EthicsWorkflowSettingsDto>.Ok(result, "Saved."));
     }
 
+    /// <summary>
+    /// Turns the research paper's three readings on or off: the supervisor's, the committee's and
+    /// the coordinator's decision. Whichever is last accepts the paper.
+    /// </summary>
+    /// <response code="200">The paper workflow settings.</response>
+    /// <response code="400">The request did not pass validation. Which field, and why, comes back as a problem document rather than the usual envelope.</response>
+    /// <response code="401">No access token was sent, or the one sent has expired.</response>
+    /// <response code="403">Signed in, but this is not something your role may do.</response>
+    [HttpPut("paper-workflow")]
+    [ProducesResponseType(typeof(ApiResponse<PaperWorkflowSettingsDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> UpdatePaperWorkflow([FromBody] UpdatePaperWorkflowSettingsRequest request)
+    {
+        var result = await systemSettingService.UpdatePaperWorkflowSettingsAsync(request, currentUser.UserId);
+        return Ok(ApiResponse<PaperWorkflowSettingsDto>.Ok(result, "Saved."));
+    }
+
     // ---------- Comments on decisions ----------
 
     /// <summary>

@@ -6,6 +6,7 @@ using Moq;
 using PublicationSite.Api.Common.Exceptions;
 using PublicationSite.Api.DTOs.Publications;
 using PublicationSite.Api.Entities;
+using PublicationSite.Api.DTOs.Settings;
 using PublicationSite.Api.Enums;
 using PublicationSite.Api.Services.Implementations;
 using PublicationSite.Api.Services.Interfaces;
@@ -19,6 +20,7 @@ public class PublicationServiceTests : IDisposable
     private readonly SqliteDbContextFactory _fixture = new();
     private readonly Mock<IContainerAccessService> _accessService = new();
     private readonly Mock<IAuditService> _auditService = new();
+    private readonly Mock<ISystemSettingService> _settingService = new();
     private readonly Mock<INotificationService> _notificationService = new();
     private readonly Mock<IFileStorageService> _fileStorageService = new();
     private readonly PublicationService _sut;
@@ -31,8 +33,13 @@ public class PublicationServiceTests : IDisposable
             .ReturnsAsync((Stream _, string fileName, string _, IReadOnlyCollection<string>? _, CancellationToken _) =>
                 new StoredFile($"stored/{fileName}", fileName));
 
+        // The stage as it ships: every reading runs, so these tests walk the full sequence.
+        _settingService.Setup(s => s.GetPaperWorkflowSettingsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PaperWorkflowSettingsDto(true, true, true));
+
         _sut = new PublicationService(_fixture.Context, _accessService.Object, _auditService.Object, _notificationService.Object, _fileStorageService.Object,
             new DecisionCommentPolicy(new SystemSettingsProvider(_fixture.Context, new MemoryCache(new MemoryCacheOptions()))),
+            _settingService.Object,
             NullLogger<PublicationService>.Instance);
     }
 
@@ -301,5 +308,41 @@ public class PublicationServiceTests : IDisposable
         var publication = await _fixture.Context.Publications.FindAsync(publicationId);
         publication!.Status = status;
         await _fixture.Context.SaveChangesAsync();
+    }
+
+    [Fact]
+    public async Task The_supervisor_accepts_the_paper_outright_where_nothing_follows_them()
+    {
+        // No committee, no coordinator decision: the supervisor is the whole of the stage.
+        _settingService.Setup(s => s.GetPaperWorkflowSettingsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PaperWorkflowSettingsDto(SupervisorReviews: true, CommitteeEvaluates: false, CoordinatorDecides: false));
+
+        var (student, supervisor, _, container) = SeedAtResearchPaperStage();
+        var publication = await _sut.GetOrCreateDraftAsync(container.Id, student.Id);
+        await _sut.UploadVersionAsync(publication.Id, student.Id, new MemoryStream([1]), "v1.pdf", null, null, null);
+        await _sut.SubmitAsync(publication.Id, student.Id);
+
+        await _sut.SupervisorReviewAsync(publication.Id, supervisor.Id,
+            new PaperReviewDecisionRequest(true, "Ready to publish"));
+
+        (await _fixture.Context.Publications.FindAsync(publication.Id))!.Status
+            .Should().Be(PublicationStatus.Accepted);
+    }
+
+    [Fact]
+    public async Task The_supervisor_cannot_read_a_paper_where_that_step_is_off()
+    {
+        _settingService.Setup(s => s.GetPaperWorkflowSettingsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PaperWorkflowSettingsDto(SupervisorReviews: false, CommitteeEvaluates: true, CoordinatorDecides: true));
+
+        var (student, supervisor, _, container) = SeedAtResearchPaperStage();
+        var publication = await _sut.GetOrCreateDraftAsync(container.Id, student.Id);
+        await _sut.UploadVersionAsync(publication.Id, student.Id, new MemoryStream([1]), "v1.pdf", null, null, null);
+        await _sut.SubmitAsync(publication.Id, student.Id);
+
+        var act = () => _sut.SupervisorReviewAsync(publication.Id, supervisor.Id,
+            new PaperReviewDecisionRequest(true, "Looks fine"));
+
+        await act.Should().ThrowAsync<BusinessRuleException>();
     }
 }

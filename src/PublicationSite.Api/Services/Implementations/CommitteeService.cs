@@ -76,6 +76,12 @@ public class CommitteeService(
 
     public async Task<CommitteeDto> AssignAsync(Guid publicationId, AssignCommitteeRequest request, Guid adminId, CancellationToken cancellationToken = default)
     {
+        if (!(await settingService.GetPaperWorkflowSettingsAsync(cancellationToken)).CommitteeEvaluates)
+        {
+            throw new BusinessRuleException(
+                "This institution does not put research papers to an evaluation committee.");
+        }
+
         var publication = await db.Publications.Include(p => p.PublicationContainer)
             .FirstOrDefaultAsync(p => p.Id == publicationId, cancellationToken)
             ?? throw new NotFoundException(nameof(Publication), publicationId);
@@ -427,6 +433,36 @@ public class CommitteeService(
         if (allDecided)
         {
             committee.Status = CommitteeStatus.Completed;
+
+            // Where the coordinator does not decide on papers, the committee's verdict is the
+            // decision: the paper would otherwise sit waiting on a step nobody works. Enough
+            // approvals accepts it; short of that it goes back to the student for revision.
+            var workflow = await settingService.GetPaperWorkflowSettingsAsync(cancellationToken);
+
+            if (!workflow.CoordinatorDecides)
+            {
+                var approvals = committee.Members.Count(m => m.Decision == CommitteeMemberDecision.Approve);
+                var accepted = approvals >= committee.MinApprovalsRequired;
+
+                committee.Publication.Status = accepted ? PublicationStatus.Accepted : PublicationStatus.RevisionsRequested;
+                committee.Publication.UpdatedAt = DateTime.UtcNow;
+                await db.SaveChangesAsync(cancellationToken);
+
+                await auditService.LogActivityAsync(committee.Publication.PublicationContainerId, memberUserId,
+                    accepted ? "CommitteeAcceptedPaper" : "CommitteeRequestedRevision",
+                    $"{approvals} of {committee.Members.Count} approved; {committee.MinApprovalsRequired} needed.",
+                    newStatus: committee.Publication.Status.ToString());
+
+                await notificationService.NotifyAsync(committee.Publication.PublicationContainer.StudentId,
+                    accepted ? NotificationType.PublicationApproved : NotificationType.ResearchPaperRevisionRequested,
+                    accepted ? "Research paper accepted" : "Research paper revision requested",
+                    accepted
+                        ? "The evaluation committee has accepted your research paper. You can now decide whether to publish it."
+                        : "The evaluation committee has asked for revisions to your research paper. Please log in to read them.",
+                    nameof(PublicationContainer), committee.Publication.PublicationContainerId, cancellationToken);
+                return;
+            }
+
             await db.SaveChangesAsync(cancellationToken);
 
             await notificationService.NotifyAsync(committee.Publication.PublicationContainer.CoordinatorId,
