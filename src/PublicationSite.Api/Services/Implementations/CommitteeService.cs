@@ -446,6 +446,12 @@ public class CommitteeService(
 
                 committee.Publication.Status = accepted ? PublicationStatus.Accepted : PublicationStatus.RevisionsRequested;
                 committee.Publication.UpdatedAt = DateTime.UtcNow;
+
+                // Where the paper is the first of the two stages, accepting it opens ethics.
+                if (accepted && !workflow.EthicsBeforePaper)
+                {
+                    committee.Publication.PublicationContainer.CurrentPipeline = PipelineStage.EthicsApproval;
+                }
                 await db.SaveChangesAsync(cancellationToken);
 
                 await auditService.LogActivityAsync(committee.Publication.PublicationContainerId, memberUserId,

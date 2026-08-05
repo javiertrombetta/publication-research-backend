@@ -351,6 +351,18 @@ public static class SettingKeys
     public const bool DefaultPaperCommitteeEvaluates = true;
     public const bool DefaultPaperCoordinatorDecides = true;
 
+    /// <summary>
+    /// Whether ethics approval comes before the research paper or after it.
+    ///
+    /// The two are interchangeable: one institution wants ethics cleared before any writing, the
+    /// next wants the paper judged first and ethics settled before it is published. Research
+    /// proposals stay first either way, because the supervisor who rules on ethics and the
+    /// supervisor who reads the paper are both appointed by assigning a proposal.
+    /// </summary>
+    public const string PipelineEthicsBeforePaper = "pipeline.ethics-before-paper";
+
+    public const bool DefaultPipelineEthicsBeforePaper = true;
+
     // ---------- Where uploaded files are kept ----------
 
     /// <summary>

@@ -44,6 +44,10 @@ public class EthicsServiceTests : IDisposable
         _settingService.Setup(s => s.GetEthicsWorkflowSettingsAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(new EthicsWorkflowSettingsDto(true, true, true, true));
 
+        // Ethics first, then the research paper, which is the order as it ships.
+        _settingService.Setup(s => s.GetPaperWorkflowSettingsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PaperWorkflowSettingsDto(true, true, true, true));
+
         _sut = new EthicsService(_fixture.Context, _accessService.Object, _auditService.Object, _notificationService.Object, _fileStorageService.Object,
             new DecisionCommentPolicy(new SystemSettingsProvider(_fixture.Context, new MemoryCache(new MemoryCacheOptions()))),
             _settingService.Object,
@@ -83,7 +87,7 @@ public class EthicsServiceTests : IDisposable
         var act = () => _sut.SubmitDeclarationAsync(container.Id, student.Id, new EthicsDeclarationRequest("Yes"));
 
         (await act.Should().ThrowAsync<BusinessRuleException>())
-            .Which.Message.Should().Contain("has not opened yet");
+            .Which.Message.Should().Contain("is not open on this publication");
     }
 
     [Fact]

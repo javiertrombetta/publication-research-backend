@@ -43,7 +43,7 @@ public class CommitteeServiceTests : IDisposable
 
         // The research paper stage as it ships: all three readings run.
         _settingService.Setup(s => s.GetPaperWorkflowSettingsAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new PaperWorkflowSettingsDto(true, true, true));
+            .ReturnsAsync(new PaperWorkflowSettingsDto(true, true, true, true));
 
         _sut = new CommitteeService(_fixture.Context, _accessService.Object, _auditService.Object,
             _notificationService.Object, _settingService.Object, new DecisionCommentPolicy(new SystemSettingsProvider(_fixture.Context, new MemoryCache(new MemoryCacheOptions()))));

@@ -96,6 +96,21 @@ public class PublicationService(
     }
 
     /// <summary>
+    /// Moves the publication on now that the paper has been accepted, where the paper is the
+    /// first of the two. Where ethics came first it is already done, so the publication stays
+    /// where it is and the student publishes from there.
+    /// </summary>
+    private async Task AdvanceAfterPaperAcceptedAsync(
+        PublicationContainer container, PaperWorkflowSettingsDto workflow, CancellationToken cancellationToken)
+    {
+        if (workflow.EthicsBeforePaper) return;
+
+        container.CurrentPipeline = PipelineStage.EthicsApproval;
+        container.UpdatedAt = DateTime.UtcNow;
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
     /// The paper, for an administrator correcting it. Refused once the publication has finished:
     /// its versions are the record of what was judged.
     /// </summary>
@@ -125,9 +140,10 @@ public class PublicationService(
     {
         var container = await GetOwnedContainerAsync(publicationContainerId, studentId, cancellationToken);
 
-        if (container.CurrentPipeline < PipelineStage.ResearchPaper)
+        if (container.CurrentPipeline != PipelineStage.ResearchPaper)
         {
-            throw new BusinessRuleException("The research paper stage is not yet available for this Publication Container.");
+            throw new BusinessRuleException(
+                "The research paper stage is not open on this publication, in the order this institution runs its stages.");
         }
 
         var publication = await db.Publications
@@ -478,6 +494,12 @@ public class PublicationService(
             ? nobodyFollows ? PublicationStatus.Accepted : PublicationStatus.UnderReview
             : PublicationStatus.RevisionsRequested;
         publication.UpdatedAt = DateTime.UtcNow;
+
+        if (publication.Status == PublicationStatus.Accepted)
+        {
+            await AdvanceAfterPaperAcceptedAsync(publication.PublicationContainer, workflow, cancellationToken);
+        }
+
         await db.SaveChangesAsync(cancellationToken);
 
         await auditService.LogActivityAsync(publication.PublicationContainerId, supervisorId, "SupervisorPaperReview",
@@ -574,6 +596,7 @@ public class PublicationService(
         if (request.Accept)
         {
             publication.Status = PublicationStatus.Accepted;
+            await AdvanceAfterPaperAcceptedAsync(publication.PublicationContainer, workflow, cancellationToken);
             await db.SaveChangesAsync(cancellationToken);
 
             await auditService.LogActivityAsync(publication.PublicationContainerId, coordinatorId, "PublicationFinallyAccepted",

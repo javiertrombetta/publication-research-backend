@@ -35,7 +35,7 @@ public class PublicationServiceTests : IDisposable
 
         // The stage as it ships: every reading runs, so these tests walk the full sequence.
         _settingService.Setup(s => s.GetPaperWorkflowSettingsAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new PaperWorkflowSettingsDto(true, true, true));
+            .ReturnsAsync(new PaperWorkflowSettingsDto(true, true, true, true));
 
         _sut = new PublicationService(_fixture.Context, _accessService.Object, _auditService.Object, _notificationService.Object, _fileStorageService.Object,
             new DecisionCommentPolicy(new SystemSettingsProvider(_fixture.Context, new MemoryCache(new MemoryCacheOptions()))),
