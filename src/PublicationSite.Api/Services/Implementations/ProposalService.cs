@@ -141,8 +141,18 @@ public class ProposalService(
     {
         await commentPolicy.EnsureAsync(DecisionPoints.ProposalRequestNewRound, comments, cancellationToken);
 
-        var container = await db.PublicationContainers.FindAsync([publicationContainerId], cancellationToken)
+        var container = await db.PublicationContainers
+            .Include(c => c.Publication)
+            .FirstOrDefaultAsync(c => c.Id == publicationContainerId, cancellationToken)
             ?? throw new NotFoundException(nameof(PublicationContainer), publicationContainerId);
+
+        // Asking for a new round throws away every proposal on the publication, including the one
+        // the accepted paper was written from. Nobody would then be able to say what the paper had
+        // been approved to be about.
+        if (SettledPaper.Is(container.Publication?.Status))
+        {
+            throw new BusinessRuleException(SettledPaper.Message);
+        }
 
         // Whose student this is. Without the check any coordinator could throw away the proposals
         // of a student in another department, which is not a thing the screen offers but was a
@@ -590,6 +600,83 @@ public class ProposalService(
             "Your research proposal has been accepted",
             "Your research proposal has been accepted and a Supervisor has been assigned. Please log in to the system.",
             nameof(PublicationContainer), container.Id, cancellationToken);
+    }
+
+    /// <summary>
+    /// An administrator settles the publication on a different one of its proposals.
+    ///
+    /// The coordinator's own act picks a proposal and a supervisor together, and cannot be redone:
+    /// the moment it lands the publication leaves the proposals stage and that screen no longer
+    /// lists it. So when the wrong one was chosen, or the student and supervisor agreed between
+    /// them to work on another, there was nothing anybody could do and the publication ran to
+    /// completion under a title nobody had meant.
+    ///
+    /// Only which proposal it is. Who supervises stays as it is, and is changed from Assignments,
+    /// where changing it is the whole point of the screen.
+    /// </summary>
+    public async Task ChangeAssignedProposalAsync(
+        Guid proposalId, string comments, Guid actingAdminId, CancellationToken cancellationToken = default)
+    {
+        await commentPolicy.EnsureAsync(DecisionPoints.ProposalCoordinatorAssign, comments, cancellationToken);
+
+        var proposal = await db.ResearchProposals
+            .Include(p => p.PublicationContainer).ThenInclude(c => c.Publication)
+            .FirstOrDefaultAsync(p => p.Id == proposalId, cancellationToken)
+            ?? throw new NotFoundException(nameof(ResearchProposal), proposalId);
+
+        var container = proposal.PublicationContainer;
+
+        if (SettledPaper.Is(container.Publication?.Status))
+        {
+            throw new BusinessRuleException(SettledPaper.Message);
+        }
+
+        if (proposal.Status == ProposalStatus.Assigned)
+        {
+            throw new BusinessRuleException("This is already the proposal this publication is running on.");
+        }
+
+        // Nothing to change while the coordinator has not chosen yet. Doing it here would settle
+        // the publication on a proposal without naming a supervisor, which is half of the act and
+        // leaves the stage waiting on somebody who does not exist.
+        var current = await db.ResearchProposals
+            .Where(p => p.PublicationContainerId == container.Id && p.Status == ProposalStatus.Assigned)
+            .ToListAsync(cancellationToken);
+
+        if (current.Count == 0)
+        {
+            throw new BusinessRuleException(
+                "No proposal has been assigned on this publication yet. That is the coordinator's to do.");
+        }
+
+        var previous = current[0];
+
+        // Exactly one assigned and the rest turned down, which is the shape the coordinator's own
+        // assignment leaves behind. The one being stepped down is turned down rather than put back
+        // in the set: the set was decided, and this is a correction to which of them won.
+        foreach (var stepped in current) stepped.Status = ProposalStatus.Rejected;
+        proposal.Status = ProposalStatus.Assigned;
+        proposal.UpdatedAt = DateTime.UtcNow;
+        container.UpdatedAt = DateTime.UtcNow;
+
+        await db.SaveChangesAsync(cancellationToken);
+
+        await auditService.LogActivityAsync(container.Id, actingAdminId, "AssignedProposalChangedByAdmin",
+            $"Changed from '{previous.Title}' to '{proposal.Title}'. {comments}",
+            previousStatus: previous.Title, newStatus: proposal.Title);
+
+        // Everyone who was working to the old one. The title on every screen changes underneath
+        // them, and being told why is the difference between a correction and a fault.
+        var told = new List<Guid> { container.StudentId, container.CoordinatorId };
+        if (container.AssignedSupervisorId is { } supervisor) told.Add(supervisor);
+
+        foreach (var person in told.Distinct())
+        {
+            await notificationService.NotifyAsync(person, NotificationType.ProposalAccepted,
+                "This publication is now running on a different proposal",
+                $"An administrator has changed it from '{previous.Title}' to '{proposal.Title}'. {comments}",
+                nameof(PublicationContainer), container.Id, cancellationToken);
+        }
     }
 
     public async Task<DiscardSelectionsResultDto> DiscardSelectionsAsync(

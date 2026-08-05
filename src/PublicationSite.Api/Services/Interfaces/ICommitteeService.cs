@@ -27,8 +27,10 @@ public interface ICommitteeService
     /// <summary>Changes who is on a committee, and how many approvals it needs. Refused once it has finished.</summary>
     Task<CommitteeDto> UpdateAsync(
         Guid committeeId, UpdateCommitteeRequest request, Guid adminId, CancellationToken cancellationToken = default);
+    /// <param name="awaitingMeOnly">Narrows it to the papers this member has still to vote on.</param>
     Task<PagedResult<CommitteeDto>> GetAssignmentsForMemberAsync(
-        Guid memberUserId, PageRequest page, string? search = null, CancellationToken cancellationToken = default);
+        Guid memberUserId, PageRequest page, string? search = null, bool awaitingMeOnly = false,
+        CancellationToken cancellationToken = default);
     Task MemberReviewAsync(Guid committeeId, Guid memberUserId, CommitteeMemberReviewRequest request, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<CommitteeRoleConfigDto>> GetDefaultConfigAsync(CancellationToken cancellationToken = default);

@@ -345,13 +345,24 @@ public class CommitteeService(
         {
             ["title"] = c => c.Publication.Title,
             ["student"] = c => c.Publication.PublicationContainer.Student.LastName,
-            ["submitted"] = c => c.CreatedAt
+            ["submitted"] = c => c.CreatedAt,
+            ["committee"] = c => c.Status
         };
 
     public async Task<PagedResult<CommitteeDto>> GetAssignmentsForMemberAsync(
-        Guid memberUserId, PageRequest page, string? search = null, CancellationToken cancellationToken = default)
+        Guid memberUserId, PageRequest page, string? search = null, bool awaitingMeOnly = false,
+        CancellationToken cancellationToken = default)
     {
         var filtered = db.Committees.Where(c => c.Members.Any(m => m.UserId == memberUserId));
+
+        // Narrowed to what this person still owes. Their dashboard says how many that is, and a
+        // figure worked out from whichever page happened to load would have been a figure about
+        // the page rather than about them.
+        if (awaitingMeOnly)
+        {
+            filtered = filtered.Where(c => c.Members.Any(
+                m => m.UserId == memberUserId && m.Decision == CommitteeMemberDecision.Pending));
+        }
 
         // One term across the paper and its author, applied before the page is cut so it searches
         // everything this person has been asked to evaluate rather than the rows in hand.
@@ -364,13 +375,25 @@ public class CommitteeService(
                 || c.Publication.PublicationContainer.Student.LastName.Contains(term));
         }
 
+        // This member's own verdict, which is not in the dictionary above because it cannot be:
+        // the expression has to know whose queue this is, and a static one does not.
+        var byMyDecision = string.Equals(page.SortBy, "decision", StringComparison.OrdinalIgnoreCase);
+
         // The ones still needing this person's vote first: that is what they came for. An explicit
         // ordering replaces that, since somebody who asks for a column has said what they want.
-        var query = page.SortBy is not null && AssignmentSorts.TryGetValue(page.SortBy, out var key)
-            ? page.SortDescending ? filtered.OrderByDescending(key) : filtered.OrderBy(key)
-            : filtered
-                .OrderBy(c => c.Members.Any(m => m.UserId == memberUserId && m.Decision == CommitteeMemberDecision.Pending) ? 0 : 1)
-                .ThenByDescending(c => c.CreatedAt);
+        var query = byMyDecision
+            ? Order(c => c.Members
+                .Where(m => m.UserId == memberUserId)
+                .Select(m => (int)m.Decision)
+                .FirstOrDefault())
+            : page.SortBy is not null && AssignmentSorts.TryGetValue(page.SortBy, out var key)
+                ? Order(key)
+                : filtered
+                    .OrderBy(c => c.Members.Any(m => m.UserId == memberUserId && m.Decision == CommitteeMemberDecision.Pending) ? 0 : 1)
+                    .ThenByDescending(c => c.CreatedAt);
+
+        IOrderedQueryable<Committee> Order(Expression<Func<Committee, object?>> on) =>
+            page.SortDescending ? filtered.OrderByDescending(on) : filtered.OrderBy(on);
 
         var total = await query.CountAsync(cancellationToken);
 

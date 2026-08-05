@@ -241,6 +241,7 @@ public class EthicsService(
         }
 
         var container = await db.PublicationContainers
+            .Include(c => c.Publication)
             .FirstOrDefaultAsync(c => c.Id == publicationContainerId, cancellationToken)
             ?? throw new NotFoundException(nameof(PublicationContainer), publicationContainerId);
 
@@ -248,6 +249,13 @@ public class EthicsService(
         {
             throw new BusinessRuleException(
                 "This publication has finished. Its documents are the record of what was judged.");
+        }
+
+        // A container is not marked Completed the moment its paper is accepted, so the check above
+        // still allowed the ethics documentation behind an accepted paper to be taken off it.
+        if (SettledPaper.Is(container.Publication?.Status))
+        {
+            throw new BusinessRuleException(SettledPaper.Message);
         }
 
         var approval = await db.EthicsApprovals.Include(a => a.Documents)

@@ -43,4 +43,11 @@ public interface IProposalService
     /// the round come to nothing, and then the whole set goes back to the dispatch queue.
     /// </summary>
     Task<DiscardSelectionsResultDto> DiscardSelectionsAsync(Guid proposalId, string comments, Guid coordinatorId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Administrators only: settles the publication on a different one of its proposals, leaving
+    /// who supervises it alone. Refused once the research paper has been accepted.
+    /// </summary>
+    Task ChangeAssignedProposalAsync(
+        Guid proposalId, string comments, Guid actingAdminId, CancellationToken cancellationToken = default);
 }
