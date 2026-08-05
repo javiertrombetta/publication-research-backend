@@ -3,6 +3,8 @@ using Moq;
 using PublicationSite.Api.Common;
 using PublicationSite.Api.Common.Exceptions;
 using PublicationSite.Api.DTOs.Containers;
+using PublicationSite.Api.Entities;
+using Microsoft.EntityFrameworkCore;
 using PublicationSite.Api.Enums;
 using PublicationSite.Api.Services.Implementations;
 using PublicationSite.Api.DTOs.Settings;
@@ -195,6 +197,7 @@ public class ContainerServiceTests : IDisposable
 
         var newCoordinator = TestDataBuilder.User(_fixture.Context);
         TestDataBuilder.GrantRole(_fixture.Context, newCoordinator, RoleNames.Coordinator);
+        TestDataBuilder.CoordinatorProfile(_fixture.Context, newCoordinator, department);
         var newSupervisor = TestDataBuilder.User(_fixture.Context);
         TestDataBuilder.GrantRole(_fixture.Context, newSupervisor, RoleNames.Supervisor);
 
@@ -211,6 +214,90 @@ public class ContainerServiceTests : IDisposable
             It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), container.Id, It.IsAny<CancellationToken>()), Times.Once);
         _auditService.Verify(a => a.LogActivityAsync(container.Id, admin, "AssignmentsChanged",
             It.Is<string>(d => d.Contains("The coordinator is on leave."))), Times.Once);
+    }
+
+    [Fact]
+    public async Task ReassignAsync_refuses_a_coordinator_from_another_department()
+    {
+        var department = TestDataBuilder.Department(_fixture.Context);
+        var student = TestDataBuilder.User(_fixture.Context);
+        TestDataBuilder.StudentProfile(_fixture.Context, student, department);
+        var container = TestDataBuilder.Container(
+            _fixture.Context, student, TestDataBuilder.User(_fixture.Context));
+
+        // A coordinator, but of somewhere else. Nothing that could reach this publication would
+        // ever list them, so naming them here would strand it.
+        var elsewhere = TestDataBuilder.Department(_fixture.Context, name: "Somewhere else", code: "SE");
+        var outsider = TestDataBuilder.User(_fixture.Context);
+        TestDataBuilder.GrantRole(_fixture.Context, outsider, RoleNames.Coordinator);
+        TestDataBuilder.CoordinatorProfile(_fixture.Context, outsider, elsewhere);
+
+        var act = () => _sut.ReassignAsync(container.Id,
+            new ReassignContainerRequest(outsider.Id, null, "Covering the vacancy."), Guid.NewGuid());
+
+        await act.Should().ThrowAsync<BusinessRuleException>();
+    }
+
+    [Fact]
+    public async Task ReassignAsync_moves_the_ethics_review_to_another_head_of_the_same_department()
+    {
+        var department = TestDataBuilder.Department(_fixture.Context);
+        var student = TestDataBuilder.User(_fixture.Context);
+        TestDataBuilder.StudentProfile(_fixture.Context, student, department);
+        var container = TestDataBuilder.Container(
+            _fixture.Context, student, TestDataBuilder.User(_fixture.Context),
+            stage: PipelineStage.EthicsApproval);
+
+        var firstHead = TestDataBuilder.User(_fixture.Context);
+        TestDataBuilder.HeadOfDepartmentProfile(_fixture.Context, firstHead, department);
+        var secondHead = TestDataBuilder.User(_fixture.Context);
+        TestDataBuilder.GrantRole(_fixture.Context, secondHead, RoleNames.HeadOfDepartment);
+        TestDataBuilder.HeadOfDepartmentProfile(_fixture.Context, secondHead, department);
+
+        _fixture.Context.EthicsApprovals.Add(new EthicsApproval
+        {
+            PublicationContainerId = container.Id,
+            Status = EthicsStatus.PendingVerification,
+            CoordinatorDecisionAt = DateTime.UtcNow,
+            HeadOfDepartmentUserId = firstHead.Id
+        });
+        await _fixture.Context.SaveChangesAsync();
+
+        await _sut.ReassignAsync(container.Id,
+            new ReassignContainerRequest(null, null, "The first head is on leave.", secondHead.Id),
+            Guid.NewGuid());
+
+        (await _fixture.Context.EthicsApprovals.FirstAsync(a => a.PublicationContainerId == container.Id))
+            .HeadOfDepartmentUserId.Should().Be(secondHead.Id);
+    }
+
+    [Fact]
+    public async Task ReassignAsync_refuses_a_head_of_another_department_for_the_ethics_review()
+    {
+        var department = TestDataBuilder.Department(_fixture.Context);
+        var student = TestDataBuilder.User(_fixture.Context);
+        TestDataBuilder.StudentProfile(_fixture.Context, student, department);
+        var container = TestDataBuilder.Container(
+            _fixture.Context, student, TestDataBuilder.User(_fixture.Context),
+            stage: PipelineStage.EthicsApproval);
+
+        var elsewhere = TestDataBuilder.Department(_fixture.Context, name: "Somewhere else", code: "SE");
+        var outsider = TestDataBuilder.User(_fixture.Context);
+        TestDataBuilder.GrantRole(_fixture.Context, outsider, RoleNames.HeadOfDepartment);
+        TestDataBuilder.HeadOfDepartmentProfile(_fixture.Context, outsider, elsewhere);
+
+        _fixture.Context.EthicsApprovals.Add(new EthicsApproval
+        {
+            PublicationContainerId = container.Id,
+            Status = EthicsStatus.PendingVerification,
+            CoordinatorDecisionAt = DateTime.UtcNow
+        });
+        await _fixture.Context.SaveChangesAsync();
+
+        var act = () => _sut.ReassignAsync(container.Id,
+            new ReassignContainerRequest(null, null, "Trying somebody else.", outsider.Id), Guid.NewGuid());
+
+        await act.Should().ThrowAsync<BusinessRuleException>();
     }
 
     [Fact]

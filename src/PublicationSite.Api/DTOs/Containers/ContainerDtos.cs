@@ -31,7 +31,11 @@ public record PublicationContainerDto(
     string? EthicsAwaitingStep = null,
     int? RequiredReviewerMembers = null,
     int? RequiredExternalCommitteeMembers = null,
-    bool EthicsDocumentsReturned = false);
+    bool EthicsDocumentsReturned = false,
+    Guid? StudentDepartmentId = null,
+    string? StudentDepartmentName = null,
+    Guid? EthicsHeadOfDepartmentId = null,
+    string? EthicsHeadOfDepartmentName = null);
 
 /// <summary>
 /// Which part of a publication's history a reader wants.
@@ -85,10 +89,12 @@ public record ActivityHistoryEntryDto(
 /// <param name="CoordinatorUserId">The coordinator it should now have. Null leaves it as it is.</param>
 /// <param name="SupervisorUserId">The supervisor it should now have. Null leaves it as it is; a publication that has not reached one yet cannot be given one here, since choosing the supervisor is the coordinator's decision on a proposal.</param>
 /// <param name="Comments">Why. Required, and recorded on the publication's history.</param>
+/// <param name="HeadOfDepartmentUserId">Who the ethics decision is put to, where the stage has reached that step. Must head the student's own department: the review is that department's oversight of its own students.</param>
 public record ReassignContainerRequest(
     Guid? CoordinatorUserId,
     Guid? SupervisorUserId,
-    string Comments);
+    string Comments,
+    Guid? HeadOfDepartmentUserId = null);
 
 /// <summary>
 /// Admin manual assignment. <paramref name="PublicationContainerId"/> selects which of the

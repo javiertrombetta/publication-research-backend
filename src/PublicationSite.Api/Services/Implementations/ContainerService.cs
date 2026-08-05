@@ -259,7 +259,8 @@ public class ContainerService(
     public async Task<PagedResult<PublicationContainerDto>> GetInMyDepartmentAsync(
         Guid headOfDepartmentUserId, ContainerQuery query, CancellationToken cancellationToken = default)
     {
-        // Exactly one Head of Department per Department, so a single id is all there is to match.
+        // Which department this person heads. One each, so a single id is all there is to match;
+        // a department may have several heads and they all oversee the same publications.
         var departmentId = await db.HeadOfDepartmentProfiles
             .Where(h => h.UserId == headOfDepartmentUserId)
             .Select(h => (Guid?)h.DepartmentId)
@@ -285,6 +286,15 @@ public class ContainerService(
                     query.EthicsStep, workflow),
                 query.Search),
             query.PaperAwaiting);
+
+        // Asking for the ethics reviews narrows to the ones put to this head. Every other listing
+        // stays department-wide, because oversight of the department is the whole point of these
+        // screens; it is the queue of work to do that belongs to one person.
+        if (query.EthicsStep is { Count: > 0 } steps && steps.Contains(EthicsSteps.HeadOfDepartmentReview))
+        {
+            department = department.Where(c => c.EthicsApproval!.HeadOfDepartmentUserId == null
+                || c.EthicsApproval.HeadOfDepartmentUserId == headOfDepartmentUserId);
+        }
 
         return await ProjectToDto(department.SortBy(query, c => c.CreatedAt, DepartmentSortColumns), workflow)
             .ToPageAsync(query, cancellationToken);
@@ -615,18 +625,29 @@ public class ContainerService(
             throw new BusinessRuleException("Say why these assignments are being changed. It stays on the publication's history.");
         }
 
-        if (request.CoordinatorUserId is null && request.SupervisorUserId is null)
+        if (request.CoordinatorUserId is null && request.SupervisorUserId is null && request.HeadOfDepartmentUserId is null)
         {
-            throw new BusinessRuleException("Choose a coordinator or a supervisor to change.");
+            throw new BusinessRuleException("Choose somebody to change.");
         }
+
+        // Every appointment here is scoped to the student's own department, so it is worth knowing
+        // once. Null only where the student has no profile, which the checks below refuse on.
+        var studentDepartmentId = await db.StudentProfiles
+            .Where(s => s.UserId == container.StudentId)
+            .Select(s => (Guid?)s.DepartmentId)
+            .FirstOrDefaultAsync(cancellationToken);
 
         var changes = new List<string>();
         Guid? notifyCoordinator = null;
         Guid? notifySupervisor = null;
+        Guid? notifyHeadOfDepartment = null;
 
         if (request.CoordinatorUserId is { } coordinatorId && coordinatorId != container.CoordinatorId)
         {
             await EnsureHoldsRoleAsync(coordinatorId, RoleNames.Coordinator, "coordinator", cancellationToken);
+            await EnsurePostedToDepartmentAsync(
+                db.CoordinatorProfiles.Where(p => p.UserId == coordinatorId).Select(p => p.DepartmentId),
+                studentDepartmentId, "coordinator", cancellationToken);
 
             var previous = await NameOfAsync(container.CoordinatorId, cancellationToken);
             container.CoordinatorId = coordinatorId;
@@ -653,6 +674,36 @@ public class ContainerService(
             changes.Add($"supervisor changed from {previous} to {await NameOfAsync(supervisorId, cancellationToken)}");
         }
 
+        if (request.HeadOfDepartmentUserId is { } headId)
+        {
+            var approval = await db.EthicsApprovals
+                .FirstOrDefaultAsync(a => a.PublicationContainerId == container.Id, cancellationToken)
+                ?? throw new BusinessRuleException(
+                    "This publication has not reached its ethics stage, so there is no ethics decision to put to anybody.");
+
+            if (approval.HeadOfDepartmentReviewedAt is not null || approval.FinalDecisionAt is not null)
+            {
+                throw new BusinessRuleException(
+                    "This ethics decision has already been commented on. Moving it now would rewrite who reviewed it.");
+            }
+
+            if (headId != approval.HeadOfDepartmentUserId)
+            {
+                await EnsureHoldsRoleAsync(headId, RoleNames.HeadOfDepartment, "head of department", cancellationToken);
+                await EnsurePostedToDepartmentAsync(
+                    db.HeadOfDepartmentProfiles.Where(p => p.UserId == headId).Select(p => p.DepartmentId),
+                    studentDepartmentId, "head of department", cancellationToken);
+
+                var previous = approval.HeadOfDepartmentUserId is { } was
+                    ? await NameOfAsync(was, cancellationToken)
+                    : "nobody";
+
+                approval.HeadOfDepartmentUserId = headId;
+                notifyHeadOfDepartment = headId;
+                changes.Add($"ethics review moved from {previous} to {await NameOfAsync(headId, cancellationToken)}");
+            }
+        }
+
         if (changes.Count == 0)
         {
             throw new BusinessRuleException("Those are the people already responsible for this publication.");
@@ -675,6 +726,14 @@ public class ContainerService(
                 nameof(PublicationContainer), container.Id, cancellationToken);
         }
 
+        if (notifyHeadOfDepartment is { } newHead)
+        {
+            await notificationService.NotifyAsync(newHead, NotificationType.EthicsHeadOfDepartmentReviewRequested,
+                "An ethics decision has been put to you",
+                "An administrator has moved a student's ethics decision to you. Please log in to review it and record your comments.",
+                nameof(PublicationContainer), container.Id, cancellationToken);
+        }
+
         if (notifySupervisor is { } newSupervisor)
         {
             await notificationService.NotifyAsync(newSupervisor, NotificationType.ContainerAssigned,
@@ -687,6 +746,29 @@ public class ContainerService(
     }
 
     /// <summary>Refuses somebody who does not hold the role the job needs.</summary>
+    /// <summary>
+    /// Refuses somebody who holds the role but not in this student's department.
+    ///
+    /// A coordinator or head of department belongs to a department, and their authority over a
+    /// publication comes from the student being in it. Somebody posted elsewhere would appear on
+    /// no listing that could reach this publication, so naming them here would strand it.
+    /// </summary>
+    private static async Task EnsurePostedToDepartmentAsync(
+        IQueryable<Guid> theirDepartments, Guid? studentDepartmentId, string what, CancellationToken cancellationToken)
+    {
+        if (studentDepartmentId is null)
+        {
+            throw new BusinessRuleException(
+                $"This student has no department on record, so there is no way to tell which {what} may take this on.");
+        }
+
+        if (!await theirDepartments.AnyAsync(id => id == studentDepartmentId, cancellationToken))
+        {
+            throw new BusinessRuleException(
+                $"The person chosen is not a {what} in this student's department. Only somebody in it can take this on.");
+        }
+    }
+
     private async Task EnsureHoldsRoleAsync(Guid userId, string role, string what, CancellationToken cancellationToken)
     {
         var holds = await db.UserRoles
@@ -891,6 +973,14 @@ public class ContainerService(
             // student asked to correct one document could not tell which publication it was.
             c.EthicsApproval != null
                 && c.EthicsApproval.Status == EthicsStatus.PendingUpload
-                && c.EthicsApproval.Documents.Any(d => d.Status == EthicsDocumentStatus.RevisionRequested)));
+                && c.EthicsApproval.Documents.Any(d => d.Status == EthicsDocumentStatus.RevisionRequested),
+            // The student's department, because every appointment on this publication is scoped to
+            // it: a screen that offers a choice has to know which people are eligible.
+            c.Student.StudentProfile == null ? null : c.Student.StudentProfile.DepartmentId,
+            c.Student.StudentProfile == null ? null : c.Student.StudentProfile.Department.Name,
+            c.EthicsApproval == null ? null : c.EthicsApproval.HeadOfDepartmentUserId,
+            c.EthicsApproval == null || c.EthicsApproval.HeadOfDepartmentUser == null
+                ? null
+                : c.EthicsApproval.HeadOfDepartmentUser.FirstName + " " + c.EthicsApproval.HeadOfDepartmentUser.LastName));
     }
 }

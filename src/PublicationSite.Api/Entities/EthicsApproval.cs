@@ -23,6 +23,17 @@ public class EthicsApproval
     public string? CoordinatorDecisionComments { get; set; }
     public DateTime? CoordinatorDecisionAt { get; set; }
 
+    /// <summary>
+    /// Which head of department this decision was put to.
+    ///
+    /// A department can have more than one, and without naming one the review belonged to all of
+    /// them and therefore to nobody: everyone saw it on their queue and each could reasonably
+    /// assume somebody else had it. It is chosen when the coordinator hands on, from the heads of
+    /// the student's own department, and an administrator can change it afterwards.
+    /// </summary>
+    public Guid? HeadOfDepartmentUserId { get; set; }
+    public ApplicationUser? HeadOfDepartmentUser { get; set; }
+
     public string? HeadOfDepartmentComments { get; set; }
     public DateTime? HeadOfDepartmentReviewedAt { get; set; }
 
