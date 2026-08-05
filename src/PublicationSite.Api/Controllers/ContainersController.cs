@@ -177,8 +177,13 @@ public class ContainersController(IContainerService containerService, ICurrentUs
 
     /// <summary>
     /// Publications across the institution, filtered by student, coordinator, status or which
-    /// ethics decision they are waiting at, one page at a time. A coordinator passes their own
-    /// id, since the whole institution is not their queue.
+    /// ethics decision they are waiting at, one page at a time.
+    ///
+    /// A coordinator gets their own, whatever they ask for. Every screen of theirs already sent
+    /// their id, so this changes nothing any of them shows, but asking politely was the only thing
+    /// keeping the rest of the institution off the wire: an omitted filter listed all thirty
+    /// publications, in departments whose records the same account is refused when it opens one.
+    /// A listing that hands back what the next request will not is worse than either answer.
     /// </summary>
     /// <response code="200">One page of publications, with the total count alongside it so a pager can be drawn without a second request.</response>
     /// <response code="401">No access token was sent, or the one sent has expired.</response>
@@ -190,6 +195,13 @@ public class ContainersController(IContainerService containerService, ICurrentUs
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> GetAll([FromQuery] ContainerQuery query)
     {
+        // Not "if they left it out", and not a 400 for naming somebody else: either would let the
+        // shape of the answer say whether another coordinator's queue exists and how big it is.
+        if (!currentUser.IsInRole(RoleNames.Admin) && currentUser.IsInRole(RoleNames.Coordinator))
+        {
+            query.CoordinatorId = currentUser.UserId;
+        }
+
         var result = await containerService.GetAllAsync(query);
         return Ok(ApiResponse<PagedResult<PublicationContainerDto>>.Ok(result));
     }

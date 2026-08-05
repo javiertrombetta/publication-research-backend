@@ -47,7 +47,7 @@ jobs:
         run: dotnet build --no-restore --configuration Release
 
       # Unit tests: fast, no external dependencies.
-      # Integration tests: spin up a real MySQL via Testcontainers, which needs Docker —
+      # Integration tests: spin up a real MySQL via Testcontainers, which needs Docker, so
       # already present on GitHub-hosted ubuntu runners, no extra setup required.
       - name: Test
         run: dotnet test --no-build --configuration Release --logger "console;verbosity=normal"

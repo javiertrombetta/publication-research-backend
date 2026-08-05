@@ -17,7 +17,7 @@ services:
       retries: 10
 
   # Builds and runs the exact image that ships to production (see src/PublicationSite.Api/Dockerfile),
-  # so you can smoke-test it locally before pushing. Not required for day-to-day development —
+  # so you can smoke-test it locally before pushing. Not required for day-to-day development;
   # `dotnet run` against the `mysql` service above (port 3306 on localhost) is faster to iterate on.
   api:
     build:
@@ -33,7 +33,7 @@ services:
       ConnectionStrings__Default: "Server=mysql;Port=3306;Database=publication_site_dev;User=root;Password=devpassword;TreatTinyAsBoolean=true;"
       Jwt__Issuer: PublicationSite.Api.LocalDocker
       Jwt__Audience: PublicationSite.Client.LocalDocker
-      # Dev-only key, same pattern as appsettings.Development.json — never used outside this local container.
+      # Dev-only key, same pattern as appsettings.Development.json. Never used outside this local container.
       Jwt__SigningKey: "0Shw8ESJkzqVKmveT8Us5z9zI002n+6rnANMtch+dOPgNFPFxqgB08duKAqM1yz7hCKz4ejAO0yf43REXLjZKQ=="
       Frontend__BaseUrl: "http://localhost:3000"
       # Off by default in Production; opted in here so the containerised image is browsable locally.
