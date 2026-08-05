@@ -147,8 +147,10 @@ public class ContainerServiceTests : IDisposable
     [Fact]
     public async Task AssignCoordinatorManuallyAsync_creates_container_when_none_exists()
     {
+        var department = TestDataBuilder.Department(_fixture.Context);
         var student = TestDataBuilder.User(_fixture.Context);
-        var coordinator = TestDataBuilder.User(_fixture.Context);
+        TestDataBuilder.StudentProfile(_fixture.Context, student, department);
+        var coordinator = CoordinatorOf(department);
 
         var result = await _sut.AssignCoordinatorManuallyAsync(
             new AssignCoordinatorRequest(student.Id, coordinator.Id, "Manual assignment"), Guid.NewGuid());
@@ -157,21 +159,66 @@ public class ContainerServiceTests : IDisposable
         result.CoordinatorId.Should().Be(coordinator.Id);
     }
 
+    /// <summary>
+    /// Somebody who holds the coordinator role and is posted to a department. Opening a publication
+    /// makes the same appointment the assignments screen makes, and asks the same two things of it.
+    /// </summary>
+    private ApplicationUser CoordinatorOf(Department department)
+    {
+        var coordinator = TestDataBuilder.User(_fixture.Context);
+        TestDataBuilder.GrantRole(_fixture.Context, coordinator, RoleNames.Coordinator);
+        TestDataBuilder.CoordinatorProfile(_fixture.Context, coordinator, department);
+        return coordinator;
+    }
+
+    /// <summary>
+    /// A student who already has a publication gets a second one, not a changed one. Students run
+    /// more than one publication, so having one already is no reason to refuse, and this endpoint
+    /// only ever opens them.
+    /// </summary>
     [Fact]
-    public async Task AssignCoordinatorManuallyAsync_reassigns_coordinator_on_existing_container()
+    public async Task AssignCoordinatorManuallyAsync_opens_another_container_for_a_student_who_has_one()
     {
         var department = TestDataBuilder.Department(_fixture.Context);
         var student = TestDataBuilder.User(_fixture.Context);
         TestDataBuilder.StudentProfile(_fixture.Context, student, department);
         var originalCoordinator = TestDataBuilder.User(_fixture.Context);
-        TestDataBuilder.Container(_fixture.Context, student, originalCoordinator);
+        var existing = TestDataBuilder.Container(_fixture.Context, student, originalCoordinator);
+
+        var newCoordinator = CoordinatorOf(department);
+
+        var result = await _sut.AssignCoordinatorManuallyAsync(
+            new AssignCoordinatorRequest(student.Id, newCoordinator.Id, "A second publication"), Guid.NewGuid());
+
+        result.Id.Should().NotBe(existing.Id);
+        result.CoordinatorId.Should().Be(newCoordinator.Id);
+
+        // And the first one is left exactly as it was, rather than quietly moved to the new person.
+        _fixture.Context.PublicationContainers.Single(c => c.Id == existing.Id)
+            .CoordinatorId.Should().Be(originalCoordinator.Id);
+    }
+
+    /// <summary>
+    /// Moving a publication to another coordinator belongs to the assignments endpoint, which
+    /// checks the role and the department and records the reason. This one used to accept a
+    /// container id and do the same move with none of those checks.
+    /// </summary>
+    [Fact]
+    public async Task AssignCoordinatorManuallyAsync_refuses_a_container_id()
+    {
+        var department = TestDataBuilder.Department(_fixture.Context);
+        var student = TestDataBuilder.User(_fixture.Context);
+        TestDataBuilder.StudentProfile(_fixture.Context, student, department);
+        var originalCoordinator = TestDataBuilder.User(_fixture.Context);
+        var existing = TestDataBuilder.Container(_fixture.Context, student, originalCoordinator);
 
         var newCoordinator = TestDataBuilder.User(_fixture.Context);
 
-        var result = await _sut.AssignCoordinatorManuallyAsync(
-            new AssignCoordinatorRequest(student.Id, newCoordinator.Id, "Reassigning"), Guid.NewGuid());
+        var act = () => _sut.AssignCoordinatorManuallyAsync(
+            new AssignCoordinatorRequest(student.Id, newCoordinator.Id, "Reassigning", existing.Id),
+            Guid.NewGuid());
 
-        result.CoordinatorId.Should().Be(newCoordinator.Id);
+        await act.Should().ThrowAsync<BusinessRuleException>();
     }
 
     [Fact]
@@ -536,5 +583,39 @@ public class ContainerServiceTests : IDisposable
             new ReassignContainerRequest(null, supervisor.Id, "Nobody is supervising this."), Guid.NewGuid());
 
         await act.Should().ThrowAsync<BusinessRuleException>();
+    }
+
+    /// <summary>
+    /// Three dashboards offer a Stage column. An unknown sort name falls back to the default
+    /// order, so the arrow moved, the rows did not, and the screen answered without doing
+    /// anything. Both directions are asserted: a name nothing accepts returns the same order
+    /// whichever way it is asked for, which is exactly what this has to rule out.
+    /// </summary>
+    [Theory]
+    [InlineData(false, PipelineStage.ResearchProposals)]
+    [InlineData(true, PipelineStage.ResearchPaper)]
+    public async Task GetAllAsync_orders_by_stage(bool descending, PipelineStage expectedFirst)
+    {
+        var department = TestDataBuilder.Department(_fixture.Context);
+        var coordinator = TestDataBuilder.User(_fixture.Context);
+
+        foreach (var stage in new[]
+                 {
+                     PipelineStage.EthicsApproval, PipelineStage.ResearchPaper, PipelineStage.ResearchProposals
+                 })
+        {
+            var student = TestDataBuilder.User(_fixture.Context);
+            TestDataBuilder.StudentProfile(_fixture.Context, student, department);
+            TestDataBuilder.Container(_fixture.Context, student, coordinator, stage: stage);
+        }
+
+        var result = await _sut.GetAllAsync(new ContainerQuery
+        {
+            SortBy = "stage",
+            SortDescending = descending
+        });
+
+        result.Items.Should().HaveCount(3);
+        result.Items[0].CurrentPipeline.Should().Be((int)expectedFirst);
     }
 }

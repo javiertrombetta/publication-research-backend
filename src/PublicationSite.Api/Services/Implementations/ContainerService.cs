@@ -88,6 +88,14 @@ public class ContainerService(
         return new Dictionary<string, Expression<Func<PublicationContainer, object?>>>
         {
             ["student"] = c => c.Student.LastName,
+            // Which of the three stages it is on. Three dashboards have offered this column all
+            // along and nothing accepted the name, so clicking it moved the arrow, fell back to
+            // the default order and left the listing exactly as it was: the worst kind of broken,
+            // because the screen answers and the answer is a lie.
+            //
+            // In the enum's own order, which is the order the stages run in, so ascending reads
+            // from the earliest stage to the latest rather than alphabetically.
+            ["stage"] = c => c.CurrentPipeline,
             // The title the listing prints, which is the paper's once there is a paper and the
             // assigned proposal's until then. Ordering by the paper's title alone left every
             // publication still choosing a topic tied on an empty string, in the order they
@@ -1226,44 +1234,58 @@ public class ContainerService(
 
     public async Task<PublicationContainerDto> AssignCoordinatorManuallyAsync(AssignCoordinatorRequest request, Guid actingUserId, CancellationToken cancellationToken = default)
     {
-        // A student can have several containers, so "which one" has to be explicit: with an id
-        // we reassign that container, without one we create an additional container for them.
-        PublicationContainer? container = null;
-        if (request.PublicationContainerId is { } containerId)
+        // Opening a publication on a student's behalf, and nothing else.
+        //
+        // This used to take a container id as well, and move that container to another
+        // coordinator. ReassignAsync does the same job and does it properly: it refuses on a
+        // finished publication, insists on a reason, checks the person actually holds the
+        // coordinator role and is posted to the student's department, and tells whoever has just
+        // been made responsible. None of that happened here, so the same act had two doors and one
+        // of them had no locks on it. Sent here now, a container id is refused and named.
+        if (request.PublicationContainerId is not null)
         {
-            container = await db.PublicationContainers.FirstOrDefaultAsync(c => c.Id == containerId, cancellationToken)
-                ?? throw new NotFoundException(nameof(PublicationContainer), containerId);
-
-            if (container.StudentId != request.StudentUserId)
-            {
-                throw new BusinessRuleException("That Publication Container does not belong to the specified student.");
-            }
+            throw new BusinessRuleException(
+                "Changing who coordinates a publication is done from its assignments, which checks that the "
+                + "coordinator is one of the student's own department and records the reason. This opens a new "
+                + "publication for a student; leave the container out.");
         }
 
-        if (container is null)
-        {
-            container = new PublicationContainer
-            {
-                StudentId = request.StudentUserId,
-                CoordinatorId = request.CoordinatorUserId,
-                CurrentPipeline = PipelineStage.ResearchProposals,
-                Status = ContainerStatus.InProgress
-            };
-            db.PublicationContainers.Add(container);
-            await db.SaveChangesAsync(cancellationToken);
+        // The same checks the assignments endpoint makes, because appointing the coordinator of a
+        // brand-new publication is the same appointment: somebody who does not hold the role, or
+        // who is posted to another department, is no more suitable here than there.
+        await EnsureHoldsRoleAsync(request.CoordinatorUserId, RoleNames.Coordinator, "coordinator", cancellationToken);
 
-            await auditService.LogActivityAsync(container.Id, actingUserId, "ContainerCreated",
-                request.Comments, newStatus: container.Status.ToString());
-        }
-        else
-        {
-            var previousCoordinatorId = container.CoordinatorId;
-            container.CoordinatorId = request.CoordinatorUserId;
-            container.UpdatedAt = DateTime.UtcNow;
-            await db.SaveChangesAsync(cancellationToken);
+        var studentDepartmentId = await db.StudentProfiles
+            .Where(s => s.UserId == request.StudentUserId)
+            .Select(s => (Guid?)s.DepartmentId)
+            .FirstOrDefaultAsync(cancellationToken);
 
-            await auditService.LogActivityAsync(container.Id, actingUserId, "CoordinatorReassigned",
-                request.Comments, previousStatus: previousCoordinatorId.ToString(), newStatus: request.CoordinatorUserId.ToString());
+        await EnsurePostedToDepartmentAsync(
+            db.CoordinatorProfiles.Where(p => p.UserId == request.CoordinatorUserId).Select(p => p.DepartmentId),
+            studentDepartmentId, "coordinator", cancellationToken);
+
+        var container = new PublicationContainer
+        {
+            StudentId = request.StudentUserId,
+            CoordinatorId = request.CoordinatorUserId,
+            CurrentPipeline = PipelineStage.ResearchProposals,
+            Status = ContainerStatus.InProgress
+        };
+        db.PublicationContainers.Add(container);
+        await db.SaveChangesAsync(cancellationToken);
+
+        await auditService.LogActivityAsync(container.Id, actingUserId, "ContainerCreated",
+            request.Comments, newStatus: container.Status.ToString());
+
+        // Both of them, because neither asked for this: the student finds a publication they did
+        // not open, and the coordinator finds one they were not consulted about.
+        foreach (var person in new[] { request.StudentUserId, request.CoordinatorUserId })
+        {
+            await notificationService.NotifyAsync(person, NotificationType.ContainerAssigned,
+                "A publication has been opened",
+                "An administrator has opened a publication and made you part of it. "
+                + "Please log in to see where it stands.",
+                nameof(PublicationContainer), container.Id, cancellationToken);
         }
 
         return await GetByIdInternalAsync(container.Id, cancellationToken);
