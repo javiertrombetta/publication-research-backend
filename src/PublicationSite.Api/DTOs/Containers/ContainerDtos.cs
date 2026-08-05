@@ -38,7 +38,15 @@ public record PublicationContainerDto(
     string? StudentDepartmentName = null,
     Guid? EthicsHeadOfDepartmentId = null,
     string? EthicsHeadOfDepartmentName = null,
-    Guid? PaperId = null);
+    Guid? PaperId = null,
+    /// <summary>
+    /// When anything last happened to this publication, taken from its own trail rather than from
+    /// a timestamp on the row. The trail is written at all forty-odd points where somebody acts;
+    /// the row's UpdatedAt is set at nine of them, so it says a publication has been untouched
+    /// for a month when a supervisor commented on it yesterday. Null only where nothing has been
+    /// recorded yet, which is a publication created and not yet worked on.
+    /// </summary>
+    DateTime? LastActivityAt = null);
 
 /// <summary>
 /// Which part of a publication's history a reader wants.
