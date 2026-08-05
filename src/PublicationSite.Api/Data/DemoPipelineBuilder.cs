@@ -199,6 +199,29 @@ public record DemoPublicationPlan
     public bool EthicsRequired { get; init; } = true;
 
     public string[]? Keywords { get; init; }
+
+    /// <summary>
+    /// The institution's research areas this paper belongs to, by name.
+    ///
+    /// Named per publication rather than taken from the top of the list, which is what the builder
+    /// used to do: every paper came out tagged with the same first two, so a study of procurement
+    /// in the Business department was filed under Computing Education, and four of the six areas
+    /// were attached to nothing at all. The catalogue filters by these, and a filter where every
+    /// row carries the same value is not a filter.
+    /// </summary>
+    public string[]? Areas { get; init; }
+
+    /// <summary>
+    /// What kind of publication it is, in the words the student's own form offers: a journal
+    /// article, a conference proceeding, a thesis or a technical report.
+    ///
+    /// The builder used to write "Research paper" for every one of them, which is not one of the
+    /// four. Opening a seeded paper in the editor showed a dropdown with nothing selected, and the
+    /// catalogue's filter by type had a single value in it, so it could not be told from a filter
+    /// that does nothing.
+    /// </summary>
+    public string? Type { get; init; }
+
     public int? Year { get; init; }
 
     /// <summary>
@@ -454,13 +477,27 @@ public class DemoPipelineBuilder(
 
         await StepAsync(async () =>
         {
-            var areaIds = await db.ResearchAreas.Select(a => a.Id).Take(2).ToListAsync(ct);
+            var wanted = plan.Areas ?? throw new InvalidOperationException(
+                $"The demonstration plan '{plan.Title}' reaches a research paper and names no research areas.");
+
+            var areaIds = await db.ResearchAreas
+                .Where(a => wanted.Contains(a.Name))
+                .Select(a => a.Id)
+                .ToListAsync(ct);
+
+            if (areaIds.Count != wanted.Length)
+            {
+                throw new InvalidOperationException(
+                    $"The demonstration plan '{plan.Title}' names a research area the institution does not have: "
+                    + string.Join(", ", wanted));
+            }
 
             await publications.UpdateMetadataAsync(paper.Id, cast.StudentId,
                 new UpdatePublicationMetadataRequest(
                     plan.Title,
                     plan.Abstract,
-                    "Research paper",
+                    plan.Type ?? throw new InvalidOperationException(
+                        $"The demonstration plan '{plan.Title}' reaches a research paper and says nothing about what kind it is."),
                     plan.Year ?? DateTime.UtcNow.Year,
                     plan.Keywords ?? throw new InvalidOperationException(
                         $"The demonstration plan '{plan.Title}' reaches a research paper and names no keywords."),

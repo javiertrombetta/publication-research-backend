@@ -196,19 +196,36 @@ public static class DemoDataSeeder
 
         db.StudentProfiles.AddRange(
             // Student IDs are AAAAMMXX: year of admission, month of admission, then the order that
-            // student arrived in within that month. They are made to agree with the cohort beside
+            // student arrived in within that month.
+            //
+            // Two of the seven have no ORCID, which is what the field looks like in practice: it is
+            // the student's own registration with an outside body and not everybody has done it. They are made to agree with the cohort beside
             // them, so a reader checking one against the other finds the same intake rather than
             // two facts that contradict each other.
-            StudentProfileFor(studentOne, infoTech, "20260204", "MSc Information Technology", "2026 Semester 1"),
-            StudentProfileFor(studentTwo, infoTech, "20260217", "MSc Information Technology", "2026 Semester 1"),
-            StudentProfileFor(studentThree, infoTech, "20250731", "MSc Information Technology", "2025 Semester 2"),
+            StudentProfileFor(studentOne, infoTech, "20260204", "MSc Information Technology", "2026 Semester 1", "0000-0002-4517-8231"),
+            StudentProfileFor(studentTwo, infoTech, "20260217", "MSc Information Technology", "2026 Semester 1", "0000-0001-7395-0264"),
+            StudentProfileFor(studentThree, infoTech, "20250731", "MSc Information Technology", "2025 Semester 2", "0000-0003-2846-1179"),
             StudentProfileFor(studentFour, infoTech, "20250742", "MSc Information Technology", "2025 Semester 2"),
-            StudentProfileFor(studentFive, infoTech, "20250718", "MSc Information Technology", "2025 Semester 2"),
-            StudentProfileFor(studentBusiness, business, "20260209", "Master of Business Administration", "2026 Semester 1"),
+            StudentProfileFor(studentFive, infoTech, "20250718", "MSc Information Technology", "2025 Semester 2", "0000-0002-9013-4457"),
+            StudentProfileFor(studentBusiness, business, "20260209", "Master of Business Administration", "2026 Semester 1", "0000-0001-5628-3390"),
             StudentProfileFor(studentBusinessTwo, business, "20250726", "Master of Business Administration", "2025 Semester 2"));
 
         // admin.test holds no profile, matching a real Admin: the role is an administrative
         // capability rather than a place in a department.
+        await db.SaveChangesAsync(cancellationToken);
+
+        // What each student says they work on. Left empty, the interests section of a profile is
+        // blank for everybody and the tags a supervisor would actually match against never appear.
+        await SeedStudentInterestsAsync(db, new Dictionary<Guid, string[]>
+        {
+            [studentOne.Id] = ["Software Engineering", "Human-Computer Interaction"],
+            [studentTwo.Id] = ["Information Security", "Computing Education"],
+            [studentThree.Id] = ["Computing Education", "Human-Computer Interaction"],
+            [studentFour.Id] = ["Software Engineering"],
+            [studentFive.Id] = ["Data Science"],
+            [studentBusiness.Id] = ["Organisational Behaviour"],
+            [studentBusinessTwo.Id] = ["Organisational Behaviour"]
+        }, cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
 
         // ---------- Publications ----------
@@ -272,6 +289,10 @@ public static class DemoDataSeeder
             }
         }
 
+        // The invitations screen, which is otherwise a heading over nothing. One in each state the
+        // screen can show, so its filters have something to filter.
+        await SeedInvitationsAsync(db, admin, externalOne, business, cancellationToken);
+
         // Two things a walk through the screens would otherwise find empty: the coordinator's saved
         // sets of supervisors, and somebody who has marked themselves unavailable. Both are small
         // and both are invisible until they exist.
@@ -290,6 +311,114 @@ public static class DemoDataSeeder
             "account sharing one published password. This deployment must never hold real work.",
             await db.Users.CountAsync(cancellationToken),
             await db.PublicationContainers.CountAsync(cancellationToken));
+    }
+
+    /// <summary>
+    /// Four invitations, one in each state the administrator's screen distinguishes: waiting for a
+    /// reply, accepted, withdrawn, and simply run out of time.
+    ///
+    /// Written as rows rather than sent through the service, which would try to post an email that
+    /// a developer's machine has no server for. The token is the one thing that cannot be
+    /// demonstrated this way: only its hash is ever stored, so these cannot be accepted, which is
+    /// the same position an administrator is in with an invitation somebody else sent.
+    /// </summary>
+    private static async Task SeedInvitationsAsync(
+        ApplicationDbContext db, ApplicationUser admin, ApplicationUser accepted,
+        Department business, CancellationToken cancellationToken)
+    {
+        if (await db.UserInvitations.AnyAsync(cancellationToken)) return;
+
+        var now = DateTime.UtcNow;
+
+        static string Hash() => Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
+
+        db.UserInvitations.AddRange(
+            new UserInvitation
+            {
+                Email = "ruth.mcalister@aut.ac.nz",
+                FirstName = "Ruth",
+                LastName = "McAlister",
+                Role = RoleNames.ExternalCommitteeMember,
+                TokenHash = Hash(),
+                CreatedAt = now.AddDays(-3),
+                ExpiresAt = now.AddDays(11),
+                InvitedByUserId = admin.Id
+            },
+            new UserInvitation
+            {
+                // The one that was taken up. External members arrive this way and no other, having
+                // no institutional address for a domain to recognise.
+                Email = accepted.Email!,
+                FirstName = accepted.FirstName,
+                LastName = accepted.LastName,
+                Role = RoleNames.ExternalCommitteeMember,
+                TokenHash = Hash(),
+                CreatedAt = now.AddDays(-96),
+                ExpiresAt = now.AddDays(-82),
+                AcceptedAt = now.AddDays(-94),
+                InvitedByUserId = admin.Id
+            },
+            new UserInvitation
+            {
+                Email = "d.whitcombe@ais.ac.nz",
+                FirstName = "Duncan",
+                LastName = "Whitcombe",
+                Role = RoleNames.Supervisor,
+                DepartmentId = business.Id,
+                TokenHash = Hash(),
+                CreatedAt = now.AddDays(-21),
+                ExpiresAt = now.AddDays(-7),
+                RevokedAt = now.AddDays(-19),
+                RevokedByUserId = admin.Id,
+                InvitedByUserId = admin.Id
+            },
+            new UserInvitation
+            {
+                Email = "p.nathan@massey.ac.nz",
+                FirstName = "Pania",
+                LastName = "Nathan",
+                Role = RoleNames.ExternalCommitteeMember,
+                TokenHash = Hash(),
+                CreatedAt = now.AddDays(-40),
+                ExpiresAt = now.AddDays(-26),
+                InvitedByUserId = admin.Id
+            });
+
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// The research areas each student lists on their own profile.
+    ///
+    /// The same table the publications use, from the other side: a paper is filed under an area,
+    /// and a student says which ones they work in. Nothing wrote the second half, so every profile
+    /// showed an empty interests section and the join table was a shape the dataset never exercised.
+    /// </summary>
+    private static async Task SeedStudentInterestsAsync(
+        ApplicationDbContext db, Dictionary<Guid, string[]> byStudent, CancellationToken cancellationToken)
+    {
+        var areas = await db.ResearchAreas.ToDictionaryAsync(a => a.Name, cancellationToken);
+
+        var profiles = await db.StudentProfiles
+            .Include(p => p.ResearchAreas)
+            .Where(p => byStudent.Keys.Contains(p.UserId))
+            .ToListAsync(cancellationToken);
+
+        foreach (var profile in profiles)
+        {
+            foreach (var name in byStudent[profile.UserId])
+            {
+                if (!areas.TryGetValue(name, out var area))
+                {
+                    throw new InvalidOperationException(
+                        $"The demonstration data lists a research area the institution does not have: '{name}'.");
+                }
+
+                profile.ResearchAreas.Add(area);
+            }
+        }
+
+        await db.SaveChangesAsync(cancellationToken);
     }
 
     /// <summary>
@@ -321,14 +450,16 @@ public static class DemoDataSeeder
     }
 
     private static StudentProfile StudentProfileFor(
-        ApplicationUser user, Department department, string idNumber, string programme, string cohort) =>
+        ApplicationUser user, Department department, string idNumber, string programme, string cohort,
+        string? orcid = null) =>
         new()
         {
             UserId = user.Id,
             DepartmentId = department.Id,
             StudentIdNumber = idNumber,
             Programme = programme,
-            Cohort = cohort
+            Cohort = cohort,
+            Orcid = orcid
         };
 
     private static async Task<Department> EnsureDepartmentAsync(
@@ -354,17 +485,37 @@ public static class DemoDataSeeder
         return department;
     }
 
+    /// <summary>
+    /// The institution's research areas. Public because the plans name them and the tests check
+    /// that they do: a name that is nearly right belongs to nothing, and the seed would only find
+    /// out when it ran.
+    /// </summary>
+    public static readonly string[] ResearchAreaNames =
+    [
+        "Software Engineering",
+        "Human-Computer Interaction",
+        "Data Science",
+        "Information Security",
+        "Computing Education",
+        "Organisational Behaviour"
+    ];
+
+    /// <summary>
+    /// What kind of publication a paper can be, in the words the student's own form offers. The
+    /// seed wrote a fifth value for a long time, which the form could not show and the catalogue's
+    /// filter could not match.
+    /// </summary>
+    public static readonly string[] PublicationTypes =
+    [
+        "Journal Article",
+        "Conference Proceeding",
+        "Thesis / Dissertation",
+        "Technical Report"
+    ];
+
     private static async Task EnsureResearchAreasAsync(ApplicationDbContext db, CancellationToken cancellationToken)
     {
-        string[] names =
-        [
-            "Software Engineering",
-            "Human-Computer Interaction",
-            "Data Science",
-            "Information Security",
-            "Computing Education",
-            "Organisational Behaviour"
-        ];
+        var names = ResearchAreaNames;
 
         var existing = await db.ResearchAreas.Select(a => a.Name).ToListAsync(cancellationToken);
         var missing = names.Except(existing).Select(name => new ResearchArea { Name = name }).ToList();
