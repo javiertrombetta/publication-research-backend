@@ -311,6 +311,19 @@ public static class SettingKeys
 
     public const bool DefaultEthicsHeadOfDepartmentReviewNotRequired = true;
 
+    /// <summary>
+    /// Whether the supervisor reads the uploaded documents, and whether the coordinator does.
+    ///
+    /// Some institutions have the supervisor check the paperwork and the coordinator only file it;
+    /// others the reverse. Either reading can go, but not every one of them: something has to be
+    /// read before the stage can be closed, so the settings refuse a sequence with no reader in it.
+    /// </summary>
+    public const string EthicsSupervisorReviewsDocuments = "ethics.supervisor-reviews-documents";
+    public const string EthicsCoordinatorReviewsDocuments = "ethics.coordinator-reviews-documents";
+
+    public const bool DefaultEthicsSupervisorReviewsDocuments = true;
+    public const bool DefaultEthicsCoordinatorReviewsDocuments = true;
+
     // ---------- Where uploaded files are kept ----------
 
     /// <summary>

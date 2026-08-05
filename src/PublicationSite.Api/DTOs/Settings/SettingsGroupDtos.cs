@@ -263,6 +263,16 @@ public record UpdateDecisionCommentSettingsRequest(IReadOnlyList<string> Require
 /// </summary>
 /// <param name="HeadOfDepartmentReviews">Whether the Head of Department comments between the coordinator's approval of the documents and their final decision.</param>
 /// <param name="HeadOfDepartmentReviewsWhenNotRequired">The same, on the route where no documentation was needed and the coordinator agreed.</param>
-public record EthicsWorkflowSettingsDto(bool HeadOfDepartmentReviews, bool HeadOfDepartmentReviewsWhenNotRequired);
+/// <param name="SupervisorReviewsDocuments">Whether the supervisor reads the uploaded documents before anybody else.</param>
+/// <param name="CoordinatorReviewsDocuments">Whether the coordinator reads them before handing on.</param>
+public record EthicsWorkflowSettingsDto(
+    bool HeadOfDepartmentReviews,
+    bool HeadOfDepartmentReviewsWhenNotRequired,
+    bool SupervisorReviewsDocuments = true,
+    bool CoordinatorReviewsDocuments = true);
 
-public record UpdateEthicsWorkflowSettingsRequest(bool HeadOfDepartmentReviews, bool HeadOfDepartmentReviewsWhenNotRequired);
+public record UpdateEthicsWorkflowSettingsRequest(
+    bool HeadOfDepartmentReviews,
+    bool HeadOfDepartmentReviewsWhenNotRequired,
+    bool SupervisorReviewsDocuments = true,
+    bool CoordinatorReviewsDocuments = true);

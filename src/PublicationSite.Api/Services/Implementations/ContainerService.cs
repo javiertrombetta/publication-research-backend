@@ -548,6 +548,8 @@ public class ContainerService(
 
         var headOfDepartmentReviews = workflow.HeadOfDepartmentReviews;
         var headOfDepartmentReviewsNotRequired = workflow.HeadOfDepartmentReviewsWhenNotRequired;
+        var coordinatorReadsDocuments = workflow.CoordinatorReviewsDocuments;
+        var supervisorReadsDocuments = workflow.SupervisorReviewsDocuments;
 
         var supervisorDecision = steps.Contains(EthicsSteps.SupervisorDecision);
         var coordinatorConfirmation = steps.Contains(EthicsSteps.CoordinatorConfirmation);
@@ -565,17 +567,21 @@ public class ContainerService(
                 && c.EthicsApproval.CoordinatorDecisionAt == null)
             || (studentUpload && c.EthicsApproval.Status == EthicsStatus.PendingUpload)
             || (supervisorDocuments
+                && supervisorReadsDocuments
                 && c.EthicsApproval.Status == EthicsStatus.PendingVerification
                 && c.EthicsApproval.Documents.Any(d => d.Status == EthicsDocumentStatus.PendingReview))
             || (coordinatorDocuments
+                && coordinatorReadsDocuments
                 && c.EthicsApproval.Status == EthicsStatus.PendingVerification
-                && !c.EthicsApproval.Documents.Any(d => d.Status == EthicsDocumentStatus.PendingReview)
+                && (!supervisorReadsDocuments
+                    || !c.EthicsApproval.Documents.Any(d => d.Status == EthicsDocumentStatus.PendingReview))
                 && c.EthicsApproval.CoordinatorDecisionAt == null)
             || (headOfDepartment
                 && headOfDepartmentReviews
                 && c.EthicsApproval.Status == EthicsStatus.PendingVerification
-                && !c.EthicsApproval.Documents.Any(d => d.Status == EthicsDocumentStatus.PendingReview)
-                && c.EthicsApproval.CoordinatorDecisionAt != null
+                && (!supervisorReadsDocuments
+                    || !c.EthicsApproval.Documents.Any(d => d.Status == EthicsDocumentStatus.PendingReview))
+                && (c.EthicsApproval.CoordinatorDecisionAt != null || !coordinatorReadsDocuments)
                 && c.EthicsApproval.HeadOfDepartmentReviewedAt == null)
             // The same step, reached by the other route: nothing to read, a ruling to weigh.
             || (headOfDepartment
@@ -586,8 +592,9 @@ public class ContainerService(
                 && c.EthicsApproval.HeadOfDepartmentReviewedAt == null)
             || (coordinatorFinal
                 && c.EthicsApproval.Status == EthicsStatus.PendingVerification
-                && !c.EthicsApproval.Documents.Any(d => d.Status == EthicsDocumentStatus.PendingReview)
-                && c.EthicsApproval.CoordinatorDecisionAt != null
+                && (!supervisorReadsDocuments
+                    || !c.EthicsApproval.Documents.Any(d => d.Status == EthicsDocumentStatus.PendingReview))
+                && (c.EthicsApproval.CoordinatorDecisionAt != null || !coordinatorReadsDocuments)
                 && (c.EthicsApproval.HeadOfDepartmentReviewedAt != null || !headOfDepartmentReviews))
             // A stage with no documentation only waits on the coordinator a second time where the
             // Head of Department has been through it; otherwise their agreement already closed it.
@@ -1094,6 +1101,8 @@ public class ContainerService(
         // takes two values, not an object it would have to know how to open.
         var headOfDepartmentReviews = workflow.HeadOfDepartmentReviews;
         var headOfDepartmentReviewsNotRequired = workflow.HeadOfDepartmentReviewsWhenNotRequired;
+        var coordinatorReadsDocuments = workflow.CoordinatorReviewsDocuments;
+        var supervisorReadsDocuments = workflow.SupervisorReviewsDocuments;
 
         return query.Select(c => new PublicationContainerDto(
             c.Id,
@@ -1130,13 +1139,16 @@ public class ContainerService(
                 : c.EthicsApproval.Status == EthicsStatus.PendingUpload
                     ? RoleNames.Student
                 : c.EthicsApproval.Status == EthicsStatus.PendingVerification
-                    // Uploaded and not yet looked at: the Supervisor sees them first.
-                    ? (c.EthicsApproval.Documents.Any(d => d.Status == EthicsDocumentStatus.PendingReview)
+                    // Uploaded and not yet looked at: the Supervisor sees them first, where this
+                    // institution asks them to. Off, a set already sitting unread moves on with
+                    // everything else rather than parking on a queue nobody works.
+                    ? (supervisorReadsDocuments
+                        && c.EthicsApproval.Documents.Any(d => d.Status == EthicsDocumentStatus.PendingReview)
                         ? RoleNames.Supervisor
-                        : c.EthicsApproval.CoordinatorDecisionAt == null
+                        // Skipped where this institution does not run these steps, so a
+                        // publication cannot sit on a queue nobody works.
+                        : coordinatorReadsDocuments && c.EthicsApproval.CoordinatorDecisionAt == null
                             ? RoleNames.Coordinator
-                            // Skipped where this institution does not run that step, so a
-                            // publication cannot sit on a queue nobody works.
                             : headOfDepartmentReviews && c.EthicsApproval.HeadOfDepartmentReviewedAt == null
                                 ? RoleNames.HeadOfDepartment
                                 // Everyone has had their say; the Coordinator closes it.
@@ -1192,9 +1204,10 @@ public class ContainerService(
                 : c.EthicsApproval.Status == EthicsStatus.PendingUpload
                     ? EthicsSteps.StudentUpload
                 : c.EthicsApproval.Status == EthicsStatus.PendingVerification
-                    ? (c.EthicsApproval.Documents.Any(d => d.Status == EthicsDocumentStatus.PendingReview)
+                    ? (supervisorReadsDocuments
+                        && c.EthicsApproval.Documents.Any(d => d.Status == EthicsDocumentStatus.PendingReview)
                         ? EthicsSteps.SupervisorDocumentReview
-                        : c.EthicsApproval.CoordinatorDecisionAt == null
+                        : coordinatorReadsDocuments && c.EthicsApproval.CoordinatorDecisionAt == null
                             ? EthicsSteps.CoordinatorDocumentReview
                             : headOfDepartmentReviews && c.EthicsApproval.HeadOfDepartmentReviewedAt == null
                                 ? EthicsSteps.HeadOfDepartmentReview

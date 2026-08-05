@@ -41,7 +41,7 @@ public class EthicsServiceTests : IDisposable
         // The Head of Department step is part of the pipeline unless an administrator turns it
         // off, and these tests walk the full sequence.
         _settingService.Setup(s => s.GetEthicsWorkflowSettingsAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new EthicsWorkflowSettingsDto(true, true));
+            .ReturnsAsync(new EthicsWorkflowSettingsDto(true, true, true, true));
 
         _sut = new EthicsService(_fixture.Context, _accessService.Object, _auditService.Object, _notificationService.Object, _fileStorageService.Object,
             new DecisionCommentPolicy(new SystemSettingsProvider(_fixture.Context, new MemoryCache(new MemoryCacheOptions()))),
@@ -266,7 +266,7 @@ public class EthicsServiceTests : IDisposable
         // The Head of Department step is off on this route, so the coordinator's agreement is the
         // end of the stage.
         _settingService.Setup(s => s.GetEthicsWorkflowSettingsAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new EthicsWorkflowSettingsDto(true, false));
+            .ReturnsAsync(new EthicsWorkflowSettingsDto(true, false, true, true));
 
         var (student, supervisor, coordinator, container) = SeedAssignedContainer();
         await _sut.SubmitDeclarationAsync(container.Id, student.Id, new EthicsDeclarationRequest("No"));
@@ -401,7 +401,7 @@ public class EthicsServiceTests : IDisposable
     public async Task CoordinatorFinalDecisionAsync_closes_the_stage_alone_when_the_hod_step_is_off()
     {
         _settingService.Setup(s => s.GetEthicsWorkflowSettingsAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new EthicsWorkflowSettingsDto(false, false));
+            .ReturnsAsync(new EthicsWorkflowSettingsDto(false, false, true, true));
 
         var (student, _, coordinator, container) = await SupervisorApprovedDocumentsAsync();
         await _sut.CoordinatorReviewDocumentsAsync(container.Id, coordinator.Id, new CoordinatorDocumentReviewRequest(true, "Looks good"));
@@ -415,7 +415,7 @@ public class EthicsServiceTests : IDisposable
     public async Task HeadOfDepartmentReviewAsync_is_refused_when_the_step_is_off()
     {
         _settingService.Setup(s => s.GetEthicsWorkflowSettingsAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new EthicsWorkflowSettingsDto(false, false));
+            .ReturnsAsync(new EthicsWorkflowSettingsDto(false, false, true, true));
 
         var (student, _, coordinator, container) = await SupervisorApprovedDocumentsAsync();
 
@@ -429,6 +429,58 @@ public class EthicsServiceTests : IDisposable
         var act = () => _sut.HeadOfDepartmentReviewAsync(container.Id, hod.Id, new HeadOfDepartmentReviewRequest("No concerns"));
 
         await act.Should().ThrowAsync<BusinessRuleException>();
+    }
+
+    [Fact]
+    public async Task Documents_go_straight_to_the_coordinator_where_the_supervisor_does_not_read_them()
+    {
+        _settingService.Setup(s => s.GetEthicsWorkflowSettingsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new EthicsWorkflowSettingsDto(true, true, SupervisorReviewsDocuments: false, CoordinatorReviewsDocuments: true));
+
+        var (student, _, coordinator, container) = await AllDocumentsUploadedAsync();
+
+        // Nothing is left unread, which is what the supervisor's step is defined by, so the set is
+        // already the coordinator's.
+        var approval = await _fixture.Context.EthicsApprovals
+            .Include(a => a.Documents)
+            .FirstAsync(a => a.PublicationContainerId == container.Id);
+        approval.Documents.Should().OnlyContain(d => d.Status != EthicsDocumentStatus.PendingReview);
+
+        await _sut.CoordinatorReviewDocumentsAsync(container.Id, coordinator.Id,
+            new CoordinatorDocumentReviewRequest(true, "Read and in order"));
+
+        (await _sut.GetApprovalAsync(container.Id, student.Id)).Status.Should().Be(EthicsStatus.PendingVerification.ToString());
+    }
+
+    [Fact]
+    public async Task The_supervisor_cannot_review_documents_where_that_step_is_off()
+    {
+        _settingService.Setup(s => s.GetEthicsWorkflowSettingsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new EthicsWorkflowSettingsDto(true, true, SupervisorReviewsDocuments: false, CoordinatorReviewsDocuments: true));
+
+        var (_, supervisor, _, container) = await AllDocumentsUploadedAsync();
+
+        var act = () => _sut.SupervisorReviewDocumentsAsync(container.Id, supervisor.Id,
+            new DocumentReviewDecisionRequest(true, "Looks fine"));
+
+        await act.Should().ThrowAsync<BusinessRuleException>();
+    }
+
+    [Fact]
+    public async Task The_coordinator_can_close_the_stage_without_reading_the_documents()
+    {
+        _settingService.Setup(s => s.GetEthicsWorkflowSettingsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new EthicsWorkflowSettingsDto(
+                HeadOfDepartmentReviews: false, HeadOfDepartmentReviewsWhenNotRequired: false,
+                SupervisorReviewsDocuments: true, CoordinatorReviewsDocuments: false));
+
+        var (student, _, coordinator, container) = await SupervisorApprovedDocumentsAsync();
+
+        // Straight from the supervisor's acceptance to the close: nobody else reads.
+        await _sut.CoordinatorFinalDecisionAsync(container.Id, coordinator.Id,
+            new CoordinatorFinalDecisionRequest(true, "Approved"));
+
+        (await _sut.GetApprovalAsync(container.Id, student.Id)).Status.Should().Be(EthicsStatus.Verified.ToString());
     }
 
     private async Task<(ApplicationUser Student, ApplicationUser Supervisor, ApplicationUser Coordinator, PublicationContainer Container)> RequireEthicsAsync()
