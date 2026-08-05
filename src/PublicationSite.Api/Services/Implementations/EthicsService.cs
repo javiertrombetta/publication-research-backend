@@ -342,7 +342,7 @@ public class EthicsService(
                 await auditService.LogActivityAsync(publicationContainerId, coordinatorId, "CoordinatorAgreedEthicsNotRequired",
                     request.Comments, newStatus: EthicsStatus.NotRequired.ToString());
 
-                await NotifyHeadOfDepartmentAsync(container, cancellationToken);
+                await AssignHeadOfDepartmentAsync(container, approval, cancellationToken);
                 return;
             }
 
@@ -395,7 +395,7 @@ public class EthicsService(
 
             if (workflow.HeadOfDepartmentReviews)
             {
-                await NotifyHeadOfDepartmentAsync(container, cancellationToken);
+                await AssignHeadOfDepartmentAsync(container, approval, cancellationToken);
             }
             else
             {
@@ -452,6 +452,15 @@ public class EthicsService(
             throw new BusinessRuleException("This container's ethics decision is not awaiting Head of Department review.");
         }
 
+        // Whoever it was put to. Any other head of the department can see it, because they oversee
+        // everything their department has in flight, but recording the comments is one person's
+        // job: two heads answering the same review would leave only the second on the record.
+        if (approval.HeadOfDepartmentUserId is { } named && named != headOfDepartmentId)
+        {
+            throw new BusinessRuleException(
+                "This ethics decision was put to another head of your department. An administrator can move it if they are unavailable.");
+        }
+
         await commentPolicy.EnsureAsync(DecisionPoints.EthicsHeadOfDepartmentReview, request.Comments, cancellationToken);
 
         approval.HeadOfDepartmentComments = request.Comments;
@@ -469,21 +478,46 @@ public class EthicsService(
     }
 
     /// <summary>
-    /// Tells whoever heads the student's department that the coordinator has handed on.
+    /// Puts the decision to one head of the student's own department, and tells them.
     ///
-    /// Normally one person; where the administrator has appointed more, the first is notified and
-    /// the rest see it on their own queue, which is where the work actually is.
+    /// Named rather than broadcast. A department can have more than one head, and a review nobody
+    /// is named for belongs to all of them and so to nobody: each sees it on their queue and each
+    /// can reasonably assume another has it. The one carrying the fewest reviews is chosen, so the
+    /// work spreads instead of piling on whoever happens to be first alphabetically. An
+    /// administrator can name somebody else afterwards, from the same department.
     /// </summary>
-    private async Task NotifyHeadOfDepartmentAsync(PublicationContainer container, CancellationToken cancellationToken)
+    private async Task AssignHeadOfDepartmentAsync(
+        PublicationContainer container, EthicsApproval approval, CancellationToken cancellationToken)
     {
-        var headOfDepartment = await db.StudentProfiles
+        var departmentId = await db.StudentProfiles
             .Where(s => s.UserId == container.StudentId)
-            .SelectMany(s => s.Department.HeadsOfDepartment)
+            .Select(s => (Guid?)s.DepartmentId)
             .FirstOrDefaultAsync(cancellationToken);
 
-        if (headOfDepartment is null) return;
+        if (departmentId is null) return;
 
-        await notificationService.NotifyAsync(headOfDepartment.UserId, NotificationType.EthicsHeadOfDepartmentReviewRequested,
+        // How many are already on each one's desk: reviews put to them that they have not answered
+        // and that nobody has closed. Work already commented on is not work outstanding.
+        var chosen = await db.HeadOfDepartmentProfiles
+            .Where(h => h.DepartmentId == departmentId)
+            .Select(h => new
+            {
+                h.UserId,
+                Outstanding = db.EthicsApprovals.Count(a =>
+                    a.HeadOfDepartmentUserId == h.UserId
+                    && a.HeadOfDepartmentReviewedAt == null
+                    && a.FinalDecisionAt == null)
+            })
+            .OrderBy(h => h.Outstanding)
+            .ThenBy(h => h.UserId)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (chosen is null) return;
+
+        approval.HeadOfDepartmentUserId = chosen.UserId;
+        await db.SaveChangesAsync(cancellationToken);
+
+        await notificationService.NotifyAsync(chosen.UserId, NotificationType.EthicsHeadOfDepartmentReviewRequested,
             "Ethics decision awaiting your comments",
             "The Coordinator has passed a student's ethics decision to you. Please log in to review it and record your comments.",
             nameof(PublicationContainer), container.Id, cancellationToken);

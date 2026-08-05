@@ -613,6 +613,9 @@ namespace PublicationSite.Api.Data.Migrations
                     b.Property<DateTime?>("HeadOfDepartmentReviewedAt")
                         .HasColumnType("datetime(6)");
 
+                    b.Property<Guid?>("HeadOfDepartmentUserId")
+                        .HasColumnType("char(36)");
+
                     b.Property<bool?>("IsRequiredPerCoordinator")
                         .HasColumnType("tinyint(1)");
 
@@ -636,6 +639,8 @@ namespace PublicationSite.Api.Data.Migrations
                         .HasColumnType("text");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("HeadOfDepartmentUserId");
 
                     b.HasIndex("PublicationContainerId")
                         .IsUnique();
@@ -1694,11 +1699,18 @@ namespace PublicationSite.Api.Data.Migrations
 
             modelBuilder.Entity("PublicationSite.Api.Entities.EthicsApproval", b =>
                 {
+                    b.HasOne("PublicationSite.Api.Entities.ApplicationUser", "HeadOfDepartmentUser")
+                        .WithMany()
+                        .HasForeignKey("HeadOfDepartmentUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("PublicationSite.Api.Entities.PublicationContainer", "PublicationContainer")
                         .WithOne("EthicsApproval")
                         .HasForeignKey("PublicationSite.Api.Entities.EthicsApproval", "PublicationContainerId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("HeadOfDepartmentUser");
 
                     b.Navigation("PublicationContainer");
                 });

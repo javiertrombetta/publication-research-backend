@@ -59,12 +59,11 @@ public class UserProfileFactory(ApplicationDbContext db) : IUserProfileFactory
                 if (await db.HeadOfDepartmentProfiles.AnyAsync(h => h.UserId == user.Id, cancellationToken)) break;
                 RequireDepartment(request);
 
-                // A department has one head. Checked here rather than by a unique index alone so
-                // the administrator gets a sentence instead of a database error.
-                if (await db.HeadOfDepartmentProfiles.AnyAsync(h => h.DepartmentId == request.DepartmentId, cancellationToken))
-                {
-                    throw new ConflictException("This department already has a Head of Department assigned.");
-                }
+                // More than one is allowed. A department large enough to need two heads had no way
+                // to say so, and the ethics reviews that wait on a head were then a queue with one
+                // person in it however much work arrived. Where there are several, each review is
+                // put to the one carrying the fewest. A person still heads only one department,
+                // which the unique index on UserId keeps true.
                 db.HeadOfDepartmentProfiles.Add(new HeadOfDepartmentProfile
                 {
                     UserId = user.Id,

@@ -31,6 +31,13 @@ public class EthicsApprovalConfiguration : IEntityTypeConfiguration<EthicsApprov
             .WithOne(c => c.EthicsApproval)
             .HasForeignKey<EthicsApproval>(e => e.PublicationContainerId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        // Restrict, not cascade: the person named here has commented on the record, and deleting
+        // their account must not take the decision with it.
+        builder.HasOne(e => e.HeadOfDepartmentUser)
+            .WithMany()
+            .HasForeignKey(e => e.HeadOfDepartmentUserId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }
 
