@@ -133,6 +133,13 @@ public class PublicationService(
                 "This publication has finished. Its versions are the record of what was judged.");
         }
 
+        // A container is not marked Completed the moment its paper is accepted, so the check above
+        // let an administrator add and remove versions of a paper somebody had already passed.
+        if (SettledPaper.Is(publication.Status))
+        {
+            throw new BusinessRuleException(SettledPaper.Message);
+        }
+
         return publication;
     }
 

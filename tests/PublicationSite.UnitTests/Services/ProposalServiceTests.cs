@@ -374,4 +374,112 @@ public class ProposalServiceTests : IDisposable
         (await _fixture.Context.PublicationContainers.FindAsync(container.Id))!.CurrentPipeline
             .Should().Be(PipelineStage.ResearchPaper);
     }
+
+    // ---------- An administrator correcting which proposal a publication runs on ----------
+
+    /// <summary>
+    /// A publication past its proposals stage: one proposal assigned, the rest turned down, and a
+    /// paper on it at whatever status the test needs.
+    /// </summary>
+    private (PublicationContainer Container, ResearchProposal Assigned, ResearchProposal Other) SeedAssignedWithPaper(
+        PublicationStatus paperStatus)
+    {
+        var (student, coordinator, container) = SeedContainer();
+        var supervisor = TestDataBuilder.User(_fixture.Context);
+        container.AssignedSupervisorId = supervisor.Id;
+        container.CurrentPipeline = PipelineStage.ResearchPaper;
+
+        var assigned = TestDataBuilder.Proposal(_fixture.Context, container, "The one it runs on", ProposalStatus.Assigned);
+        var other = TestDataBuilder.Proposal(_fixture.Context, container, "The one it does not", ProposalStatus.Rejected);
+
+        _fixture.Context.Publications.Add(new Publication
+        {
+            PublicationContainerId = container.Id, Title = "T", Abstract = "A", Status = paperStatus
+        });
+        _fixture.Context.SaveChanges();
+
+        _ = student; _ = coordinator;
+        return (container, assigned, other);
+    }
+
+    [Fact]
+    public async Task An_administrator_can_settle_a_publication_on_a_different_proposal()
+    {
+        var (container, assigned, other) = SeedAssignedWithPaper(PublicationStatus.UnderReview);
+
+        await _sut.ChangeAssignedProposalAsync(other.Id, "The student and supervisor agreed on this one.", Guid.NewGuid());
+
+        // Exactly one assigned and the rest turned down, which is the shape the coordinator's own
+        // assignment leaves behind.
+        var after = await _fixture.Context.ResearchProposals
+            .Where(p => p.PublicationContainerId == container.Id).ToListAsync();
+
+        after.Single(p => p.Id == other.Id).Status.Should().Be(ProposalStatus.Assigned);
+        after.Single(p => p.Id == assigned.Id).Status.Should().Be(ProposalStatus.Rejected);
+        after.Count(p => p.Status == ProposalStatus.Assigned).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Everyone_working_on_the_publication_is_told_the_proposal_changed()
+    {
+        var (container, _, other) = SeedAssignedWithPaper(PublicationStatus.UnderReview);
+
+        await _sut.ChangeAssignedProposalAsync(other.Id, "Corrected.", Guid.NewGuid());
+
+        foreach (var person in new[] { container.StudentId, container.CoordinatorId, container.AssignedSupervisorId!.Value })
+        {
+            _notificationService.Verify(n => n.NotifyAsync(person, It.IsAny<NotificationType>(),
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>(), container.Id,
+                It.IsAny<CancellationToken>()), Times.Once);
+        }
+    }
+
+    [Theory]
+    [InlineData(PublicationStatus.Accepted)]
+    [InlineData(PublicationStatus.Published)]
+    public async Task The_proposal_cannot_be_changed_once_the_paper_has_been_accepted(PublicationStatus settled)
+    {
+        var (_, _, other) = SeedAssignedWithPaper(settled);
+
+        var act = () => _sut.ChangeAssignedProposalAsync(other.Id, "Too late.", Guid.NewGuid());
+
+        await act.Should().ThrowAsync<BusinessRuleException>();
+    }
+
+    [Theory]
+    [InlineData(PublicationStatus.Accepted)]
+    [InlineData(PublicationStatus.Published)]
+    public async Task A_new_round_cannot_be_asked_for_once_the_paper_has_been_accepted(PublicationStatus settled)
+    {
+        var (container, _, _) = SeedAssignedWithPaper(settled);
+
+        // It would turn down the proposal the accepted paper was written from, and nobody could
+        // then say what the paper had been approved to be about.
+        var act = () => _sut.RequestNewSubmissionAsync(container.Id, "Start again.", Guid.NewGuid(), actingAsAdmin: true);
+
+        await act.Should().ThrowAsync<BusinessRuleException>();
+    }
+
+    [Fact]
+    public async Task The_proposal_already_being_run_on_cannot_be_assigned_again()
+    {
+        var (_, assigned, _) = SeedAssignedWithPaper(PublicationStatus.UnderReview);
+
+        var act = () => _sut.ChangeAssignedProposalAsync(assigned.Id, "No change.", Guid.NewGuid());
+
+        await act.Should().ThrowAsync<BusinessRuleException>();
+    }
+
+    [Fact]
+    public async Task Nothing_can_be_settled_on_before_the_coordinator_has_assigned_one()
+    {
+        var (_, _, container) = SeedContainer();
+        var proposal = TestDataBuilder.Proposal(_fixture.Context, container, "Untouched", ProposalStatus.Submitted);
+
+        // Doing it here would settle the publication on a proposal without naming a supervisor,
+        // which is half of the coordinator's act.
+        var act = () => _sut.ChangeAssignedProposalAsync(proposal.Id, "Not yet.", Guid.NewGuid());
+
+        await act.Should().ThrowAsync<BusinessRuleException>();
+    }
 }

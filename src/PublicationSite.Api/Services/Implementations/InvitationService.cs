@@ -125,6 +125,8 @@ public class InvitationService(
             throw new BusinessRuleException("Give the person's name, so they know the invitation is meant for them.");
         }
 
+        await EnsureAddressSuitsRoleAsync(email, request.Role, cancellationToken);
+
         if (await userManager.FindByEmailAsync(email) is not null)
         {
             throw new ConflictException($"{email} already has an account.");
@@ -402,6 +404,42 @@ public class InvitationService(
             .FirstAsync(i => i.Id == id, cancellationToken);
 
         return ToDto(invitation);
+    }
+
+    /// <summary>
+    /// Whether this address can hold the role it is being invited to.
+    ///
+    /// A reviewer and an external committee member sit on the same committees and do the same
+    /// work, and the only thing that tells them apart is where they come from: a reviewer is one
+    /// of this institution's own staff, an external is somebody from outside. That difference is
+    /// an address, and nothing was checking it, so an external could be invited to the reviewer's
+    /// role and the distinction the committee composition counts would quietly stop meaning
+    /// anything.
+    ///
+    /// The staff domain is read from settings rather than written in, because an institution can
+    /// change it and the rule has to follow.
+    /// </summary>
+    private async Task EnsureAddressSuitsRoleAsync(string email, string role, CancellationToken cancellationToken)
+    {
+        var institution = await settingService.GetInstitutionSettingsAsync(cancellationToken);
+        var isInstitutional = email.EndsWith(institution.StaffEmailDomain, StringComparison.OrdinalIgnoreCase)
+                              || email.EndsWith(institution.StudentEmailDomain, StringComparison.OrdinalIgnoreCase);
+
+        if (role == RoleNames.ExternalCommitteeMember && isInstitutional)
+        {
+            throw new BusinessRuleException(
+                $"{email} is one of this institution's own addresses. Somebody here who sits on committees "
+                + $"is a {RoleNames.Reviewer}; an external committee member comes from outside.");
+        }
+
+        // Every role but the external one belongs to somebody who works or studies here.
+        if (role != RoleNames.ExternalCommitteeMember && !isInstitutional)
+        {
+            throw new BusinessRuleException(
+                $"The '{role}' role belongs to somebody at this institution, so it needs a "
+                + $"'{institution.StaffEmailDomain}' or '{institution.StudentEmailDomain}' address. "
+                + "Invite somebody from outside as an external committee member.");
+        }
     }
 
     private static string NormaliseEmail(string? email)

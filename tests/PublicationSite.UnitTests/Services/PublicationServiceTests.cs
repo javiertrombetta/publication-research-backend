@@ -380,4 +380,44 @@ public class PublicationServiceTests : IDisposable
         // paper from the only screen that could appoint its committee.
         (await _sut.GetAwaitingCommitteeAsync(new PageRequest())).Items.Should().ContainSingle(p => p.Id == publication.Id);
     }
+
+    // ---------- Once the paper has been accepted ----------
+
+    [Theory]
+    [InlineData(PublicationStatus.Accepted)]
+    [InlineData(PublicationStatus.Published)]
+    public async Task An_accepted_paper_takes_no_further_versions(PublicationStatus settled)
+    {
+        var (student, _, _, container) = SeedAtResearchPaperStage();
+        var publication = await _sut.GetOrCreateDraftAsync(container.Id, student.Id);
+        await _sut.UploadVersionAsync(publication.Id, student.Id, new MemoryStream([1]), "v1.pdf", null, null, null);
+
+        (await _fixture.Context.Publications.FindAsync(publication.Id))!.Status = settled;
+        await _fixture.Context.SaveChangesAsync();
+
+        // The container is not marked Completed the moment a paper is accepted, so the finished
+        // check alone let an administrator keep adding to a paper somebody had already passed.
+        var act = () => _sut.AdminUploadVersionAsync(
+            publication.Id, Guid.NewGuid(), new MemoryStream([2]), "v2.pdf", "Because.");
+
+        await act.Should().ThrowAsync<BusinessRuleException>();
+    }
+
+    [Fact]
+    public async Task A_paper_still_under_review_takes_a_version_from_an_administrator()
+    {
+        var (student, _, _, container) = SeedAtResearchPaperStage();
+        var publication = await _sut.GetOrCreateDraftAsync(container.Id, student.Id);
+        await _sut.UploadVersionAsync(publication.Id, student.Id, new MemoryStream([1]), "v1.pdf", null, null, null);
+        await _sut.SubmitAsync(publication.Id, student.Id);
+
+        // A real account: the version records who uploaded it, and the database holds them to it.
+        var admin = TestDataBuilder.User(_fixture.Context);
+
+        // Unsticking work that is still moving is what these corrections are for.
+        var added = await _sut.AdminUploadVersionAsync(
+            publication.Id, admin.Id, new MemoryStream([2]), "v2.pdf", "The file would not open.");
+
+        added.VersionNumber.Should().Be(2);
+    }
 }

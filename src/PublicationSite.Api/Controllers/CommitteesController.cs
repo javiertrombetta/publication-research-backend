@@ -169,9 +169,11 @@ public class CommitteesController(ICommitteeService committeeService, ICurrentUs
     [ProducesResponseType(typeof(ApiResponse<PagedResult<CommitteeDto>>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    public async Task<IActionResult> GetMyAssignments([FromQuery] PageRequest paging, [FromQuery] string? search = null)
+    public async Task<IActionResult> GetMyAssignments(
+        [FromQuery] PageRequest paging, [FromQuery] string? search = null, [FromQuery] bool awaitingMe = false)
     {
-        var result = await committeeService.GetAssignmentsForMemberAsync(currentUser.UserId, paging, search);
+        var result = await committeeService.GetAssignmentsForMemberAsync(
+            currentUser.UserId, paging, search, awaitingMe);
         return Ok(ApiResponse<PagedResult<CommitteeDto>>.Ok(result));
     }
 

@@ -583,4 +583,31 @@ public class EthicsServiceTests : IDisposable
         await _sut.SupervisorReviewDocumentsAsync(container.Id, supervisor.Id, new DocumentReviewDecisionRequest(true, "All good"));
         return (student, supervisor, coordinator, container);
     }
+
+    [Theory]
+    [InlineData(PublicationStatus.Accepted)]
+    [InlineData(PublicationStatus.Published)]
+    public async Task Ethics_documentation_behind_an_accepted_paper_cannot_be_taken_off_it(PublicationStatus settled)
+    {
+        var (student, supervisor, _, container) = SeedAssignedContainer();
+        await _sut.SubmitDeclarationAsync(container.Id, student.Id, new EthicsDeclarationRequest("Yes"));
+        await _sut.SubmitSupervisorRequirementDecisionAsync(container.Id, supervisor.Id,
+            new SupervisorRequirementDecisionRequest(true, "Needs approval"));
+
+        var requirement = _fixture.Context.EthicsDocumentRequirements.First();
+        var document = await _sut.UploadDocumentAsync(
+            container.Id, student.Id, requirement.Id.ToString(), new MemoryStream([1]), "consent.pdf");
+
+        _fixture.Context.Publications.Add(new Publication
+        {
+            PublicationContainerId = container.Id, Title = "T", Abstract = "A", Status = settled
+        });
+        await _fixture.Context.SaveChangesAsync();
+
+        // The container is not marked Completed the moment a paper is accepted, so the finished
+        // check alone still allowed the documentation it was approved under to be removed.
+        var act = () => _sut.AdminRemoveDocumentAsync(container.Id, Guid.NewGuid(), document.Id, "Tidying up.");
+
+        await act.Should().ThrowAsync<BusinessRuleException>();
+    }
 }
