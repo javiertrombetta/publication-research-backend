@@ -128,20 +128,50 @@ public class DemoPlansTests
         All.Should().OnlyContain(p => p.StartedDaysAgo > 0);
     }
 
+    private static readonly DemoStage[] ReachesPaper =
+    [
+        DemoStage.PaperWithSupervisor, DemoStage.PaperAwaitingCommittee, DemoStage.CommitteeReviewing,
+        DemoStage.PaperAwaitingFinalDecision, DemoStage.PaperAccepted, DemoStage.Published
+    ];
+
     [Fact]
     public void Every_paper_names_its_keywords_and_its_year()
     {
-        var reachesPaper = new[]
-        {
-            DemoStage.PaperWithSupervisor, DemoStage.PaperAwaitingCommittee, DemoStage.CommitteeReviewing,
-            DemoStage.PaperAwaitingFinalDecision, DemoStage.PaperAccepted, DemoStage.Published
-        };
-
-        foreach (var plan in All.Where(p => reachesPaper.Contains(p.Stage)))
+        foreach (var plan in All.Where(p => ReachesPaper.Contains(p.Stage)))
         {
             plan.Keywords.Should().NotBeNullOrEmpty(plan.Title);
             plan.Year.Should().NotBeNull(plan.Title);
         }
+    }
+
+    /// <summary>
+    /// Both of these were filled in by the builder rather than by the plan, and both came out the
+    /// same on every publication: the first two research areas in the table, and a publication type
+    /// that was not one of the four the student's form offers. A paper on procurement was filed
+    /// under Computing Education, four of the six areas were attached to nothing, and the
+    /// catalogue's two filters each had one value in them.
+    /// </summary>
+    [Fact]
+    public void Every_paper_says_what_it_is_and_what_it_is_about()
+    {
+        foreach (var plan in All.Where(p => ReachesPaper.Contains(p.Stage)))
+        {
+            plan.Areas.Should().NotBeNullOrEmpty(plan.Title);
+            plan.Areas!.Should().BeSubsetOf(DemoDataSeeder.ResearchAreaNames, plan.Title);
+            plan.Areas.Should().OnlyHaveUniqueItems(plan.Title);
+
+            plan.Type.Should().NotBeNullOrWhiteSpace(plan.Title);
+            DemoDataSeeder.PublicationTypes.Should().Contain(plan.Type!, plan.Title);
+        }
+    }
+
+    [Fact]
+    public void The_papers_between_them_use_more_than_one_area_and_more_than_one_kind()
+    {
+        var papers = All.Where(p => ReachesPaper.Contains(p.Stage)).ToList();
+
+        papers.SelectMany(p => p.Areas!).Distinct().Should().HaveCountGreaterThan(3);
+        papers.Select(p => p.Type).Distinct().Should().HaveCountGreaterThan(1);
     }
 
     /// <summary>

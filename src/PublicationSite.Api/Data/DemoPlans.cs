@@ -123,6 +123,8 @@ public static class DemoPlans
             Chosen = 1,
             Year = 2026,
             Keywords = ["developer onboarding", "documentation", "open source"],
+            Areas = ["Software Engineering"],
+            Type = "Conference Proceeding",
             Committee = [DemoSeat.ReviewerOne, DemoSeat.ReviewerTwo, DemoSeat.ExternalOne],
             Proposals =
             [
@@ -165,6 +167,8 @@ public static class DemoPlans
             Chosen = 1,
             Year = 2025,
             Keywords = ["static analysis", "software quality", "developer practice"],
+            Areas = ["Software Engineering", "Information Security"],
+            Type = "Journal Article",
             Committee = [DemoSeat.ReviewerTwo, DemoSeat.ReviewerThree, DemoSeat.ExternalOne],
             Proposals =
             [
@@ -304,6 +308,8 @@ public static class DemoPlans
             Chosen = 0,
             Year = 2025,
             Keywords = ["IT education", "retrieval practice", "assessment"],
+            Areas = ["Computing Education"],
+            Type = "Journal Article",
             Committee = [DemoSeat.ReviewerOne, DemoSeat.ReviewerThree, DemoSeat.ExternalTwo],
             Proposals =
             [
@@ -527,6 +533,8 @@ public static class DemoPlans
             Chosen = 0,
             Year = 2026,
             Keywords = ["version control", "novice programmers", "computing education"],
+            Areas = ["Computing Education", "Software Engineering"],
+            Type = "Conference Proceeding",
             Proposals =
             [
                 new("Version control practice among first-year students",
@@ -560,6 +568,8 @@ public static class DemoPlans
             Chosen = 1,
             Year = 2026,
             Keywords = ["continuous deployment", "regulated software", "audit"],
+            Areas = ["Software Engineering"],
+            Type = "Technical Report",
             Proposals =
             [
                 new("Change advisory boards and deployment frequency",
@@ -594,6 +604,8 @@ public static class DemoPlans
             Chosen = 0,
             Year = 2026,
             Keywords = ["technical debt", "planning", "software maintenance"],
+            Areas = ["Software Engineering"],
+            Type = "Conference Proceeding",
             Committee = [DemoSeat.ReviewerOne, DemoSeat.ReviewerThree, DemoSeat.ExternalTwo],
             Proposals =
             [
@@ -630,6 +642,8 @@ public static class DemoPlans
             Chosen = 2,
             Year = 2026,
             Keywords = ["search behaviour", "digital libraries", "log analysis"],
+            Areas = ["Human-Computer Interaction"],
+            Type = "Technical Report",
             Committee = [DemoSeat.ReviewerTwo, DemoSeat.ReviewerThree, DemoSeat.ExternalOne],
             Proposals =
             [
@@ -739,6 +753,8 @@ public static class DemoPlans
             AlternateSupervises = true,
             Year = 2026,
             Keywords = ["dataset documentation", "reproducibility", "machine learning"],
+            Areas = ["Data Science"],
+            Type = "Journal Article",
             Committee = [DemoSeat.ReviewerTwo, DemoSeat.ReviewerThree, DemoSeat.ExternalTwo],
             Proposals =
             [
@@ -844,6 +860,8 @@ public static class DemoPlans
             AlternateSupervises = true,
             Year = 2026,
             Keywords = ["corporate governance", "outsourcing", "board oversight"],
+            Areas = ["Organisational Behaviour"],
+            Type = "Thesis / Dissertation",
             Committee = [DemoSeat.ReviewerOne, DemoSeat.ReviewerTwo, DemoSeat.ExternalTwo],
             Proposals =
             [
@@ -940,6 +958,8 @@ public static class DemoPlans
             Chosen = 0,
             Year = 2025,
             Keywords = ["procurement", "supplier diversity", "corporate commitments"],
+            Areas = ["Organisational Behaviour"],
+            Type = "Thesis / Dissertation",
             Committee = [DemoSeat.ReviewerOne, DemoSeat.ReviewerThree, DemoSeat.ExternalOne],
             Proposals =
             [
