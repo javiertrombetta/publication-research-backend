@@ -420,8 +420,8 @@ public class PublicationService(
         // Oldest first where nothing was asked for, as on every other queue: the paper that has
         // been waiting longest is the one somebody is waiting longest on.
         query = page.SortBy is not null && PendingPaperSorts.TryGetValue(page.SortBy, out var key)
-            ? page.SortDescending ? query.OrderByDescending(key) : query.OrderBy(key)
-            : query.OrderBy(p => p.UpdatedAt);
+            ? (page.SortDescending ? query.OrderByDescending(key) : query.OrderBy(key)).ThenBy(p => p.Id)
+            : query.OrderBy(p => p.UpdatedAt).ThenBy(p => p.Id);
 
         var total = await query.CountAsync(cancellationToken);
 
@@ -490,8 +490,8 @@ public class PublicationService(
         // Longest waiting first by default: this is a queue, and the paper nobody has dealt with
         // for a fortnight is the one holding a coordinator up.
         var ordered = paging.SortBy is not null && AwaitingCommitteeSorts.TryGetValue(paging.SortBy, out var key)
-            ? paging.SortDescending ? papers.OrderByDescending(key) : papers.OrderBy(key)
-            : papers.OrderBy(p => p.UpdatedAt);
+            ? (paging.SortDescending ? papers.OrderByDescending(key) : papers.OrderBy(key)).ThenBy(p => p.Id)
+            : papers.OrderBy(p => p.UpdatedAt).ThenBy(p => p.Id);
 
         var total = await ordered.CountAsync(cancellationToken);
 

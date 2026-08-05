@@ -195,7 +195,7 @@ public class CommitteeService(
     {
         var query = db.Committees
             .Where(c => c.Status != CommitteeStatus.Completed)
-            .OrderByDescending(c => c.CreatedAt);
+            .OrderByDescending(c => c.CreatedAt).ThenBy(c => c.Id);
 
         var total = await query.CountAsync(cancellationToken);
 
@@ -390,10 +390,10 @@ public class CommitteeService(
                 ? Order(key)
                 : filtered
                     .OrderBy(c => c.Members.Any(m => m.UserId == memberUserId && m.Decision == CommitteeMemberDecision.Pending) ? 0 : 1)
-                    .ThenByDescending(c => c.CreatedAt);
+                    .ThenByDescending(c => c.CreatedAt).ThenBy(c => c.Id);
 
         IOrderedQueryable<Committee> Order(Expression<Func<Committee, object?>> on) =>
-            page.SortDescending ? filtered.OrderByDescending(on) : filtered.OrderBy(on);
+            (page.SortDescending ? filtered.OrderByDescending(on) : filtered.OrderBy(on)).ThenBy(c => c.Id);
 
         var total = await query.CountAsync(cancellationToken);
 

@@ -354,7 +354,7 @@ public class ProposalService(
     private static IQueryable<ProposalWithInvitationsDto> ProjectWithInvitations(
         IQueryable<ResearchProposal> query, PageRequest page) =>
         query
-            .SortBy(page, p => p.CreatedAt, SortColumns, fallbackDescending: false)
+            .SortBy(page, p => p.CreatedAt, SortColumns, p => p.Id, fallbackDescending: false)
             .ThenBy(p => p.PublicationContainerId)
             .Select(p => new ProposalWithInvitationsDto(
                 p.Id,
@@ -489,7 +489,7 @@ public class ProposalService(
         // time on is the one to read next. Proposals with no date sit after those that have one,
         // which is what the ordering by "has a date" ahead of the date itself does.
         var ordered = paging.SortBy is not null && InvitedSorts.TryGetValue(paging.SortBy, out var key)
-            ? paging.SortDescending ? query.OrderByDescending(key) : query.OrderBy(key)
+            ? (paging.SortDescending ? query.OrderByDescending(key) : query.OrderBy(key)).ThenBy(p => p.Id)
             : query
                 .OrderBy(p => p.SupervisorSelections
                     .Where(s => s.SupervisorId == supervisorId)
@@ -497,7 +497,7 @@ public class ProposalService(
                 .ThenBy(p => p.SupervisorSelections
                     .Where(s => s.SupervisorId == supervisorId)
                     .Select(s => s.RespondBy).FirstOrDefault())
-                .ThenBy(p => p.SubmittedAt);
+                .ThenBy(p => p.SubmittedAt).ThenBy(p => p.Id);
 
         // Carries the date this supervisor has to answer by. A deadline the person being held to
         // it cannot see is not a deadline, and it is on their own invitation, so it costs nothing.

@@ -93,10 +93,10 @@ public class UserService(
                 .FirstOrDefault())
             : paging.SortBy is not null && DirectorySorts.TryGetValue(paging.SortBy, out var key)
                 ? Order(key)
-                : query.OrderBy(u => u.LastName).ThenBy(u => u.FirstName);
+                : query.OrderBy(u => u.LastName).ThenBy(u => u.FirstName).ThenBy(u => u.Id);
 
         IOrderedQueryable<ApplicationUser> Order(Expression<Func<ApplicationUser, object?>> on) =>
-            paging.SortDescending ? query.OrderByDescending(on) : query.OrderBy(on);
+            (paging.SortDescending ? query.OrderByDescending(on) : query.OrderBy(on)).ThenBy(u => u.Id);
 
         var items = await ordered
             .Skip((paging.SafePage - 1) * paging.SafePageSize)

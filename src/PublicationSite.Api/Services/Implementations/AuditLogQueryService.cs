@@ -50,8 +50,8 @@ public class AuditLogQueryService(ApplicationDbContext db) : IAuditLogQueryServi
     private static IOrderedQueryable<Entities.AuditLogEntry> Order(
         IQueryable<Entities.AuditLogEntry> query, AuditLogQuery request) =>
         request.SortBy is not null && TrailSorts.TryGetValue(request.SortBy, out var key)
-            ? request.SortDescending ? query.OrderByDescending(key) : query.OrderBy(key)
-            : query.OrderByDescending(a => a.Timestamp);
+            ? (request.SortDescending ? query.OrderByDescending(key) : query.OrderBy(key)).ThenBy(a => a.Id)
+            : query.OrderByDescending(a => a.Timestamp).ThenBy(a => a.Id);
 
     public async Task<byte[]> ExportCsvAsync(AuditLogQuery query, CancellationToken cancellationToken = default)
     {

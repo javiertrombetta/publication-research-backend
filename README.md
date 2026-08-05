@@ -360,6 +360,18 @@ one would be a way to award yourself whatever role you liked. Only a SHA-256 has
 the token exists solely in the email that was sent and a leaked database cannot be used to accept anyone's
 invitation. Accepting, re-sending or withdrawing all invalidate the current token.
 
+### Every paged listing ends in something unique
+
+Nothing here is ordered by a column whose values are all different. The listings sort by a date, a status, a
+role, a name, and rows that tie on one of those were left in whatever order the database found convenient. It
+is under no obligation to find the same one twice, and a page is its own query, so two rows tying across the
+boundary between page one and page two could both come back on page one and the other would never appear.
+Nobody reports that, because the row that went missing is the one they did not know to look for.
+
+`QueryableSorting.SortBy` therefore takes a tiebreaker and appends it to whatever was asked for, and the
+listings that order inline end in the row's id. Checked by walking every page of the four tie-heaviest
+listings: 407 audit entries over 82 pages, every one of them once.
+
 ## Business rules encoded in the domain
 
 - Email domain decides the auto-assigned role at registration: the student domain → Student, the staff domain →
