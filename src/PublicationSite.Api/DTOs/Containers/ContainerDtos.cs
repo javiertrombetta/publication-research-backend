@@ -35,7 +35,9 @@ public record PublicationContainerDto(
     Guid? StudentDepartmentId = null,
     string? StudentDepartmentName = null,
     Guid? EthicsHeadOfDepartmentId = null,
-    string? EthicsHeadOfDepartmentName = null);
+    string? EthicsHeadOfDepartmentName = null,
+    /// <param name="PaperId">The research paper's own id, where one exists. The endpoints that act on a paper take it, and a screen listing publications otherwise has to fetch each one to find it.</param>
+    Guid? PaperId = null);
 
 /// <summary>
 /// Which part of a publication's history a reader wants.
@@ -152,6 +154,13 @@ public class ContainerQuery : PageRequest
     /// watching, and each has to be a page of its own or neither can be paged at all.
     /// </summary>
     public string? PaperAwaiting { get; set; }
+
+    /// <summary>
+    /// The research paper's own status, by name. What the catalogue screen filters on: an
+    /// administrator deciding what to withdraw is looking at published papers, and one deciding
+    /// what to publish on a student's behalf at accepted ones.
+    /// </summary>
+    public string? PaperStatus { get; set; }
 
     /// <summary>
     /// A word to look for in the student's name, the publication's title or its abstract. One term
