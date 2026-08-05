@@ -39,10 +39,11 @@ public class EthicsService(
         // nobody's queue, and it opened the ethics stage while the publication was still deciding
         // what the research would be. The site's own screens already refuse this; the rule belongs
         // here, where it is a rule rather than a screen.
-        if (container.CurrentPipeline < PipelineStage.EthicsApproval)
+        if (container.CurrentPipeline != PipelineStage.EthicsApproval)
         {
             throw new BusinessRuleException(
-                "The ethics stage has not opened yet. It follows the coordinator choosing a proposal and appointing a supervisor.");
+                "The ethics stage is not open on this publication. It opens once the coordinator has chosen a proposal "
+                + "and appointed a supervisor, in the order this institution runs its stages.");
         }
 
         if (!Enum.TryParse<EthicsStudentResponse>(request.Response, true, out var response))
@@ -929,9 +930,20 @@ public class EthicsService(
         }));
     }
 
+    /// <summary>
+    /// Moves the publication on now that ethics has closed, where ethics is the first of the two.
+    /// Where the paper came first it is already done, so the publication stays where it is and the
+    /// student publishes from there.
+    /// </summary>
     private async Task AdvanceToResearchPaperPipelineAsync(PublicationContainer container, CancellationToken cancellationToken)
     {
-        container.CurrentPipeline = PipelineStage.ResearchPaper;
+        var order = await settingService.GetPaperWorkflowSettingsAsync(cancellationToken);
+
+        if (order.EthicsBeforePaper)
+        {
+            container.CurrentPipeline = PipelineStage.ResearchPaper;
+        }
+
         container.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(cancellationToken);
     }

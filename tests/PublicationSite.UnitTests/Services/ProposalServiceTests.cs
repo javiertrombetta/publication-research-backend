@@ -7,6 +7,7 @@ using PublicationSite.Api.Common.Exceptions;
 using PublicationSite.Api.DTOs.Proposals;
 using PublicationSite.Api.DTOs.Common;
 using PublicationSite.Api.Entities;
+using PublicationSite.Api.DTOs.Settings;
 using PublicationSite.Api.Enums;
 using PublicationSite.Api.Services.Implementations;
 using PublicationSite.Api.Services.Interfaces;
@@ -20,6 +21,7 @@ public class ProposalServiceTests : IDisposable
     private readonly SqliteDbContextFactory _fixture = new();
     private readonly Mock<IContainerAccessService> _accessService = new();
     private readonly Mock<IAuditService> _auditService = new();
+    private readonly Mock<ISystemSettingService> _settingService = new();
     private readonly Mock<INotificationService> _notificationService = new();
 
     /// <summary>
@@ -35,8 +37,12 @@ public class ProposalServiceTests : IDisposable
     {
         _accessService.Setup(a => a.EnsureAccessAsync(It.IsAny<Guid>(), It.IsAny<Guid>())).Returns(Task.CompletedTask);
         _settings = new SystemSettingsProvider(_fixture.Context, new MemoryCache(new MemoryCacheOptions()));
+        // The stages as they ship: ethics first, then the research paper.
+        _settingService.Setup(s => s.GetPaperWorkflowSettingsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PaperWorkflowSettingsDto(true, true, true, true));
+
         _sut = new ProposalService(_fixture.Context, _accessService.Object, _auditService.Object,
-            _notificationService.Object, _settings, new DecisionCommentPolicy(new SystemSettingsProvider(_fixture.Context, new MemoryCache(new MemoryCacheOptions()))));
+            _notificationService.Object, _settings, _settingService.Object, new DecisionCommentPolicy(new SystemSettingsProvider(_fixture.Context, new MemoryCache(new MemoryCacheOptions()))));
     }
 
     public void Dispose() => _fixture.Dispose();
@@ -355,5 +361,26 @@ public class ProposalServiceTests : IDisposable
 
         var proposals = await _sut.GetByContainerAsync(container.Id, student.Id);
         proposals.Single(p => p.Id == proposal.Id).Status.Should().Be(ProposalStatus.DeferredToNextCycle.ToString());
+    }
+
+    [Fact]
+    public async Task Assigning_a_supervisor_opens_the_paper_first_where_the_institution_runs_it_that_way()
+    {
+        _settingService.Setup(s => s.GetPaperWorkflowSettingsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PaperWorkflowSettingsDto(true, true, true, EthicsBeforePaper: false));
+
+        var (student, coordinator, container) = SeedContainer();
+        var proposal = await _sut.CreateAsync(container.Id, student.Id, new SaveProposalRequest("A", "Abstract"));
+        await _sut.FinishSubmissionAsync(container.Id, student.Id);
+
+        var supervisor = TestDataBuilder.User(_fixture.Context);
+        await _sut.SendToSupervisorsAsync(
+            new SendToSupervisorsRequest([proposal.Id], [supervisor.Id], "Please review"), coordinator.Id);
+        await _sut.SelectAsFeasibleAsync(proposal.Id, supervisor.Id, new SupervisorSelectionRequest(null));
+        await _sut.AssignSupervisorAsync(proposal.Id, new AssignSupervisorRequest(supervisor.Id, "Assigned"), coordinator.Id);
+
+        // Proposals are still first; what follows them is the stage this institution runs next.
+        (await _fixture.Context.PublicationContainers.FindAsync(container.Id))!.CurrentPipeline
+            .Should().Be(PipelineStage.ResearchPaper);
     }
 }

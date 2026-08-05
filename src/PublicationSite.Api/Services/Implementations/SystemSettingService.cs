@@ -642,7 +642,8 @@ public class SystemSettingService(
         new(
             await settings.GetBoolAsync(SettingKeys.PaperSupervisorReviews, SettingKeys.DefaultPaperSupervisorReviews, cancellationToken),
             await settings.GetBoolAsync(SettingKeys.PaperCommitteeEvaluates, SettingKeys.DefaultPaperCommitteeEvaluates, cancellationToken),
-            await settings.GetBoolAsync(SettingKeys.PaperCoordinatorDecides, SettingKeys.DefaultPaperCoordinatorDecides, cancellationToken));
+            await settings.GetBoolAsync(SettingKeys.PaperCoordinatorDecides, SettingKeys.DefaultPaperCoordinatorDecides, cancellationToken),
+            await settings.GetBoolAsync(SettingKeys.PipelineEthicsBeforePaper, SettingKeys.DefaultPipelineEthicsBeforePaper, cancellationToken));
 
     public async Task<PaperWorkflowSettingsDto> UpdatePaperWorkflowSettingsAsync(
         UpdatePaperWorkflowSettingsRequest request, Guid actingAdminId, CancellationToken cancellationToken = default)
@@ -659,12 +660,14 @@ public class SystemSettingService(
         await SetPendingAsync(SettingKeys.PaperSupervisorReviews, request.SupervisorReviews, actingAdminId, cancellationToken);
         await SetPendingAsync(SettingKeys.PaperCommitteeEvaluates, request.CommitteeEvaluates, actingAdminId, cancellationToken);
         await SetPendingAsync(SettingKeys.PaperCoordinatorDecides, request.CoordinatorDecides, actingAdminId, cancellationToken);
+        await SetPendingAsync(SettingKeys.PipelineEthicsBeforePaper, request.EthicsBeforePaper, actingAdminId, cancellationToken);
 
         await CommitAsync(actingAdminId, "PaperWorkflowSettingsUpdated",
             $"Supervisor reads a submitted paper: {Word(request.SupervisorReviews)}. "
             + $"An evaluation committee judges it: {Word(request.CommitteeEvaluates)}. "
             + $"The coordinator decides on it: {Word(request.CoordinatorDecides)}. "
-            + "These apply to papers already under way, which is the point of the switches.",
+            + $"Ethics comes before the research paper: {Word(request.EthicsBeforePaper)}. "
+            + "These apply to publications already under way, which is the point of the switches.",
             cancellationToken);
 
         return await GetPaperWorkflowSettingsAsync(cancellationToken);

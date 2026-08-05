@@ -1,4 +1,5 @@
 using PublicationSite.Api.Common;
+using PublicationSite.Api.Enums;
 
 namespace PublicationSite.Api.DTOs.Settings;
 
@@ -266,15 +267,25 @@ public record UpdateDecisionCommentSettingsRequest(IReadOnlyList<string> Require
 /// <param name="SupervisorReviews">Whether the supervisor reads a submitted paper.</param>
 /// <param name="CommitteeEvaluates">Whether an evaluation committee judges it.</param>
 /// <param name="CoordinatorDecides">Whether the coordinator makes the final decision on it.</param>
+/// <param name="EthicsBeforePaper">Whether ethics approval comes before the research paper or after it.</param>
 public record PaperWorkflowSettingsDto(
     bool SupervisorReviews = true,
     bool CommitteeEvaluates = true,
-    bool CoordinatorDecides = true);
+    bool CoordinatorDecides = true,
+    bool EthicsBeforePaper = true)
+{
+    /// <summary>The stage a publication opens on once a proposal has been assigned.</summary>
+    public PipelineStage FirstOfTheTwo => EthicsBeforePaper ? PipelineStage.EthicsApproval : PipelineStage.ResearchPaper;
+
+    /// <summary>The stage that follows it.</summary>
+    public PipelineStage SecondOfTheTwo => EthicsBeforePaper ? PipelineStage.ResearchPaper : PipelineStage.EthicsApproval;
+}
 
 public record UpdatePaperWorkflowSettingsRequest(
     bool SupervisorReviews = true,
     bool CommitteeEvaluates = true,
-    bool CoordinatorDecides = true);
+    bool CoordinatorDecides = true,
+    bool EthicsBeforePaper = true);
 
 /// <param name="SupervisorReviewsDocuments">Whether the supervisor reads the uploaded documents before anybody else.</param>
 /// <param name="CoordinatorReviewsDocuments">Whether the coordinator reads them before handing on.</param>

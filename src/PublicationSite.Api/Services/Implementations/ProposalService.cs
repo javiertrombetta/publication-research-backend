@@ -17,6 +17,7 @@ public class ProposalService(
     IAuditService auditService,
     INotificationService notificationService,
     ISystemSettingsProvider settings,
+    ISystemSettingService settingService,
     IDecisionCommentPolicy commentPolicy) : IProposalService
 {
     public async Task<ProposalDto> CreateAsync(Guid publicationContainerId, Guid studentId, SaveProposalRequest request, CancellationToken cancellationToken = default)
@@ -536,7 +537,10 @@ public class ProposalService(
 
         var container = proposal.PublicationContainer;
         container.AssignedSupervisorId = request.SupervisorId;
-        container.CurrentPipeline = PipelineStage.EthicsApproval;
+        // Whichever of the two this institution runs first. Proposals are always first, because
+        // this assignment is what names the supervisor both later stages wait on.
+        var order = await settingService.GetPaperWorkflowSettingsAsync(cancellationToken);
+        container.CurrentPipeline = order.FirstOfTheTwo;
         container.UpdatedAt = DateTime.UtcNow;
 
         var siblingProposals = await db.ResearchProposals
@@ -551,7 +555,7 @@ public class ProposalService(
         await db.SaveChangesAsync(cancellationToken);
 
         await auditService.LogActivityAsync(container.Id, coordinatorId, "SupervisorAssigned", request.Comments,
-            previousStatus: PipelineStage.ResearchProposals.ToString(), newStatus: PipelineStage.EthicsApproval.ToString());
+            previousStatus: PipelineStage.ResearchProposals.ToString(), newStatus: container.CurrentPipeline.ToString());
 
         await notificationService.NotifyAsync(request.SupervisorId, NotificationType.ProposalAccepted,
             "You have been assigned as Supervisor",
