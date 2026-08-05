@@ -128,6 +128,29 @@ public class DemoPlansTests
         All.Should().OnlyContain(p => p.StartedDaysAgo > 0);
     }
 
+    /// <summary>
+    /// Each publication also has to have taken time. Dating the whole of one back by a single
+    /// amount put its listings in a sensible order and left every step inside it sharing a
+    /// timestamp, so a paper was created, put through ethics, sent to a committee and published on
+    /// one afternoon, and "how long has this been with the Head of Department" had no answer.
+    /// </summary>
+    [Fact]
+    public void Nothing_finished_before_it_started()
+    {
+        foreach (var plan in All)
+        {
+            plan.LastActionDaysAgo.Should().BeInRange(0, plan.StartedDaysAgo, plan.Title);
+        }
+    }
+
+    [Fact]
+    public void Most_publications_took_more_than_a_day()
+    {
+        var spans = All.Select(p => p.StartedDaysAgo - p.LastActionDaysAgo).ToList();
+
+        spans.Count(days => days > 1).Should().BeGreaterThan(All.Length * 3 / 4);
+    }
+
     private static readonly DemoStage[] ReachesPaper =
     [
         DemoStage.PaperWithSupervisor, DemoStage.PaperAwaitingCommittee, DemoStage.CommitteeReviewing,
