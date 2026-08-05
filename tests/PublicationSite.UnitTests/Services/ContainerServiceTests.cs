@@ -345,6 +345,50 @@ public class ContainerServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task MoveToAsync_lands_on_the_reading_asked_for_when_the_coordinator_reads_first()
+    {
+        _settingService.Setup(s => s.GetEthicsWorkflowSettingsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new EthicsWorkflowSettingsDto(true, true, true, true, SettingKeys.CoordinatorFirst));
+
+        var department = TestDataBuilder.Department(_fixture.Context);
+        var student = TestDataBuilder.User(_fixture.Context);
+        TestDataBuilder.StudentProfile(_fixture.Context, student, department);
+        var container = TestDataBuilder.Container(
+            _fixture.Context, student, TestDataBuilder.User(_fixture.Context), stage: PipelineStage.EthicsApproval);
+
+        var requirements = TestDataBuilder.EthicsDocumentRequirements(_fixture.Context);
+        var approval = new EthicsApproval
+        {
+            PublicationContainerId = container.Id,
+            Status = EthicsStatus.PendingVerification
+        };
+        _fixture.Context.EthicsApprovals.Add(approval);
+        await _fixture.Context.SaveChangesAsync();
+        _fixture.Context.EthicsDocuments.Add(new EthicsDocument
+        {
+            EthicsApprovalId = approval.Id,
+            EthicsDocumentRequirementId = requirements[0].Id,
+            FileName = "a.pdf",
+            FilePath = "x/a.pdf",
+            Version = 1,
+            UploadedByUserId = student.Id,
+            Status = EthicsDocumentStatus.Accepted
+        });
+        await _fixture.Context.SaveChangesAsync();
+
+        await _sut.MoveToAsync(container.Id,
+            new MoveContainerRequest((int)PipelineStage.EthicsApproval, "Back to the supervisor.",
+                EthicsSteps.SupervisorDocumentReview),
+            Guid.NewGuid());
+
+        // The coordinator reads first here, so they have to count as done or the approval would
+        // land on their step rather than the supervisor's.
+        var moved = await _fixture.Context.EthicsApprovals.FirstAsync(a => a.PublicationContainerId == container.Id);
+        moved.CoordinatorDecisionAt.Should().NotBeNull();
+        moved.SupervisorDocumentsReviewedAt.Should().BeNull();
+    }
+
+    [Fact]
     public async Task MoveToAsync_refuses_a_step_that_reads_documents_when_there_are_none()
     {
         var department = TestDataBuilder.Department(_fixture.Context);
