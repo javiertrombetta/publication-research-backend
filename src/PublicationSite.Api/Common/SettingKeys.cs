@@ -298,6 +298,19 @@ public static class SettingKeys
 
     public const bool DefaultEthicsHeadOfDepartmentReview = true;
 
+    /// <summary>
+    /// The same reading, on the other route through the stage: where the supervisor ruled that no
+    /// ethics documentation is needed and the coordinator agreed.
+    ///
+    /// Its own setting rather than the one above, because the two are different questions. Reading
+    /// documents is work, and an institution may want it done once; agreeing that a piece of
+    /// research needs no ethics approval at all is a judgement a head of department may want sight
+    /// of precisely because there is nothing to read.
+    /// </summary>
+    public const string EthicsHeadOfDepartmentReviewNotRequired = "ethics.head-of-department-review-not-required";
+
+    public const bool DefaultEthicsHeadOfDepartmentReviewNotRequired = true;
+
     // ---------- Where uploaded files are kept ----------
 
     /// <summary>

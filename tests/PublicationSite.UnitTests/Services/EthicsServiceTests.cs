@@ -40,7 +40,7 @@ public class EthicsServiceTests : IDisposable
         // The Head of Department step is part of the pipeline unless an administrator turns it
         // off, and these tests walk the full sequence.
         _settingService.Setup(s => s.GetEthicsWorkflowSettingsAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new EthicsWorkflowSettingsDto(true));
+            .ReturnsAsync(new EthicsWorkflowSettingsDto(true, true));
 
         _sut = new EthicsService(_fixture.Context, _accessService.Object, _auditService.Object, _notificationService.Object, _fileStorageService.Object,
             new DecisionCommentPolicy(new SystemSettingsProvider(_fixture.Context, new MemoryCache(new MemoryCacheOptions()))),
@@ -261,6 +261,11 @@ public class EthicsServiceTests : IDisposable
     [Fact]
     public async Task CoordinatorReviewNotRequired_confirming_not_required_advances_pipeline()
     {
+        // The Head of Department step is off on this route, so the coordinator's agreement is the
+        // end of the stage.
+        _settingService.Setup(s => s.GetEthicsWorkflowSettingsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new EthicsWorkflowSettingsDto(true, false));
+
         var (student, supervisor, coordinator, container) = SeedAssignedContainer();
         await _sut.SubmitDeclarationAsync(container.Id, student.Id, new EthicsDeclarationRequest("No"));
         await _sut.SubmitSupervisorRequirementDecisionAsync(container.Id, supervisor.Id, new SupervisorRequirementDecisionRequest(false, "Not needed"));
@@ -270,6 +275,65 @@ public class EthicsServiceTests : IDisposable
         var updatedContainer = await _fixture.Context.PublicationContainers.FindAsync(container.Id);
         updatedContainer!.CurrentPipeline.Should().Be(PipelineStage.ResearchPaper);
         (await _sut.GetApprovalAsync(container.Id, student.Id)).Status.Should().Be(EthicsStatus.NotRequired.ToString());
+    }
+
+    [Fact]
+    public async Task CoordinatorReviewNotRequired_waits_for_the_head_of_department_where_that_step_is_on()
+    {
+        var (student, supervisor, coordinator, container) = SeedAssignedContainer();
+        await _sut.SubmitDeclarationAsync(container.Id, student.Id, new EthicsDeclarationRequest("No"));
+        await _sut.SubmitSupervisorRequirementDecisionAsync(container.Id, supervisor.Id, new SupervisorRequirementDecisionRequest(false, "Not needed"));
+
+        await _sut.CoordinatorReviewNotRequiredAsync(container.Id, coordinator.Id, new CoordinatorNotRequiredReviewRequest(false, "Agreed"));
+
+        // Agreed, but not closed: the stage is still open and the paper has not started.
+        var held = await _fixture.Context.PublicationContainers.FindAsync(container.Id);
+        held!.CurrentPipeline.Should().Be(PipelineStage.EthicsApproval);
+        (await _fixture.Context.EthicsApprovals.FirstAsync(a => a.PublicationContainerId == container.Id))
+            .FinalDecisionAt.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task A_stage_needing_no_documents_still_passes_through_the_head_of_department()
+    {
+        var (student, supervisor, coordinator, container) = SeedAssignedContainer();
+        await _sut.SubmitDeclarationAsync(container.Id, student.Id, new EthicsDeclarationRequest("No"));
+        await _sut.SubmitSupervisorRequirementDecisionAsync(container.Id, supervisor.Id, new SupervisorRequirementDecisionRequest(false, "Not needed"));
+        await _sut.CoordinatorReviewNotRequiredAsync(container.Id, coordinator.Id, new CoordinatorNotRequiredReviewRequest(false, "Agreed"));
+
+        var departmentId = await _fixture.Context.StudentProfiles.Where(s => s.UserId == student.Id).Select(s => s.DepartmentId).FirstAsync();
+        var department = await _fixture.Context.Departments.FindAsync(departmentId);
+        var hod = TestDataBuilder.User(_fixture.Context);
+        TestDataBuilder.HeadOfDepartmentProfile(_fixture.Context, hod, department!);
+
+        await _sut.HeadOfDepartmentReviewAsync(container.Id, hod.Id, new HeadOfDepartmentReviewRequest("No concerns about the ruling"));
+        await _sut.CoordinatorFinalDecisionAsync(container.Id, coordinator.Id, new CoordinatorFinalDecisionRequest(true, "Closed"));
+
+        // Closed as NotRequired, not Verified: nothing was ever produced to verify.
+        (await _sut.GetApprovalAsync(container.Id, student.Id)).Status.Should().Be(EthicsStatus.NotRequired.ToString());
+        (await _fixture.Context.PublicationContainers.FindAsync(container.Id))!.CurrentPipeline
+            .Should().Be(PipelineStage.ResearchPaper);
+    }
+
+    [Fact]
+    public async Task The_head_of_department_can_send_a_no_documents_ruling_back_for_documentation()
+    {
+        var (student, supervisor, coordinator, container) = SeedAssignedContainer();
+        await _sut.SubmitDeclarationAsync(container.Id, student.Id, new EthicsDeclarationRequest("No"));
+        await _sut.SubmitSupervisorRequirementDecisionAsync(container.Id, supervisor.Id, new SupervisorRequirementDecisionRequest(false, "Not needed"));
+        await _sut.CoordinatorReviewNotRequiredAsync(container.Id, coordinator.Id, new CoordinatorNotRequiredReviewRequest(false, "Agreed"));
+
+        var departmentId = await _fixture.Context.StudentProfiles.Where(s => s.UserId == student.Id).Select(s => s.DepartmentId).FirstAsync();
+        var department = await _fixture.Context.Departments.FindAsync(departmentId);
+        var hod = TestDataBuilder.User(_fixture.Context);
+        TestDataBuilder.HeadOfDepartmentProfile(_fixture.Context, hod, department!);
+
+        await _sut.HeadOfDepartmentReviewAsync(container.Id, hod.Id, new HeadOfDepartmentReviewRequest("This does involve participants"));
+
+        // Turning it down asks for documentation after all, because there is nothing to send back.
+        await _sut.CoordinatorFinalDecisionAsync(container.Id, coordinator.Id, new CoordinatorFinalDecisionRequest(false, "Documentation is needed"));
+
+        (await _sut.GetApprovalAsync(container.Id, student.Id)).Status.Should().Be(EthicsStatus.PendingUpload.ToString());
     }
 
     [Fact]
@@ -335,7 +399,7 @@ public class EthicsServiceTests : IDisposable
     public async Task CoordinatorFinalDecisionAsync_closes_the_stage_alone_when_the_hod_step_is_off()
     {
         _settingService.Setup(s => s.GetEthicsWorkflowSettingsAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new EthicsWorkflowSettingsDto(false));
+            .ReturnsAsync(new EthicsWorkflowSettingsDto(false, false));
 
         var (student, _, coordinator, container) = await SupervisorApprovedDocumentsAsync();
         await _sut.CoordinatorReviewDocumentsAsync(container.Id, coordinator.Id, new CoordinatorDocumentReviewRequest(true, "Looks good"));
@@ -349,7 +413,7 @@ public class EthicsServiceTests : IDisposable
     public async Task HeadOfDepartmentReviewAsync_is_refused_when_the_step_is_off()
     {
         _settingService.Setup(s => s.GetEthicsWorkflowSettingsAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new EthicsWorkflowSettingsDto(false));
+            .ReturnsAsync(new EthicsWorkflowSettingsDto(false, false));
 
         var (student, _, coordinator, container) = await SupervisorApprovedDocumentsAsync();
 

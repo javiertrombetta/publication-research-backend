@@ -329,6 +329,23 @@ public class EthicsService(
         }
         else
         {
+            // Agreeing that a piece of research needs no ethics approval is a decision in its own
+            // right, and an institution may want its head of department to see it before the stage
+            // closes. Where it does, this is not the end of the stage: it is the coordinator
+            // handing on, exactly as approving a set of documents is.
+            var workflow = await settingService.GetEthicsWorkflowSettingsAsync(cancellationToken);
+
+            if (workflow.HeadOfDepartmentReviewsWhenNotRequired)
+            {
+                await db.SaveChangesAsync(cancellationToken);
+
+                await auditService.LogActivityAsync(publicationContainerId, coordinatorId, "CoordinatorAgreedEthicsNotRequired",
+                    request.Comments, newStatus: EthicsStatus.NotRequired.ToString());
+
+                await NotifyHeadOfDepartmentAsync(container, cancellationToken);
+                return;
+            }
+
             approval.FinalDecisionAt = DateTime.UtcNow;
             await AdvanceToResearchPaperPipelineAsync(container, cancellationToken);
 
@@ -378,21 +395,7 @@ public class EthicsService(
 
             if (workflow.HeadOfDepartmentReviews)
             {
-                // Whoever heads the student's department. Normally one person; where the
-                // administrator has appointed more, the first is notified and the rest see it on
-                // their own queue, which is where the work actually is.
-                var headOfDepartment = await db.StudentProfiles
-                    .Where(s => s.UserId == container.StudentId)
-                    .SelectMany(s => s.Department.HeadsOfDepartment)
-                    .FirstOrDefaultAsync(cancellationToken);
-
-                if (headOfDepartment is not null)
-                {
-                    await notificationService.NotifyAsync(headOfDepartment.UserId, NotificationType.EthicsHeadOfDepartmentReviewRequested,
-                        "Ethics documentation review requested",
-                        "The Coordinator has approved a student's ethics documentation. Please log in to review it and record your comments.",
-                        nameof(PublicationContainer), publicationContainerId, cancellationToken);
-                }
+                await NotifyHeadOfDepartmentAsync(container, cancellationToken);
             }
             else
             {
@@ -429,15 +432,24 @@ public class EthicsService(
 
         var workflow = await settingService.GetEthicsWorkflowSettingsAsync(cancellationToken);
 
-        if (!workflow.HeadOfDepartmentReviews)
+        // Two routes reach this step and each has its own switch: documentation the coordinator
+        // has approved, and a coordinator agreeing that none is needed. Both wait on the same
+        // person and both end with the coordinator closing the stage.
+        var onDocuments = approval.Status == EthicsStatus.PendingVerification && workflow.HeadOfDepartmentReviews;
+
+        var onNotRequired = approval.Status == EthicsStatus.NotRequired
+            && approval.FinalDecisionAt is null
+            && workflow.HeadOfDepartmentReviewsWhenNotRequired;
+
+        if (!onDocuments && !onNotRequired)
         {
             throw new BusinessRuleException(
-                "This institution does not put the Head of Department between the coordinator's approval and their final decision.");
+                "This institution does not put the Head of Department between the coordinator's decision and the close of this stage.");
         }
 
-        if (approval.Status != EthicsStatus.PendingVerification || approval.CoordinatorDecisionAt is null)
+        if (approval.CoordinatorDecisionAt is null || approval.HeadOfDepartmentReviewedAt is not null)
         {
-            throw new BusinessRuleException("This container's ethics documentation is not awaiting Head of Department review.");
+            throw new BusinessRuleException("This container's ethics decision is not awaiting Head of Department review.");
         }
 
         await commentPolicy.EnsureAsync(DecisionPoints.EthicsHeadOfDepartmentReview, request.Comments, cancellationToken);
@@ -456,6 +468,27 @@ public class EthicsService(
             nameof(PublicationContainer), publicationContainerId, cancellationToken);
     }
 
+    /// <summary>
+    /// Tells whoever heads the student's department that the coordinator has handed on.
+    ///
+    /// Normally one person; where the administrator has appointed more, the first is notified and
+    /// the rest see it on their own queue, which is where the work actually is.
+    /// </summary>
+    private async Task NotifyHeadOfDepartmentAsync(PublicationContainer container, CancellationToken cancellationToken)
+    {
+        var headOfDepartment = await db.StudentProfiles
+            .Where(s => s.UserId == container.StudentId)
+            .SelectMany(s => s.Department.HeadsOfDepartment)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (headOfDepartment is null) return;
+
+        await notificationService.NotifyAsync(headOfDepartment.UserId, NotificationType.EthicsHeadOfDepartmentReviewRequested,
+            "Ethics decision awaiting your comments",
+            "The Coordinator has passed a student's ethics decision to you. Please log in to review it and record your comments.",
+            nameof(PublicationContainer), container.Id, cancellationToken);
+    }
+
     public async Task CoordinatorFinalDecisionAsync(Guid publicationContainerId, Guid coordinatorId, CoordinatorFinalDecisionRequest request, CancellationToken cancellationToken = default)
     {
         // With the documents, because turning this down sends them back to the student and has to
@@ -464,15 +497,27 @@ public class EthicsService(
         var (container, approval) = await GetApprovalForCoordinatorAsync(
             publicationContainerId, coordinatorId, cancellationToken, includeDocuments: true);
 
-        // The Head of Department's reading is optional: some institutions have none in the loop.
-        // Where it is off, the coordinator's approval leads straight here, and publications already
-        // parked at that step move on with everything else, which is the point of the switch.
+        // The Head of Department's reading is optional on both routes: some institutions have none
+        // in the loop. Where it is off, the coordinator's own decision leads straight here, and
+        // approvals already parked at that step move on with everything else, which is the point of
+        // the switches.
         var workflow = await settingService.GetEthicsWorkflowSettingsAsync(cancellationToken);
 
-        if (approval.Status != EthicsStatus.PendingVerification
-            || (workflow.HeadOfDepartmentReviews && approval.HeadOfDepartmentReviewedAt is null))
+        // The route where no documentation was needed only reaches this step at all when the Head
+        // of Department has been through it; without that step the coordinator's agreement closed
+        // the stage there and then.
+        var afterNotRequired = approval.Status == EthicsStatus.NotRequired
+            && approval.FinalDecisionAt is null
+            && approval.CoordinatorDecisionAt is not null
+            && approval.HeadOfDepartmentReviewedAt is not null;
+
+        var afterDocuments = approval.Status == EthicsStatus.PendingVerification
+            && approval.CoordinatorDecisionAt is not null
+            && (approval.HeadOfDepartmentReviewedAt is not null || !workflow.HeadOfDepartmentReviews);
+
+        if (!afterNotRequired && !afterDocuments)
         {
-            throw new BusinessRuleException("This container's ethics documentation is not awaiting a final Coordinator decision.");
+            throw new BusinessRuleException("This container's ethics decision is not awaiting a final Coordinator decision.");
         }
 
         await commentPolicy.EnsureAsync(request.Approve
@@ -481,14 +526,35 @@ public class EthicsService(
 
         if (request.Approve)
         {
-            approval.Status = EthicsStatus.Verified;
+            // Verified means documentation was produced and accepted, which on the other route it
+            // was not. The stage closes either way; what it closes as is the truth about it.
+            approval.Status = afterNotRequired ? EthicsStatus.NotRequired : EthicsStatus.Verified;
             approval.FinalDecisionAt = DateTime.UtcNow;
             await AdvanceToResearchPaperPipelineAsync(container, cancellationToken);
 
             await auditService.LogActivityAsync(publicationContainerId, coordinatorId, "EthicsFinallyApproved",
-                request.Comments, newStatus: EthicsStatus.Verified.ToString());
+                request.Comments, newStatus: approval.Status.ToString());
 
-            await NotifyStudentEthicsCompletedAsync(container, ethicsRequired: true, cancellationToken);
+            await NotifyStudentEthicsCompletedAsync(container, ethicsRequired: !afterNotRequired, cancellationToken);
+        }
+        else if (afterNotRequired)
+        {
+            // There is nothing to send back: no document was ever asked for. Turning this down
+            // means the ruling itself was wrong, so the student is asked for documentation after
+            // all, which is where the coordinator's own overturn leads.
+            approval.IsRequiredPerCoordinator = true;
+            approval.Status = EthicsStatus.PendingUpload;
+            await SnapshotRequiredDocumentsAsync(approval, cancellationToken);
+            await db.SaveChangesAsync(cancellationToken);
+
+            await auditService.LogActivityAsync(publicationContainerId, coordinatorId, "CoordinatorRequiredEthicsDocumentation",
+                request.Comments, newStatus: approval.Status.ToString());
+
+            await notificationService.NotifyAsync(container.StudentId, NotificationType.EthicsDocumentationRequired,
+                "Ethics documentation required",
+                "After review, the Coordinator has determined that ethics approval documentation is required after all. "
+                + "Please log in to upload the required documents.",
+                nameof(PublicationContainer), publicationContainerId, cancellationToken);
         }
         else
         {
