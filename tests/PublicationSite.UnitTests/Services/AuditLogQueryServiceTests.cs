@@ -65,4 +65,30 @@ public class AuditLogQueryServiceTests : IDisposable
 
         csv.Should().Contain("\"Did,Something \"\"quoted\"\"\"");
     }
+
+    /// <summary>
+    /// The export is opened in Excel, and Excel runs a cell that opens with =, +, - or @. Every
+    /// column here is text somebody in the log typed, including their own name, so putting a
+    /// formula in front of an administrator took nothing more than editing a profile.
+    /// </summary>
+    [Theory]
+    [InlineData("=HYPERLINK(\"http://example.invalid\")")]
+    [InlineData("+1+1")]
+    [InlineData("-2+3")]
+    [InlineData("@SUM(A1:A9)")]
+    public async Task ExportCsvAsync_stops_a_name_from_being_run_as_a_formula(string formula)
+    {
+        var actor = TestDataBuilder.User(_fixture.Context);
+        actor.FirstName = formula;
+        _fixture.Context.SaveChanges();
+        AddEntry(actor, "Publication", DateTime.UtcNow);
+
+        var csv = Encoding.UTF8.GetString(await _sut.ExportCsvAsync(new AuditLogQuery()));
+
+        // As the cell reads in the file: quotes inside a value are doubled by CSV itself.
+        var escaped = formula.Replace("\"", "\"\"");
+
+        csv.Should().Contain($"\"'{escaped}");
+        csv.Should().NotContain($"\"{escaped}");
+    }
 }

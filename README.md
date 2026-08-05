@@ -312,6 +312,11 @@ once at startup and so cannot follow a value edited at runtime:
 - **Token lifetimes**: read per issue rather than from the startup snapshot. The issuer, audience and signing
   key deliberately stay in configuration: changing one from a web form would invalidate every token in
   circulation, including the caller's own.
+- **Disabling takes effect at once**: a signed token describes the account as it was when it was issued, so
+  disabling somebody would otherwise leave the hour they had already been given, and a refresh would hand
+  them another hour on top for as long as their browser stayed open. Two checks close that. Refresh asks
+  about the account before it exchanges anything, and `AccountStillValidEvents` reads the status once per
+  authenticated request, which costs one lookup by primary key and one column.
 
 ### Settings that must not apply retroactively
 
