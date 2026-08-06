@@ -248,6 +248,51 @@ public class ProposalServiceTests : IDisposable
     }
 
     /// <summary>
+    /// The first handover in the workflow, and the only one that used to be silent. Every ethics
+    /// step and every step of the paper tells whoever is next; a student finishing their proposals
+    /// told nobody, and the coordinator found out by happening to open the dispatch screen.
+    /// </summary>
+    [Fact]
+    public async Task FinishSubmissionAsync_tells_the_coordinator_there_is_a_round_to_send_out()
+    {
+        var (student, coordinator, container) = SeedContainer();
+        await _sut.CreateAsync(container.Id, student.Id, new SaveProposalRequest("A", "Abstract"));
+
+        _fixture.Context.ChangeTracker.Clear();
+        await _sut.FinishSubmissionAsync(container.Id, student.Id);
+
+        _notificationService.Verify(n => n.NotifyAsync(
+            coordinator.Id, NotificationType.ProposalsAwaitingEvaluation, It.IsAny<string>(), It.IsAny<string>(),
+            It.IsAny<string?>(), container.Id, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    /// <summary>And the answer coming back, which makes it the coordinator's turn to allocate.</summary>
+    [Fact]
+    public async Task SelectAsFeasibleAsync_tells_the_coordinator_a_supervisor_has_answered()
+    {
+        var (student, coordinator, container) = SeedContainer();
+        var proposal = await _sut.CreateAsync(container.Id, student.Id, new SaveProposalRequest("A", "Abstract"));
+        await _sut.FinishSubmissionAsync(container.Id, student.Id);
+
+        var supervisor = Supervisor();
+        await _sut.SendToSupervisorsAsync(
+            new SendToSupervisorsRequest([proposal.Id], [supervisor.Id], "Please review", DateTime.UtcNow.AddDays(7)),
+            coordinator.Id);
+
+        // Forgotten, so what the method reads has to come from its own query. Everything the test
+        // touched is still tracked otherwise, and EF fills a navigation in from what it is already
+        // holding: the test would pass with the Include missing and fail in front of a real
+        // request, which arrives on a context that knows nothing.
+        _fixture.Context.ChangeTracker.Clear();
+
+        await _sut.SelectAsFeasibleAsync(proposal.Id, supervisor.Id, new SupervisorSelectionRequest("I could take this."));
+
+        _notificationService.Verify(n => n.NotifyAsync(
+            coordinator.Id, NotificationType.ProposalsAwaitingEvaluation, "A supervisor has answered", It.IsAny<string>(),
+            It.IsAny<string?>(), container.Id, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    /// <summary>
     /// A round is one decision with one explanation, so it is recorded once. Written inside the
     /// loop over the proposals, the coordinator's paragraph landed on the publication's history
     /// three times in a row, and a reader months later cannot tell that from three separate
