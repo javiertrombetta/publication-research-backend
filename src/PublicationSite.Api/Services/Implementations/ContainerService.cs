@@ -857,6 +857,21 @@ public class ContainerService(
                 "This publication has finished. Moving it back would reopen decisions already made.");
         }
 
+        // And once the paper itself has been judged, whether or not the container has been closed
+        // behind it. A publication whose paper is accepted is the record of that judgement: moving
+        // it to an earlier step leaves the record saying something the decision does not, and the
+        // people it would land on have nothing left to do with it.
+        //
+        // Refused here and not only withdrawn from the screen, as with every other control this
+        // screen loses at that point: a screen is not a rule.
+        if (container.Publication is { Status: PublicationStatus.Accepted or PublicationStatus.Published })
+        {
+            throw new BusinessRuleException(
+                "This paper has been "
+                + (container.Publication.Status == PublicationStatus.Published ? "published" : "accepted")
+                + ", so where the publication stands is settled and is no longer something to move.");
+        }
+
         if (string.IsNullOrWhiteSpace(request.Comments))
         {
             throw new BusinessRuleException("Say why this publication is being moved. It stays on its history.");
