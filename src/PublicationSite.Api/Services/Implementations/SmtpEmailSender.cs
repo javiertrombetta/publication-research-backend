@@ -21,10 +21,39 @@ public class SmtpEmailSender(
 {
     private readonly MailSettings _fallback = mailOptions.Value;
 
-    public async Task<bool> SendAsync(string toEmail, string subject, string htmlBody, CancellationToken cancellationToken = default)
+    public Task<bool> SendAsync(string toEmail, string subject, string htmlBody, CancellationToken cancellationToken = default) =>
+        DeliverAsync(toEmail, subject, htmlBody, null, null, null, cancellationToken);
+
+    public Task<bool> ForwardAsync(
+        string toEmail,
+        string subject,
+        string htmlBody,
+        string replyToEmail,
+        string? replyToName = null,
+        IReadOnlyList<EmailAttachment>? attachments = null,
+        CancellationToken cancellationToken = default) =>
+        DeliverAsync(toEmail, subject, htmlBody, replyToEmail, replyToName, attachments, cancellationToken);
+
+    public async Task<bool> IsConfiguredAsync(CancellationToken cancellationToken = default)
     {
-        var host = await settings.GetStringAsync(SettingKeys.SmtpHost, cancellationToken) ?? _fallback.Host;
-        var fromAddress = await settings.GetStringAsync(SettingKeys.SmtpFromAddress, cancellationToken) ?? _fallback.FromAddress;
+        var (host, fromAddress) = await ServerAsync(cancellationToken);
+        return !string.IsNullOrWhiteSpace(host) && !string.IsNullOrWhiteSpace(fromAddress);
+    }
+
+    private async Task<(string? Host, string? FromAddress)> ServerAsync(CancellationToken cancellationToken) =>
+        (await settings.GetStringAsync(SettingKeys.SmtpHost, cancellationToken) ?? _fallback.Host,
+         await settings.GetStringAsync(SettingKeys.SmtpFromAddress, cancellationToken) ?? _fallback.FromAddress);
+
+    private async Task<bool> DeliverAsync(
+        string toEmail,
+        string subject,
+        string htmlBody,
+        string? replyToEmail,
+        string? replyToName,
+        IReadOnlyList<EmailAttachment>? attachments,
+        CancellationToken cancellationToken)
+    {
+        var (host, fromAddress) = await ServerAsync(cancellationToken);
 
         // Nothing to connect to. Said once, plainly, rather than as a stack trace from a
         // connection attempt against an empty host name.
@@ -43,10 +72,26 @@ public class SmtpEmailSender(
         var fromName = await settings.GetStringAsync(SettingKeys.SmtpFromName, cancellationToken) ?? _fallback.FromName;
 
         var message = new MimeMessage();
+
+        // Always sent from the site's own address, whoever wrote it. Putting a person's address in
+        // From would be a message the receiving server has every reason to reject: the site is not
+        // authorised to send as them, which is the whole point of SPF.
         message.From.Add(new MailboxAddress(fromName, fromAddress));
         message.To.Add(MailboxAddress.Parse(toEmail));
         message.Subject = subject;
-        message.Body = new BodyBuilder { HtmlBody = htmlBody }.ToMessageBody();
+
+        if (!string.IsNullOrWhiteSpace(replyToEmail))
+        {
+            message.ReplyTo.Add(new MailboxAddress(replyToName ?? string.Empty, replyToEmail));
+        }
+
+        var builder = new BodyBuilder { HtmlBody = htmlBody };
+        foreach (var attachment in attachments ?? [])
+        {
+            builder.Attachments.Add(attachment.FileName, attachment.Content);
+        }
+
+        message.Body = builder.ToMessageBody();
 
         try
         {

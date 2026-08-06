@@ -52,10 +52,11 @@ public class SystemSettingServiceTests : IDisposable
 
         // Storage is only reached when a destination is being saved or tested, and none of these
         // tests do either, so a stub is honest here in a way it would not be for the settings
-        // provider above.
+        // provider above. The mail sender is read for one thing only: whether the IT desk can be
+        // written to from inside the site, which is a fact about the server rather than a setting.
         return new SystemSettingService(_fixture.ServiceContext, provider, _auditService.Object,
             environment.Object, configuration, new Mock<IFileStorageService>().Object,
-            new Mock<IStorageMigrationService>().Object);
+            new Mock<IEmailSender>().Object, new Mock<IStorageMigrationService>().Object);
     }
 
     public void Dispose() => _fixture.Dispose();

@@ -16,6 +16,7 @@ public class SystemSettingService(
     IHostEnvironment environment,
     IConfiguration configuration,
     IFileStorageService fileStorage,
+    IEmailSender emailSender,
     IStorageMigrationService storageMigration) : ISystemSettingService
 {
     /// <summary>
@@ -486,7 +487,12 @@ public class SystemSettingService(
             // Also on the anonymous response, because whether to offer the IT desk has to be
             // decided on the very pages where nobody has signed in.
             await settings.GetBoolAsync(SettingKeys.ItSupportShownToVisitors,
-                SettingKeys.DefaultItSupportShownToVisitors, cancellationToken));
+                SettingKeys.DefaultItSupportShownToVisitors, cancellationToken),
+            // Whether the desk can be written to from inside the site: an address to send to and a
+            // server to send through. Derived from two other settings rather than being one of its
+            // own, so there is nothing to keep in step.
+            !string.IsNullOrWhiteSpace(await settings.GetStringAsync(SettingKeys.ItSupportEmail, cancellationToken))
+                && await emailSender.IsConfiguredAsync(cancellationToken));
 
     public async Task<InstitutionSettingsDto> UpdateInstitutionSettingsAsync(
         UpdateInstitutionSettingsRequest request, Guid actingAdminId, CancellationToken cancellationToken = default)
