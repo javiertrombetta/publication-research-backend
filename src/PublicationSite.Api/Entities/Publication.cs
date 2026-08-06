@@ -6,7 +6,7 @@ namespace PublicationSite.Api.Entities;
 /// The research paper itself. One-to-one with PublicationContainer; revisions are
 /// tracked via PublicationVersion rather than by creating new Publication rows.
 /// </summary>
-public class Publication
+public class Publication : IHaveAConcurrencyStamp
 {
     public Guid Id { get; set; } = Guid.NewGuid();
 
@@ -32,4 +32,10 @@ public class Publication
     public ICollection<ResearchArea> ResearchAreas { get; set; } = [];
     public ICollection<PublicationVersion> Versions { get; set; } = [];
     public Committee? Committee { get; set; }
+
+    /// <summary>
+    /// Changed on every save, and part of the WHERE clause of every UPDATE. See
+    /// <see cref="IHaveAConcurrencyStamp"/> for why a decision needs one.
+    /// </summary>
+    public Guid ConcurrencyStamp { get; set; } = Guid.NewGuid();
 }

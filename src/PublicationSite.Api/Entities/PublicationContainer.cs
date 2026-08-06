@@ -6,7 +6,7 @@ namespace PublicationSite.Api.Entities;
 /// The hub entity that groups every artefact of a single student's publication process
 /// (proposals, ethics workflow, research paper) across the three sequential pipelines.
 /// </summary>
-public class PublicationContainer
+public class PublicationContainer : IHaveAConcurrencyStamp
 {
     public Guid Id { get; set; } = Guid.NewGuid();
 
@@ -44,4 +44,10 @@ public class PublicationContainer
     public EthicsApproval? EthicsApproval { get; set; }
     public Publication? Publication { get; set; }
     public ICollection<ActivityHistoryEntry> ActivityHistory { get; set; } = [];
+
+    /// <summary>
+    /// Changed on every save, and part of the WHERE clause of every UPDATE. See
+    /// <see cref="IHaveAConcurrencyStamp"/> for why a decision needs one.
+    /// </summary>
+    public Guid ConcurrencyStamp { get; set; } = Guid.NewGuid();
 }

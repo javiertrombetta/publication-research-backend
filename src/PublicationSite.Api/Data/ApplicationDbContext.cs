@@ -71,6 +71,18 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         builder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);
 
+        // Every row a workflow decision writes carries a stamp, and the stamp is part of the WHERE
+        // clause of its UPDATE. Declared here rather than in each configuration file so a new
+        // entity gets it by implementing the interface, which is the only thing anyone has to
+        // remember. See IHaveAConcurrencyStamp for what it is protecting against.
+        foreach (var entity in builder.Model.GetEntityTypes()
+                     .Where(e => typeof(IHaveAConcurrencyStamp).IsAssignableFrom(e.ClrType)))
+        {
+            builder.Entity(entity.ClrType)
+                .Property(nameof(IHaveAConcurrencyStamp.ConcurrencyStamp))
+                .IsConcurrencyToken();
+        }
+
         // Identity tables keep their defaults but are renamed for a cleaner MySQL schema.
         builder.Entity<ApplicationUser>().ToTable("Users");
         builder.Entity<ApplicationRole>().ToTable("Roles");
@@ -79,5 +91,36 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         builder.Entity<IdentityUserLogin<Guid>>().ToTable("UserLogins");
         builder.Entity<IdentityRoleClaim<Guid>>().ToTable("RoleClaims");
         builder.Entity<IdentityUserToken<Guid>>().ToTable("UserTokens");
+    }
+
+    /// <summary>
+    /// Moves every stamp on the way out.
+    ///
+    /// A concurrency token only refuses a second writer if the first one changed it, and EF does
+    /// not change it by itself: it compares the value that was read. Done here rather than in each
+    /// of the forty-odd places a decision is written, because the one that gets forgotten is the
+    /// one that silently stops being protected, and nothing would fail to say so.
+    /// </summary>
+    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        Restamp();
+        return base.SaveChangesAsync(cancellationToken);
+    }
+
+    public override int SaveChanges()
+    {
+        Restamp();
+        return base.SaveChanges();
+    }
+
+    private void Restamp()
+    {
+        foreach (var entry in ChangeTracker.Entries<IHaveAConcurrencyStamp>())
+        {
+            if (entry.State is EntityState.Modified or EntityState.Added)
+            {
+                entry.Entity.ConcurrencyStamp = Guid.NewGuid();
+            }
+        }
     }
 }

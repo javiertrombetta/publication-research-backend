@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 using PublicationSite.Api.Common.Exceptions;
 
 namespace PublicationSite.Api.Common.Middleware;
@@ -27,6 +28,14 @@ public class ExceptionHandlingMiddleware(RequestDelegate next, ILogger<Exception
             ConflictException e => (HttpStatusCode.Conflict, e.Message, null),
             BusinessRuleException e => (HttpStatusCode.UnprocessableEntity, e.Message, null),
             ValidationAppException e => (HttpStatusCode.BadRequest, e.Message, e.Errors),
+
+            // Somebody else changed this record between the moment this request read it and the
+            // moment it tried to write. Said in those words rather than in the database's: the
+            // person on the other end pressed a button twice, or two people are working on the
+            // same publication, and either way the answer is to look again before deciding.
+            DbUpdateConcurrencyException => (HttpStatusCode.Conflict,
+                "Somebody else changed this while you were working on it. Reload the page and check "
+                + "where it stands before deciding again.", null),
             _ => (HttpStatusCode.InternalServerError, "An unexpected error occurred.", null)
         };
 

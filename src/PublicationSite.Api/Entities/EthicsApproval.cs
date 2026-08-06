@@ -2,7 +2,7 @@ using PublicationSite.Api.Enums;
 
 namespace PublicationSite.Api.Entities;
 
-public class EthicsApproval
+public class EthicsApproval : IHaveAConcurrencyStamp
 {
     public Guid Id { get; set; } = Guid.NewGuid();
 
@@ -74,4 +74,10 @@ public class EthicsApproval
     /// See EthicsApprovalRequirement for why the list is copied rather than read live.
     /// </summary>
     public ICollection<EthicsApprovalRequirement> RequiredDocuments { get; set; } = [];
+
+    /// <summary>
+    /// Changed on every save, and part of the WHERE clause of every UPDATE. See
+    /// <see cref="IHaveAConcurrencyStamp"/> for why a decision needs one.
+    /// </summary>
+    public Guid ConcurrencyStamp { get; set; } = Guid.NewGuid();
 }
