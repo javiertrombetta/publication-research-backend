@@ -6,7 +6,7 @@ namespace PublicationSite.Api.Entities;
 /// Supervisor marks it as one they would be willing to supervise. The Coordinator's
 /// final allocation may only pick among rows where IsSelected is true.
 /// </summary>
-public class ProposalSupervisorSelection
+public class ProposalSupervisorSelection : IHaveAConcurrencyStamp
 {
     public Guid Id { get; set; } = Guid.NewGuid();
 
@@ -35,4 +35,10 @@ public class ProposalSupervisorSelection
     public bool IsSelected { get; set; }
     public string? Comments { get; set; }
     public DateTime? SelectedAt { get; set; }
+
+    /// <summary>
+    /// Changed on every save, and part of the WHERE clause of every UPDATE. See
+    /// <see cref="IHaveAConcurrencyStamp"/> for why a decision needs one.
+    /// </summary>
+    public Guid ConcurrencyStamp { get; set; } = Guid.NewGuid();
 }

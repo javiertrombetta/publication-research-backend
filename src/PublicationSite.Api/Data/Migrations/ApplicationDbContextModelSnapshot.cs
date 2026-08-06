@@ -398,6 +398,10 @@ namespace PublicationSite.Api.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("char(36)");
 
+                    b.Property<Guid>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .HasColumnType("char(36)");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
 
@@ -436,6 +440,10 @@ namespace PublicationSite.Api.Data.Migrations
                         .HasColumnType("char(36)");
 
                     b.Property<Guid>("CommitteeId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<Guid>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
                         .HasColumnType("char(36)");
 
                     b.Property<DateTime?>("DecidedAt")
@@ -597,6 +605,10 @@ namespace PublicationSite.Api.Data.Migrations
 
                     b.Property<DateTime?>("ApprovalDate")
                         .HasColumnType("datetime(6)");
+
+                    b.Property<Guid>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .HasColumnType("char(36)");
 
                     b.Property<DateTime?>("CoordinatorDecisionAt")
                         .HasColumnType("datetime(6)");
@@ -927,6 +939,10 @@ namespace PublicationSite.Api.Data.Migrations
                     b.Property<string>("Comments")
                         .HasColumnType("text");
 
+                    b.Property<Guid>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .HasColumnType("char(36)");
+
                     b.Property<DateTime?>("DueSoonWarnedAt")
                         .HasColumnType("datetime(6)");
 
@@ -967,6 +983,10 @@ namespace PublicationSite.Api.Data.Migrations
                     b.Property<string>("Abstract")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<Guid>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .HasColumnType("char(36)");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
@@ -1018,6 +1038,10 @@ namespace PublicationSite.Api.Data.Migrations
                         .HasColumnType("char(36)");
 
                     b.Property<Guid?>("AssignedSupervisorId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<Guid>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
                         .HasColumnType("char(36)");
 
                     b.Property<Guid>("CoordinatorId")
@@ -1168,6 +1192,10 @@ namespace PublicationSite.Api.Data.Migrations
                     b.Property<string>("Abstract")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<Guid>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .HasColumnType("char(36)");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");

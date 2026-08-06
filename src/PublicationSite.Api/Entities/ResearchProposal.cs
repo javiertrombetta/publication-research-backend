@@ -2,7 +2,7 @@ using PublicationSite.Api.Enums;
 
 namespace PublicationSite.Api.Entities;
 
-public class ResearchProposal
+public class ResearchProposal : IHaveAConcurrencyStamp
 {
     public Guid Id { get; set; } = Guid.NewGuid();
 
@@ -29,4 +29,10 @@ public class ResearchProposal
 
     public ICollection<ProposalSupervisorSelection> SupervisorSelections { get; set; } = [];
     public ProposalAssignment? Assignment { get; set; }
+
+    /// <summary>
+    /// Changed on every save, and part of the WHERE clause of every UPDATE. See
+    /// <see cref="IHaveAConcurrencyStamp"/> for why a decision needs one.
+    /// </summary>
+    public Guid ConcurrencyStamp { get; set; } = Guid.NewGuid();
 }

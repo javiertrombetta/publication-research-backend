@@ -2,7 +2,7 @@ using PublicationSite.Api.Enums;
 
 namespace PublicationSite.Api.Entities;
 
-public class Committee
+public class Committee : IHaveAConcurrencyStamp
 {
     public Guid Id { get; set; } = Guid.NewGuid();
 
@@ -22,4 +22,10 @@ public class Committee
 
     public ICollection<CommitteeRoleConfig> RoleConfigs { get; set; } = [];
     public ICollection<CommitteeMember> Members { get; set; } = [];
+
+    /// <summary>
+    /// Changed on every save, and part of the WHERE clause of every UPDATE. See
+    /// <see cref="IHaveAConcurrencyStamp"/> for why a decision needs one.
+    /// </summary>
+    public Guid ConcurrencyStamp { get; set; } = Guid.NewGuid();
 }
