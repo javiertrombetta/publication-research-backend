@@ -231,6 +231,10 @@ public static class DemoDataSeeder
 
         // ---------- Publications ----------
 
+        // Asked for while the publications below are built, and retired once they are. See
+        // RetireTheWithdrawnEthicsDocumentAsync for why the dataset needs one of these.
+        var withdrawnDocument = await AskForAFourthEthicsDocumentAsync(db, cancellationToken);
+
         var builder = new DemoPipelineBuilder(
             db,
             services.GetRequiredService<IContainerService>(),
@@ -289,6 +293,8 @@ public static class DemoDataSeeder
                 await builder.BuildAsync(cast, plan, cancellationToken);
             }
         }
+
+        await RetireTheWithdrawnEthicsDocumentAsync(db, withdrawnDocument, cancellationToken);
 
         // The invitations screen, which is otherwise a heading over nothing. One in each state the
         // screen can show, so its filters have something to filter.
@@ -502,6 +508,49 @@ public static class DemoDataSeeder
     /// silences the one exchange there is to read would leave whoever is testing wondering where
     /// the messages went.
     /// </summary>
+    /// <summary>
+    /// A fourth ethics document, asked for while the demonstration publications are built so that
+    /// every one of them actually uploads it.
+    ///
+    /// Added here rather than in the migration that creates the other three, because those are the
+    /// institution's forms and every deployment gets them. This one only makes sense alongside the
+    /// demonstration data it is part of.
+    /// </summary>
+    private static async Task<EthicsDocumentRequirement> AskForAFourthEthicsDocumentAsync(
+        ApplicationDbContext db, CancellationToken cancellationToken)
+    {
+        var requirement = new EthicsDocumentRequirement
+        {
+            Name = "Data Storage Declaration",
+            Description = "Where the research data will be held, and who can reach it.",
+            SortOrder = 4,
+            IsActive = true
+        };
+
+        db.EthicsDocumentRequirements.Add(requirement);
+        await db.SaveChangesAsync(cancellationToken);
+
+        return requirement;
+    }
+
+    /// <summary>
+    /// Stops asking for it, leaving what was already uploaded against it in place.
+    ///
+    /// This is the one state of an ethics document the dataset had no example of, and it is the
+    /// state that explains the design: retiring a form is not deleting it, the publications that
+    /// were asked for it keep what they supplied, and the ones started afterwards are never asked.
+    /// Without it the "No longer asked for" section of the settings screen is a heading over
+    /// nothing, and nobody walking the site sees why there is no delete button.
+    /// </summary>
+    private static async Task RetireTheWithdrawnEthicsDocumentAsync(
+        ApplicationDbContext db, EthicsDocumentRequirement requirement, CancellationToken cancellationToken)
+    {
+        requirement.IsActive = false;
+        requirement.UpdatedAt = DateTime.UtcNow;
+
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
     private static async Task SeedMessagingRuleAsync(
         ApplicationDbContext db, ApplicationUser admin, CancellationToken cancellationToken)
     {
