@@ -288,6 +288,11 @@ public class ContainerMessageService(
         var rules = await settingService.GetMessagingSettingsAsync(cancellationToken);
         var isTheStudent = container.StudentId == userId;
 
+        // What an administrator has decided about this publication in particular, which overrides
+        // everything the institution has decided in general. Loaded once and asked about each
+        // person below.
+        var overrides = await OverridesForAsync(publicationContainerId, cancellationToken);
+
         // Whether this person's direction is open at all. It gates the reply rule below as well as
         // the lists: switching a direction off has to mean off, not "off unless somebody wrote to
         // you first".
@@ -295,7 +300,9 @@ public class ContainerMessageService(
             ? rules.StudentsMayWrite
             : rules.StaffMayWrite && await HoldsAnOperationalRoleAsync(userId, cancellationToken);
 
-        if (!mayWriteAtAll)
+        // A rule about this publication has the last word, either way: it can silence somebody the
+        // institution allows, and let through somebody the institution generally shuts out.
+        if (await overrides.DecideAsync(userId, mayWriteAtAll) is false)
         {
             return [];
         }
@@ -437,6 +444,18 @@ public class ContainerMessageService(
             }
         }
 
+        // And last, anybody an administrator has silenced on this publication comes off the list.
+        // A rule is symmetrical: it stops them writing, which is the check above, and it stops
+        // anybody writing to them, which is this one. Applied after the reply rule on purpose, so
+        // silencing somebody also closes a conversation they were already in.
+        foreach (var id in found.Keys.ToList())
+        {
+            if (await overrides.DecideAsync(id, true) is false)
+            {
+                found.Remove(id);
+            }
+        }
+
         // Whoever is waiting first, then whoever was spoken to most recently, then everybody else
         // by name. Somebody who has never been written to sorts last, which is where a name nobody
         // has needed yet belongs.
@@ -445,6 +464,311 @@ public class ContainerMessageService(
             .ThenByDescending(c => c.LastMessageAt ?? DateTime.MinValue)
             .ThenBy(c => c.Name)
             .ToList();
+    }
+
+    // ---------- What an administrator has decided about one publication ----------
+
+    public async Task<ContainerMessagingRulesDto> GetRulesAsync(
+        Guid publicationContainerId, CancellationToken cancellationToken = default)
+    {
+        var participants = await ParticipantsAsync(publicationContainerId, cancellationToken);
+        var byId = participants.ToDictionary(p => p.UserId, p => p.Name);
+
+        var rules = await db.ContainerMessagingRules
+            .AsNoTracking()
+            .Where(r => r.PublicationContainerId == publicationContainerId)
+            .OrderBy(r => r.TargetUserId == null && r.TargetRole == null ? 0 : r.TargetRole != null ? 1 : 2)
+            .ThenBy(r => r.SetAt)
+            .Select(r => new
+            {
+                r.Id, r.TargetRole, r.TargetUserId, r.Allowed, r.Reason, r.SetAt,
+                SetByName = r.SetByUser.FirstName + " " + r.SetByUser.LastName
+            })
+            .ToListAsync(cancellationToken);
+
+        // Names for anybody a rule is about who is no longer on the publication: a supervisor can
+        // be replaced, and the rule about them outlives that. Looked up in one query rather than
+        // per rule.
+        var strangers = rules
+            .Where(r => r.TargetUserId is { } id && !byId.ContainsKey(id))
+            .Select(r => r.TargetUserId!.Value)
+            .Distinct()
+            .ToList();
+
+        if (strangers.Count > 0)
+        {
+            var names = await db.Users
+                .Where(u => strangers.Contains(u.Id))
+                .Select(u => new { u.Id, Name = u.FirstName + " " + u.LastName })
+                .ToListAsync(cancellationToken);
+
+            foreach (var person in names)
+            {
+                byId[person.Id] = person.Name;
+            }
+        }
+
+        var settings = await settingService.GetMessagingSettingsAsync(cancellationToken);
+
+        return new ContainerMessagingRulesDto(
+            settings.Enabled,
+            rules.Select(r => new ContainerMessagingRuleDto(
+                r.Id, r.TargetRole, r.TargetUserId,
+                r.TargetUserId is { } id ? byId.GetValueOrDefault(id, "Somebody no longer here")
+                : r.TargetRole is { } role ? $"Everybody who is {Readable(role)} here"
+                : "Everybody on this publication",
+                r.Allowed, r.Reason, r.SetByName, r.SetAt)).ToList(),
+            participants,
+            RoleNames.Operational.Concat([RoleNames.Student]).ToList());
+    }
+
+    public async Task<ContainerMessagingRuleDto> SetRuleAsync(
+        Guid publicationContainerId,
+        Guid actingAdminId,
+        SetContainerMessagingRuleRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (!await db.PublicationContainers.AnyAsync(c => c.Id == publicationContainerId, cancellationToken))
+        {
+            throw new NotFoundException(nameof(PublicationContainer), publicationContainerId);
+        }
+
+        var role = string.IsNullOrWhiteSpace(request.TargetRole) ? null : request.TargetRole.Trim();
+
+        // One target or none. A rule naming both a role and a person is two different rules asked
+        // for at once, and guessing which was meant is worse than saying so.
+        if (role is not null && request.TargetUserId is not null)
+        {
+            throw new BusinessRuleException(
+                "A rule is about a role, about one person, or about the whole publication. Choose one.");
+        }
+
+        if (role is not null && !RoleNames.All.Contains(role))
+        {
+            throw new BusinessRuleException($"'{role}' is not a role here.");
+        }
+
+        var reason = (request.Reason ?? string.Empty).Trim();
+        if (reason.Length == 0)
+        {
+            throw new BusinessRuleException(
+                "Say why. Another administrator will find this later and needs to know what it is for.");
+        }
+
+        if (request.TargetUserId is { } targetUserId
+            && !await db.Users.AnyAsync(u => u.Id == targetUserId, cancellationToken))
+        {
+            throw new NotFoundException(nameof(ApplicationUser), targetUserId);
+        }
+
+        // One rule per target: an existing one is changed rather than joined by a second that
+        // contradicts it.
+        var rule = await db.ContainerMessagingRules.FirstOrDefaultAsync(
+            r => r.PublicationContainerId == publicationContainerId
+                 && r.TargetRole == role
+                 && r.TargetUserId == request.TargetUserId,
+            cancellationToken);
+
+        if (rule is null)
+        {
+            rule = new ContainerMessagingRule
+            {
+                PublicationContainerId = publicationContainerId,
+                TargetRole = role,
+                TargetUserId = request.TargetUserId
+            };
+            db.ContainerMessagingRules.Add(rule);
+        }
+
+        rule.Allowed = request.Allowed;
+        rule.Reason = reason;
+        rule.SetByUserId = actingAdminId;
+        rule.SetAt = DateTime.UtcNow;
+
+        await db.SaveChangesAsync(cancellationToken);
+
+        var describedAs = request.TargetUserId is { } person
+            ? await db.Users.Where(u => u.Id == person)
+                .Select(u => u.FirstName + " " + u.LastName).SingleAsync(cancellationToken)
+            : role is not null ? $"everybody who is {Readable(role)} here"
+            : "everybody on this publication";
+
+        // On the publication's own history, because it changes who can say anything about it and
+        // everybody with access to it is entitled to know that it was done.
+        await auditService.LogActivityAsync(
+            publicationContainerId,
+            actingAdminId,
+            request.Allowed ? "Messaging allowed" : "Messaging stopped",
+            $"{(request.Allowed ? "Allowed" : "Stopped")} messages on this publication for {describedAs}. {reason}");
+
+        var refreshed = await GetRulesAsync(publicationContainerId, cancellationToken);
+        return refreshed.Rules.Single(r => r.Id == rule.Id);
+    }
+
+    public async Task RemoveRuleAsync(
+        Guid publicationContainerId, Guid actingAdminId, Guid ruleId, CancellationToken cancellationToken = default)
+    {
+        var rule = await db.ContainerMessagingRules
+            .FirstOrDefaultAsync(
+                r => r.Id == ruleId && r.PublicationContainerId == publicationContainerId, cancellationToken)
+            ?? throw new NotFoundException(nameof(ContainerMessagingRule), ruleId);
+
+        var describedAs = rule.TargetUserId is { } person
+            ? await db.Users.Where(u => u.Id == person)
+                .Select(u => u.FirstName + " " + u.LastName).SingleAsync(cancellationToken)
+            : rule.TargetRole is { } role ? $"everybody who is {Readable(role)} here"
+            : "everybody on this publication";
+
+        db.ContainerMessagingRules.Remove(rule);
+        await db.SaveChangesAsync(cancellationToken);
+
+        await auditService.LogActivityAsync(
+            publicationContainerId,
+            actingAdminId,
+            "Messaging rule removed",
+            $"Removed the rule about {describedAs}. This publication follows the institution's settings again.");
+    }
+
+    /// <summary>
+    /// Everybody with a part in this publication, so an administrator picks a name rather than
+    /// typing one: the student, the coordinator, the supervisor assigned, the heads of the
+    /// student's department, and the committee appointed to judge the paper.
+    /// </summary>
+    private async Task<IReadOnlyList<ContainerParticipantDto>> ParticipantsAsync(
+        Guid publicationContainerId, CancellationToken cancellationToken)
+    {
+        var container = await db.PublicationContainers
+            .AsNoTracking()
+            .Where(c => c.Id == publicationContainerId)
+            .Select(c => new
+            {
+                c.StudentId,
+                StudentName = c.Student.FirstName + " " + c.Student.LastName,
+                c.CoordinatorId,
+                CoordinatorName = c.Coordinator.FirstName + " " + c.Coordinator.LastName,
+                c.AssignedSupervisorId,
+                SupervisorName = c.AssignedSupervisor != null
+                    ? c.AssignedSupervisor.FirstName + " " + c.AssignedSupervisor.LastName
+                    : null,
+                DepartmentId = c.Student.StudentProfile != null ? c.Student.StudentProfile.DepartmentId : (Guid?)null
+            })
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? throw new NotFoundException(nameof(PublicationContainer), publicationContainerId);
+
+        var people = new Dictionary<Guid, ContainerParticipantDto>
+        {
+            [container.StudentId] = new(container.StudentId, container.StudentName, "Student"),
+            [container.CoordinatorId] = new(container.CoordinatorId, container.CoordinatorName, "Coordinator")
+        };
+
+        if (container.AssignedSupervisorId is { } supervisorId && container.SupervisorName is { } supervisorName)
+        {
+            people[supervisorId] = new(supervisorId, supervisorName, "Supervisor");
+        }
+
+        if (container.DepartmentId is { } departmentId)
+        {
+            var heads = await db.HeadOfDepartmentProfiles
+                .Where(h => h.DepartmentId == departmentId)
+                .Select(h => new { h.UserId, Name = h.User.FirstName + " " + h.User.LastName })
+                .ToListAsync(cancellationToken);
+
+            foreach (var head in heads)
+            {
+                people.TryAdd(head.UserId, new(head.UserId, head.Name, "Head of Department"));
+            }
+        }
+
+        var members = await db.CommitteeMembers
+            .Where(m => m.Committee.Publication.PublicationContainerId == publicationContainerId)
+            .Select(m => new
+            {
+                m.UserId,
+                Name = m.User.FirstName + " " + m.User.LastName,
+                Role = m.RoleType == CommitteeMemberRoleType.Reviewer
+                    ? RoleNames.Reviewer
+                    : RoleNames.ExternalCommitteeMember
+            })
+            .ToListAsync(cancellationToken);
+
+        foreach (var member in members)
+        {
+            people.TryAdd(member.UserId, new(member.UserId, member.Name, Readable(member.Role)));
+        }
+
+        return people.Values.OrderBy(p => p.Name).ToList();
+    }
+
+    /// <summary>
+    /// The rules an administrator has set on one publication, ready to be asked about people.
+    ///
+    /// Loaded once per screen rather than per person: a publication has a handful of these at most,
+    /// and asking the database once per name on a list is how a short list becomes a slow screen.
+    /// </summary>
+    private async Task<MessagingOverrides> OverridesForAsync(
+        Guid publicationContainerId, CancellationToken cancellationToken)
+    {
+        var rules = await db.ContainerMessagingRules
+            .AsNoTracking()
+            .Where(r => r.PublicationContainerId == publicationContainerId)
+            .Select(r => new { r.TargetRole, r.TargetUserId, r.Allowed })
+            .ToListAsync(cancellationToken);
+
+        var wholeContainer = rules
+            .FirstOrDefault(r => r.TargetRole == null && r.TargetUserId == null)?.Allowed;
+
+        var byUser = rules
+            .Where(r => r.TargetUserId is not null)
+            .ToDictionary(r => r.TargetUserId!.Value, r => r.Allowed);
+
+        var byRole = rules
+            .Where(r => r.TargetRole is not null)
+            .ToDictionary(r => r.TargetRole!, r => r.Allowed, StringComparer.Ordinal);
+
+        return new MessagingOverrides(wholeContainer, byUser, byRole, RolesOfAsync);
+
+        Task<List<string>> RolesOfAsync(Guid userId) =>
+            db.UserRoles
+                .Where(ur => ur.UserId == userId)
+                .Join(db.Roles, ur => ur.RoleId, r => r.Id, (ur, r) => r.Name!)
+                .ToListAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// What one publication's own rules say about a person, over whatever the institution says.
+    ///
+    /// Most specific wins: a rule naming the person, then one naming a role they hold, then one
+    /// covering the whole publication, then the answer that was passed in. Among roles a refusal
+    /// wins, because somebody holding two roles where one has been silenced has been silenced.
+    /// </summary>
+    private sealed class MessagingOverrides(
+        bool? wholeContainer,
+        Dictionary<Guid, bool> byUser,
+        Dictionary<string, bool> byRole,
+        Func<Guid, Task<List<string>>> rolesOf)
+    {
+        public async Task<bool> DecideAsync(Guid userId, bool otherwise)
+        {
+            if (byUser.TryGetValue(userId, out var forThisPerson))
+            {
+                return forThisPerson;
+            }
+
+            if (byRole.Count > 0)
+            {
+                var theirs = (await rolesOf(userId))
+                    .Where(byRole.ContainsKey)
+                    .Select(role => byRole[role])
+                    .ToList();
+
+                if (theirs.Count > 0)
+                {
+                    return theirs.All(allowed => allowed);
+                }
+            }
+
+            return wholeContainer ?? otherwise;
+        }
     }
 
     /// <summary>

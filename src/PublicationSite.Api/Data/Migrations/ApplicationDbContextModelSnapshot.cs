@@ -585,6 +585,47 @@ namespace PublicationSite.Api.Data.Migrations
                     b.ToTable("ContainerMessageAttachments");
                 });
 
+            modelBuilder.Entity("PublicationSite.Api.Entities.ContainerMessagingRule", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<bool>("Allowed")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<Guid>("PublicationContainerId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<DateTime>("SetAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid>("SetByUserId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("TargetRole")
+                        .HasMaxLength(64)
+                        .HasColumnType("varchar(64)");
+
+                    b.Property<Guid?>("TargetUserId")
+                        .HasColumnType("char(36)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PublicationContainerId");
+
+                    b.HasIndex("SetByUserId");
+
+                    b.HasIndex("TargetUserId");
+
+                    b.ToTable("ContainerMessagingRules");
+                });
+
             modelBuilder.Entity("PublicationSite.Api.Entities.CoordinatorProfile", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1811,6 +1852,32 @@ namespace PublicationSite.Api.Data.Migrations
                     b.Navigation("ContainerMessage");
                 });
 
+            modelBuilder.Entity("PublicationSite.Api.Entities.ContainerMessagingRule", b =>
+                {
+                    b.HasOne("PublicationSite.Api.Entities.PublicationContainer", "PublicationContainer")
+                        .WithMany("MessagingRules")
+                        .HasForeignKey("PublicationContainerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("PublicationSite.Api.Entities.ApplicationUser", "SetByUser")
+                        .WithMany()
+                        .HasForeignKey("SetByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("PublicationSite.Api.Entities.ApplicationUser", "TargetUser")
+                        .WithMany()
+                        .HasForeignKey("TargetUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("PublicationContainer");
+
+                    b.Navigation("SetByUser");
+
+                    b.Navigation("TargetUser");
+                });
+
             modelBuilder.Entity("PublicationSite.Api.Entities.CoordinatorProfile", b =>
                 {
                     b.HasOne("PublicationSite.Api.Entities.Department", "Department")
@@ -2296,6 +2363,8 @@ namespace PublicationSite.Api.Data.Migrations
                     b.Navigation("EthicsDeclaration");
 
                     b.Navigation("Messages");
+
+                    b.Navigation("MessagingRules");
 
                     b.Navigation("Proposals");
 

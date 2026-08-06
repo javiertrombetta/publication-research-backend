@@ -52,6 +52,12 @@ public class PublicationContainer : IHaveAConcurrencyStamp
     public ICollection<ContainerMessage> Messages { get; set; } = [];
 
     /// <summary>
+    /// What an administrator has decided about messaging on this publication in particular, over
+    /// and above what the institution has decided in general. See <see cref="ContainerMessagingRule"/>.
+    /// </summary>
+    public ICollection<ContainerMessagingRule> MessagingRules { get; set; } = [];
+
+    /// <summary>
     /// Changed on every save, and part of the WHERE clause of every UPDATE. See
     /// <see cref="IHaveAConcurrencyStamp"/> for why a decision needs one.
     /// </summary>
