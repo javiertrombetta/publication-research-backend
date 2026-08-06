@@ -274,7 +274,7 @@ public class ContainerMessageService(
         {
             if (id is { } value && value != userId && !found.ContainsKey(value) && !string.IsNullOrWhiteSpace(name))
             {
-                found[value] = new MessageCounterpartDto(value, name, role, 0);
+                found[value] = new MessageCounterpartDto(value, name, role, 0, null);
             }
         }
 
@@ -354,8 +354,37 @@ public class ContainerMessageService(
             }
         }
 
+        // And when each conversation was last touched, in either direction, so a screen with
+        // nothing waiting can still open on the one somebody was last having rather than on a
+        // chooser. Grouped by the other person, which is the sender or the recipient depending on
+        // which way the message went.
+        var lastFromThem = await db.ContainerMessages
+            .Where(m => m.PublicationContainerId == publicationContainerId && m.RecipientUserId == userId)
+            .GroupBy(m => m.SenderUserId)
+            .Select(g => new { OtherId = g.Key, At = g.Max(m => m.SentAt) })
+            .ToListAsync(cancellationToken);
+
+        var lastToThem = await db.ContainerMessages
+            .Where(m => m.PublicationContainerId == publicationContainerId && m.SenderUserId == userId)
+            .GroupBy(m => m.RecipientUserId)
+            .Select(g => new { OtherId = g.Key, At = g.Max(m => m.SentAt) })
+            .ToListAsync(cancellationToken);
+
+        foreach (var row in lastFromThem.Concat(lastToThem))
+        {
+            if (found.TryGetValue(row.OtherId, out var counterpart)
+                && (counterpart.LastMessageAt is null || counterpart.LastMessageAt < row.At))
+            {
+                found[row.OtherId] = counterpart with { LastMessageAt = row.At };
+            }
+        }
+
+        // Whoever is waiting first, then whoever was spoken to most recently, then everybody else
+        // by name. Somebody who has never been written to sorts last, which is where a name nobody
+        // has needed yet belongs.
         return found.Values
             .OrderByDescending(c => c.UnreadFromThem)
+            .ThenByDescending(c => c.LastMessageAt ?? DateTime.MinValue)
             .ThenBy(c => c.Name)
             .ToList();
     }
