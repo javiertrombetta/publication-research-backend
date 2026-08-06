@@ -5,6 +5,7 @@ using PublicationSite.Api.Common;
 using PublicationSite.Api.Common.Exceptions;
 using PublicationSite.Api.DTOs.Common;
 using PublicationSite.Api.DTOs.Messages;
+using PublicationSite.Api.DTOs.Settings;
 using PublicationSite.Api.Entities;
 using PublicationSite.Api.Enums;
 using PublicationSite.Api.Services.Implementations;
@@ -22,6 +23,7 @@ public class ContainerMessageServiceTests : IDisposable
     private readonly Mock<INotificationService> _notificationService = new();
     private readonly Mock<IAuditService> _auditService = new();
     private readonly Mock<ISystemSettingsProvider> _settings = new();
+    private readonly Mock<ISystemSettingService> _settingService = new();
     private readonly ContainerMessageService _sut;
 
     private readonly Department _department;
@@ -68,12 +70,33 @@ public class ContainerMessageServiceTests : IDisposable
 
         _container = TestDataBuilder.Container(_fixture.Context, _student, _coordinator, _supervisor);
 
+        // The shipped rules unless a test says otherwise: both directions open, the student
+        // writing to the three people responsible for their publication, everybody with a job here
+        // able to write to the student.
+        Rules();
+
         _sut = new ContainerMessageService(
             _fixture.ServiceContext, _accessService.Object, _fileStorageService.Object,
-            _notificationService.Object, _auditService.Object, _settings.Object);
+            _notificationService.Object, _auditService.Object, _settingService.Object, _settings.Object);
     }
 
     public void Dispose() => _fixture.Dispose();
+
+    /// <summary>Sets what an administrator has decided about who may write to whom.</summary>
+    private void Rules(
+        bool studentsMayWrite = true,
+        string[]? studentMayWriteTo = null,
+        bool staffMayWrite = true,
+        string[]? staffMayWriteTo = null) =>
+        _settingService.Setup(s => s.GetMessagingSettingsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MessagingSettingsDto(
+                true, false, SettingKeys.DefaultMessagingAllowedExtensions,
+                studentsMayWrite,
+                studentMayWriteTo ?? SettingKeys.DefaultMessagingStudentMayWriteToRoles,
+                staffMayWrite,
+                staffMayWriteTo ?? SettingKeys.DefaultMessagingStaffMayWriteToStudentRoles,
+                SettingKeys.SelectableStudentMessagingRoles,
+                SettingKeys.SelectableStaffMessagingRoles));
 
     private static PageRequest Page(int page = 1, int size = 50) => new() { Page = page, PageSize = size };
 
@@ -351,5 +374,111 @@ public class ContainerMessageServiceTests : IDisposable
         context.Counterparts.Single(c => c.UserId == _supervisor.Id).UnreadFromThem.Should().Be(2);
         context.Counterparts.Single(c => c.UserId == _coordinator.Id).UnreadFromThem.Should().Be(1);
         context.Counterparts.Single(c => c.UserId == _head.Id).UnreadFromThem.Should().Be(0);
+    }
+
+    // ---------- What an administrator has decided about who may write ----------
+
+    [Fact]
+    public async Task A_student_writes_only_to_the_roles_the_institution_named()
+    {
+        Rules(studentMayWriteTo: [RoleNames.Supervisor]);
+
+        var context = await _sut.GetMessagingAsync(_container.Id, _student.Id);
+
+        context.Counterparts.Should().ContainSingle(c => c.UserId == _supervisor.Id);
+    }
+
+    [Fact]
+    public async Task A_student_writes_to_nobody_when_the_list_is_empty()
+    {
+        Rules(studentMayWriteTo: []);
+
+        var context = await _sut.GetMessagingAsync(_container.Id, _student.Id);
+
+        context.Counterparts.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task A_student_writes_to_nobody_when_that_direction_is_switched_off()
+    {
+        Rules(studentsMayWrite: false);
+
+        var context = await _sut.GetMessagingAsync(_container.Id, _student.Id);
+        var act = () => Send(_student, _supervisor);
+
+        context.Counterparts.Should().BeEmpty();
+        await act.Should().ThrowAsync<ForbiddenException>();
+    }
+
+    [Fact]
+    public async Task Staff_write_to_nobody_when_that_direction_is_switched_off()
+    {
+        Rules(staffMayWrite: false);
+
+        var context = await _sut.GetMessagingAsync(_container.Id, _supervisor.Id);
+        var act = () => Send(_supervisor, _student);
+
+        context.Counterparts.Should().BeEmpty();
+        await act.Should().ThrowAsync<ForbiddenException>();
+    }
+
+    [Fact]
+    public async Task Only_the_staff_roles_the_institution_named_may_write_to_the_student()
+    {
+        Rules(staffMayWriteTo: [RoleNames.Coordinator]);
+
+        var coordinatorSees = await _sut.GetMessagingAsync(_container.Id, _coordinator.Id);
+        var supervisorSees = await _sut.GetMessagingAsync(_container.Id, _supervisor.Id);
+
+        coordinatorSees.Counterparts.Should().ContainSingle(c => c.UserId == _student.Id);
+        supervisorSees.Counterparts.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task A_student_may_write_to_the_committee_when_the_institution_allows_it()
+    {
+        // The seats actually filled on this publication, not the role at large: a reviewer
+        // elsewhere in the institution is not somebody this student has business with.
+        var reviewer = TestDataBuilder.User(_fixture.Context);
+        TestDataBuilder.GrantRole(_fixture.Context, reviewer, RoleNames.Reviewer);
+        var elsewhere = TestDataBuilder.User(_fixture.Context);
+        TestDataBuilder.GrantRole(_fixture.Context, elsewhere, RoleNames.Reviewer);
+        TestDataBuilder.CommitteeWith(_fixture.Context, _container, reviewer);
+
+        Rules(studentMayWriteTo: [RoleNames.Supervisor, RoleNames.Reviewer]);
+
+        var context = await _sut.GetMessagingAsync(_container.Id, _student.Id);
+
+        context.Counterparts.Select(c => c.UserId).Should().BeEquivalentTo(new[] { _supervisor.Id, reviewer.Id });
+        context.Counterparts.Should().Contain(c => c.UserId == reviewer.Id && c.Role == "Reviewer");
+    }
+
+    [Fact]
+    public async Task Narrowing_a_list_does_not_gag_a_conversation_already_under_way()
+    {
+        await Send(_student, _coordinator, "A question.");
+        _fixture.Reread();
+
+        Rules(studentMayWriteTo: [RoleNames.Supervisor]);
+
+        var context = await _sut.GetMessagingAsync(_container.Id, _student.Id);
+
+        // The coordinator is off the list, so no new conversation could be started with them.
+        // The one already open stays answerable, which is the difference between narrowing a rule
+        // and leaving somebody with a message they cannot reply to.
+        context.Counterparts.Should().Contain(c => c.UserId == _coordinator.Id);
+    }
+
+    [Fact]
+    public async Task Switching_a_direction_off_does_gag_a_conversation_already_under_way()
+    {
+        await Send(_student, _coordinator, "A question.");
+        _fixture.Reread();
+
+        Rules(studentsMayWrite: false);
+
+        var context = await _sut.GetMessagingAsync(_container.Id, _student.Id);
+
+        context.Counterparts.Should().BeEmpty();
     }
 }

@@ -139,17 +139,33 @@ public record UpdateUploadSettingsRequest(int MaxMegabytes, string AllowedExtens
 /// <param name="Enabled">Off hides the screen and refuses the endpoint. What was already written stays readable.</param>
 /// <param name="RecordedInActivityHistory">Whether the publication's activity history notes that a message was sent. It never records what was said.</param>
 /// <param name="AllowedExtensions">What a message may carry, with or without leading dots. Separate from the document list, since a question usually comes with a screenshot and a process document belongs where that process asks for it.</param>
+/// <param name="StudentsMayWrite">Whether a student may start a conversation at all.</param>
+/// <param name="StudentMayWriteToRoles">Which of the people on their publication they may start it with.</param>
+/// <param name="StaffMayWrite">Whether the people working on a publication may write to the student.</param>
+/// <param name="StaffMayWriteToStudentRoles">Which of them may.</param>
+/// <param name="SelectableStudentRoles">Not settings: every role that could go on the student's list, so a screen offers the real set rather than one written out again in a view. Admin is absent because no administrator is attached to a publication.</param>
+/// <param name="SelectableStaffRoles">The same for the staff list.</param>
 public record MessagingSettingsDto(
     bool Enabled,
     bool RecordedInActivityHistory,
     string AllowedExtensions,
+    bool StudentsMayWrite,
+    IReadOnlyList<string> StudentMayWriteToRoles,
+    bool StaffMayWrite,
+    IReadOnlyList<string> StaffMayWriteToStudentRoles,
+    IReadOnlyList<string> SelectableStudentRoles,
+    IReadOnlyList<string> SelectableStaffRoles,
     int MaximumLength = SettingKeys.MessageMaximumLength,
     int MaximumAttachments = SettingKeys.MessageMaximumAttachments);
 
 public record UpdateMessagingSettingsRequest(
     bool Enabled,
     bool RecordedInActivityHistory,
-    string AllowedExtensions);
+    string AllowedExtensions,
+    bool StudentsMayWrite = true,
+    IReadOnlyList<string>? StudentMayWriteToRoles = null,
+    bool StaffMayWrite = true,
+    IReadOnlyList<string>? StaffMayWriteToStudentRoles = null);
 
 /// <summary>
 /// Where uploaded files are kept: ethics documents, research paper versions and profile photos.

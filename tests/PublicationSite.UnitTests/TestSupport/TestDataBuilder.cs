@@ -147,6 +147,40 @@ public static class TestDataBuilder
     /// assign, or check who may sit on a committee, ask whether the person still holds the role
     /// rather than whether a profile exists, because a profile outlives the role that created it.
     /// </summary>
+    /// <summary>
+    /// A publication on this container with a committee on it, so the people appointed to judge a
+    /// paper can be told apart from everybody else holding the same role.
+    /// </summary>
+    public static Committee CommitteeWith(
+        ApplicationDbContext db, PublicationContainer container, ApplicationUser member,
+        CommitteeMemberRoleType roleType = CommitteeMemberRoleType.Reviewer)
+    {
+        var publication = db.Publications.FirstOrDefault(p => p.PublicationContainerId == container.Id);
+        if (publication is null)
+        {
+            publication = new Api.Entities.Publication
+            {
+                PublicationContainerId = container.Id,
+                Title = Next("Paper "),
+                Abstract = "An abstract."
+            };
+            db.Publications.Add(publication);
+            db.SaveChanges();
+        }
+
+        var creator = User(db);
+        var committee = new Api.Entities.Committee
+        {
+            PublicationId = publication.Id,
+            CreatedByUserId = creator.Id,
+            MinApprovalsRequired = 1
+        };
+        committee.Members.Add(new CommitteeMember { UserId = member.Id, RoleType = roleType });
+        db.Committees.Add(committee);
+        db.SaveChanges();
+        return committee;
+    }
+
     public static void GrantRole(ApplicationDbContext db, ApplicationUser user, string roleName)
     {
         var role = db.Roles.FirstOrDefault(r => r.Name == roleName);
