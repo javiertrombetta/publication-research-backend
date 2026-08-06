@@ -13,7 +13,7 @@ public class AuditServiceTests : IDisposable
 
     public AuditServiceTests()
     {
-        _sut = new AuditService(_fixture.Context);
+        _sut = new AuditService(_fixture.ServiceContext);
     }
 
     public void Dispose() => _fixture.Dispose();

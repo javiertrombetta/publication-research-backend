@@ -38,7 +38,7 @@ public class PublicationServiceTests : IDisposable
         _settingService.Setup(s => s.GetPaperWorkflowSettingsAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(new PaperWorkflowSettingsDto(true, true, true, true));
 
-        _sut = new PublicationService(_fixture.Context, _accessService.Object, _auditService.Object, _notificationService.Object, _fileStorageService.Object,
+        _sut = new PublicationService(_fixture.ServiceContext, _accessService.Object, _auditService.Object, _notificationService.Object, _fileStorageService.Object,
             new DecisionCommentPolicy(new SystemSettingsProvider(_fixture.Context, new MemoryCache(new MemoryCacheOptions()))),
             _settingService.Object,
             NullLogger<PublicationService>.Instance);
@@ -298,17 +298,24 @@ public class PublicationServiceTests : IDisposable
 
         await _sut.PublishDecisionAsync(publication.Id, student.Id, new PublishDecisionRequest(false, null));
 
-        var updatedContainer = await _fixture.Context.PublicationContainers.FindAsync(container.Id);
+        var updatedContainer = await _fixture.Reread().PublicationContainers.FindAsync(container.Id);
         updatedContainer!.Status.Should().Be(ContainerStatus.Completed);
         var updatedPublication = await _sut.GetByContainerAsync(container.Id, student.Id);
         updatedPublication.IsPublished.Should().BeFalse();
     }
 
+    /// <summary>
+    /// Puts the paper where the workflow would have put it, without walking the whole stage.
+    ///
+    /// Through Reread, so both contexts start again from the row: the service has usually just
+    /// created this publication and would otherwise go on answering from the copy it is holding.
+    /// </summary>
     private async Task ForceStatusAsync(Guid publicationId, PublicationStatus status)
     {
-        var publication = await _fixture.Context.Publications.FindAsync(publicationId);
+        var publication = await _fixture.Reread().Publications.FindAsync(publicationId);
         publication!.Status = status;
         await _fixture.Context.SaveChangesAsync();
+        _fixture.Reread();
     }
 
     [Fact]
@@ -392,7 +399,7 @@ public class PublicationServiceTests : IDisposable
         var publication = await _sut.GetOrCreateDraftAsync(container.Id, student.Id);
         await _sut.UploadVersionAsync(publication.Id, student.Id, new MemoryStream([1]), "v1.pdf", null, null, null);
 
-        (await _fixture.Context.Publications.FindAsync(publication.Id))!.Status = settled;
+        (await _fixture.Reread().Publications.FindAsync(publication.Id))!.Status = settled;
         await _fixture.Context.SaveChangesAsync();
 
         // The container is not marked Completed the moment a paper is accepted, so the finished

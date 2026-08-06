@@ -42,7 +42,7 @@ public class ContainerServiceTests : IDisposable
         _settingService.Setup(s => s.GetPaperWorkflowSettingsAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(new PaperWorkflowSettingsDto(true, true, true, true));
 
-        _sut = new ContainerService(_fixture.Context, _departmentService.Object, _accessService.Object,
+        _sut = new ContainerService(_fixture.ServiceContext, _departmentService.Object, _accessService.Object,
             _auditService.Object, _notificationService.Object, _settingService.Object);
     }
 
@@ -318,7 +318,7 @@ public class ContainerServiceTests : IDisposable
             new ReassignContainerRequest(null, null, "The first head is on leave.", secondHead.Id),
             Guid.NewGuid());
 
-        (await _fixture.Context.EthicsApprovals.FirstAsync(a => a.PublicationContainerId == container.Id))
+        (await _fixture.Reread().EthicsApprovals.FirstAsync(a => a.PublicationContainerId == container.Id))
             .HeadOfDepartmentUserId.Should().Be(secondHead.Id);
     }
 
@@ -423,7 +423,7 @@ public class ContainerServiceTests : IDisposable
                 EthicsSteps.StudentUpload),
             Guid.NewGuid());
 
-        var approval = await _fixture.Context.EthicsApprovals.FirstAsync(a => a.PublicationContainerId == container.Id);
+        var approval = await _fixture.Reread().EthicsApprovals.FirstAsync(a => a.PublicationContainerId == container.Id);
         approval.Status.Should().Be(EthicsStatus.PendingUpload);
 
         // Everything after the student's step is cleared, or it would land further on than asked.
@@ -464,7 +464,7 @@ public class ContainerServiceTests : IDisposable
                 EthicsSteps.StudentUpload),
             Guid.NewGuid());
 
-        var approval = await _fixture.Context.EthicsApprovals.FirstAsync(a => a.PublicationContainerId == container.Id);
+        var approval = await _fixture.Reread().EthicsApprovals.FirstAsync(a => a.PublicationContainerId == container.Id);
 
         // Whoever has it now gets the whole review period, and is warned about their own deadline
         // rather than passed over because the person before them had already been warned.
@@ -512,7 +512,7 @@ public class ContainerServiceTests : IDisposable
 
         // The coordinator reads first here, so they have to count as done or the approval would
         // land on their step rather than the supervisor's.
-        var moved = await _fixture.Context.EthicsApprovals.FirstAsync(a => a.PublicationContainerId == container.Id);
+        var moved = await _fixture.Reread().EthicsApprovals.FirstAsync(a => a.PublicationContainerId == container.Id);
         moved.CoordinatorDecisionAt.Should().NotBeNull();
         moved.SupervisorDocumentsReviewedAt.Should().BeNull();
     }

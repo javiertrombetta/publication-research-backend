@@ -20,7 +20,7 @@ public class DepartmentServiceTests : IDisposable
 
     public DepartmentServiceTests()
     {
-        _sut = new DepartmentService(_fixture.Context, _auditService.Object);
+        _sut = new DepartmentService(_fixture.ServiceContext, _auditService.Object);
     }
 
     public void Dispose() => _fixture.Dispose();

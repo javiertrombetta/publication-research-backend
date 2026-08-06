@@ -15,7 +15,7 @@ public class NotificationQueryServiceTests : IDisposable
 
     public NotificationQueryServiceTests()
     {
-        _sut = new NotificationQueryService(_fixture.Context);
+        _sut = new NotificationQueryService(_fixture.ServiceContext);
     }
 
     public void Dispose() => _fixture.Dispose();
