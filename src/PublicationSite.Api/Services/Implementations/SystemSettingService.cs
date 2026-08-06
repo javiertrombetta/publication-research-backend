@@ -598,7 +598,12 @@ public class SystemSettingService(
             // server to send through. Derived from two other settings rather than being one of its
             // own, so there is nothing to keep in step.
             !string.IsNullOrWhiteSpace(await settings.GetStringAsync(SettingKeys.ItSupportEmail, cancellationToken))
-                && await emailSender.IsConfiguredAsync(cancellationToken));
+                && await emailSender.IsConfiguredAsync(cancellationToken),
+            // Carried here so a publication screen can decide whether to offer the Messages tab
+            // without a request of its own. A tab that leads to a screen saying the feature is off
+            // is a tab nobody should have been shown.
+            await settings.GetBoolAsync(SettingKeys.MessagingEnabled,
+                SettingKeys.DefaultMessagingEnabled, cancellationToken));
 
     public async Task<InstitutionSettingsDto> UpdateInstitutionSettingsAsync(
         UpdateInstitutionSettingsRequest request, Guid actingAdminId, CancellationToken cancellationToken = default)
