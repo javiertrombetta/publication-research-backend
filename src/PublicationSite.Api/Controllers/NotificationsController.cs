@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PublicationSite.Api.Common;
+using PublicationSite.Api.DTOs.Common;
 using PublicationSite.Api.DTOs.Notifications;
 using PublicationSite.Api.Services.Interfaces;
 
@@ -16,20 +17,48 @@ namespace PublicationSite.Api.Controllers;
 public class NotificationsController(INotificationQueryService notificationQueryService, ICurrentUserService currentUser) : ControllerBase
 {
     /// <summary>
-    /// This person's notifications, newest first, optionally only the unread ones. Every
-    /// notification is delivered here whether or not email is switched on, so this is the
-    /// record rather than a copy of one.
+    /// One page of this person's notifications, newest first, optionally only the unread ones and
+    /// optionally matching a search. Every notification is delivered here whether or not email is
+    /// switched on, so this is the record rather than a copy of one.
     /// </summary>
-    /// <response code="200">The matching notifications, all of them.</response>
+    /// <response code="200">The matching page, with the total so the caller can draw a pager.</response>
     /// <response code="401">No access token was sent, or the one sent has expired.</response>
     /// <param name="unreadOnly">Only what this person has not read yet, which is what the bell in the top bar shows.</param>
+    /// <param name="search">Matched against the title and the message of each notification. Ignored when blank.</param>
+    /// <param name="paging">Which page, and how long. Left out, the institution's configured page size applies.</param>
     [HttpGet]
-    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<NotificationDto>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<PagedResult<NotificationDto>>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public async Task<IActionResult> GetAll([FromQuery] bool? unreadOnly)
+    public async Task<IActionResult> GetAll(
+        [FromQuery] bool? unreadOnly, [FromQuery] string? search, [FromQuery] PageRequest paging)
     {
-        var result = await notificationQueryService.GetForUserAsync(currentUser.UserId, unreadOnly);
-        return Ok(ApiResponse<IReadOnlyList<NotificationDto>>.Ok(result));
+        var result = await notificationQueryService.GetForUserAsync(currentUser.UserId, unreadOnly, search, paging);
+        return Ok(ApiResponse<PagedResult<NotificationDto>>.Ok(result));
+    }
+
+    /// <summary>
+    /// One notification of this person's, by id.
+    ///
+    /// For a caller that has an id and wants what it points at. Searching a page for it stopped
+    /// working the moment this list was paged, and paging through the lot to find one is not a
+    /// thing to ask of anybody.
+    /// </summary>
+    /// <response code="200">The notification.</response>
+    /// <response code="401">No access token was sent, or the one sent has expired.</response>
+    /// <response code="404">No notification with that id, or it belongs to somebody else.</response>
+    [HttpGet("{id:guid}")]
+    [ProducesResponseType(typeof(ApiResponse<NotificationDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetOne(Guid id)
+    {
+        var result = await notificationQueryService.GetOneAsync(id, currentUser.UserId);
+
+        // Somebody else's notification is reported as missing rather than as forbidden. Saying
+        // "that one is not yours" confirms it exists, and there is nothing here worth confirming.
+        return result is null
+            ? NotFound(ApiResponse.Fail("No notification with that id."))
+            : Ok(ApiResponse<NotificationDto>.Ok(result));
     }
 
     /// <summary>
