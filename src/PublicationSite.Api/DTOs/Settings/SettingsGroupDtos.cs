@@ -225,6 +225,7 @@ public record StorageMigrationResultDto(int Moved, int Remaining, IReadOnlyList<
 /// </summary>
 /// <param name="SelfRegistrationOpen">Whether anyone may sign themselves up. Read-only here and set under access settings. It rides along on this group because this is the one endpoint a signed-out visitor can call, and the sign-up page needs to know before offering a form the API would reject. It discloses nothing: attempting to register reveals the same thing.</param>
 /// <param name="ItSupportReachableThroughTheSite">Whether there is both an address to write to and a mail server to send through, so the footer can offer a form rather than a mail link. Read-only, and derived rather than set: it is two other settings agreeing. Also here because the footer is on every page and this response is already fetched and cached for it; asking a second endpoint per page load to colour one link would not be worth the round trip.</param>
+/// <param name="MessagingEnabled">Whether people may write to each other through a publication. Read-only here and set under the messaging settings. It rides along for the same reason as the two above: every publication screen has to decide whether to offer the Messages tab at all, and this response is already fetched and cached on every page.</param>
 public record InstitutionSettingsDto(
     string Name,
     string StudentEmailDomain,
@@ -237,7 +238,8 @@ public record InstitutionSettingsDto(
     bool PublicCatalogueEnabled = true,
     int RowsPerPage = SettingKeys.DefaultRowsPerPage,
     bool ItSupportShownToVisitors = SettingKeys.DefaultItSupportShownToVisitors,
-    bool ItSupportReachableThroughTheSite = false);
+    bool ItSupportReachableThroughTheSite = false,
+    bool MessagingEnabled = SettingKeys.DefaultMessagingEnabled);
 
 public record UpdateInstitutionSettingsRequest(
     string Name,
