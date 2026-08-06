@@ -228,6 +228,17 @@ public static class SettingKeys
     /// <summary>How many files one message may carry.</summary>
     public const int MessageMaximumAttachments = 5;
 
+    /// <summary>
+    /// How many files a message to the IT desk may carry, and how large the lot may be.
+    ///
+    /// Tighter than a message between two people, and for a different reason. Those are stored,
+    /// so their size is whatever the storage rules allow. These are read into memory, attached to
+    /// an email and thrown away: nothing keeps them, so nothing may be asked to hold much.
+    /// </summary>
+    public const int SupportMaximumAttachments = 3;
+
+    public const int SupportMaximumAttachmentMegabytes = 10;
+
     // ---------- The institution ----------
 
     public const string InstitutionName = "institution.name";
