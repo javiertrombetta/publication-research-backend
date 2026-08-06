@@ -407,6 +407,8 @@ public class ProposalService(
 
         await commentPolicy.EnsureAsync(DecisionPoints.ProposalSendToSupervisors, request.Comments, cancellationToken);
 
+        await EnsureTheyCanSuperviseAsync([.. request.SupervisorIds.Distinct()], cancellationToken);
+
         var proposals = await db.ResearchProposals
             .Include(p => p.PublicationContainer)
             .Where(p => request.ProposalIds.Contains(p.Id))
@@ -604,6 +606,10 @@ public class ProposalService(
         {
             throw new BusinessRuleException("You may only assign a Supervisor who selected this proposal as feasible.");
         }
+
+        // Where the institution appoints directly there is no offer to check against, so this is
+        // the only thing standing between the request and a publication supervised by a student.
+        await EnsureTheyCanSuperviseAsync([request.SupervisorId], cancellationToken);
 
         db.ProposalAssignments.Add(new ProposalAssignment
         {
@@ -860,6 +866,48 @@ public class ProposalService(
         // A maximum below the minimum can only come from a setting written outside the screen that
         // validates them. Taken the generous way round rather than refusing every submission.
         return (fewest, Math.Max(fewest, most));
+    }
+
+    /// <summary>
+    /// That these people are supervisors, and can take the work.
+    ///
+    /// The screens only ever offer what GET api/users/supervisors returns, which is enabled
+    /// accounts holding the Supervisor role who have not marked themselves as unavailable. Nothing
+    /// enforced that, so the ids were taken on trust: a request naming a student, an administrator,
+    /// a disabled account or an id belonging to nobody was carried out. The last of those failed on
+    /// the foreign key and came back as a server error; the others succeeded quietly and put a
+    /// publication in the hands of somebody who is not a supervisor.
+    ///
+    /// One query for the whole set rather than one per person, and the message names who was
+    /// refused, because a coordinator sending a saved group of six needs to know which of them.
+    /// </summary>
+    private async Task EnsureTheyCanSuperviseAsync(
+        IReadOnlyCollection<Guid> supervisorIds, CancellationToken cancellationToken)
+    {
+        var allowed = await db.Users
+            .Where(u => supervisorIds.Contains(u.Id)
+                        && u.Status == UserStatus.Enabled
+                        && u.IsAvailable
+                        && db.UserRoles
+                            .Where(ur => ur.UserId == u.Id)
+                            .Join(db.Roles, ur => ur.RoleId, r => r.Id, (ur, r) => r.Name)
+                            .Any(name => name == RoleNames.Supervisor))
+            .Select(u => u.Id)
+            .ToListAsync(cancellationToken);
+
+        var refused = supervisorIds.Except(allowed).ToList();
+        if (refused.Count == 0) return;
+
+        // By name where there is one to give. An id tells a coordinator nothing, and the account
+        // may be one they picked from a saved group months ago.
+        var names = await db.Users
+            .Where(u => refused.Contains(u.Id))
+            .Select(u => u.FirstName + " " + u.LastName)
+            .ToListAsync(cancellationToken);
+
+        throw new BusinessRuleException(names.Count == refused.Count && names.Count > 0
+            ? $"{string.Join(", ", names)} cannot take supervision on: the account is not an available Supervisor."
+            : "One or more of those accounts cannot take supervision on.");
     }
 
     private async Task EnsureProposalsEditableAsync(Guid containerId, CancellationToken cancellationToken)
