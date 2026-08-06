@@ -137,6 +137,17 @@ public class PublicationsController(IPublicationService publicationService, ICur
         return Ok(ApiResponse<IReadOnlyList<ContainerPaperDto>>.Ok(result));
     }
 
+    /// <summary>
+    /// One research paper, by its own id rather than by the publication it belongs to.
+    ///
+    /// For a caller holding a paper id and nothing else, which is where a review, a version and a
+    /// committee decision all point. Who may read it is the same question as who may read the
+    /// publication it sits on.
+    /// </summary>
+    /// <response code="200">The research paper.</response>
+    /// <response code="401">No access token was sent, or the one sent has expired.</response>
+    /// <response code="403">Signed in, but this record is not yours to see.</response>
+    /// <response code="404">No research paper with that id.</response>
     [HttpGet("api/publications/{publicationId:guid}")]
     [ProducesResponseType(typeof(ApiResponse<PublicationDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]

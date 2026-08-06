@@ -857,19 +857,25 @@ public class ContainerService(
                 "This publication has finished. Moving it back would reopen decisions already made.");
         }
 
-        // And once the paper itself has been judged, whether or not the container has been closed
-        // behind it. A publication whose paper is accepted is the record of that judgement: moving
-        // it to an earlier step leaves the record saying something the decision does not, and the
-        // people it would land on have nothing left to do with it.
+        // Once the paper itself has been judged, this stops being an ordinary step. A publication
+        // whose paper is accepted is the record of that judgement, and moving it makes the record
+        // say something the decision did not.
         //
-        // Refused here and not only withdrawn from the screen, as with every other control this
-        // screen loses at that point: a screen is not a rule.
-        if (container.Publication is { Status: PublicationStatus.Accepted or PublicationStatus.Published })
+        // It is still possible, because an acceptance recorded in error has to be fixable and there
+        // is nowhere else to fix it. What it is not is casual: it has to be asked for by name, so
+        // replaying an ordinary move cannot do it, and it is written into the history as a
+        // correction rather than as a move.
+        var correctingASettledPaper =
+            container.Publication is { Status: PublicationStatus.Accepted or PublicationStatus.Published };
+
+        if (correctingASettledPaper && !request.CorrectingSettledDecision)
         {
             throw new BusinessRuleException(
                 "This paper has been "
-                + (container.Publication.Status == PublicationStatus.Published ? "published" : "accepted")
-                + ", so where the publication stands is settled and is no longer something to move.");
+                + (container.Publication!.Status == PublicationStatus.Published ? "published" : "accepted")
+                + ", so where the publication stands is settled. It can still be corrected if the "
+                + "decision was recorded in error, but that has to be asked for as a correction and "
+                + "the reason is kept on the publication's history.");
         }
 
         if (string.IsNullOrWhiteSpace(request.Comments))
@@ -939,8 +945,15 @@ public class ContainerService(
         container.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(cancellationToken);
 
-        await auditService.LogActivityAsync(container.Id, actingAdminId, "PublicationMovedByAdmin",
-            string.Join("; ", changes) + ". " + request.Comments,
+        // Named for what it was. A correction to a judged paper and an ordinary move look the same
+        // in the columns of a history table, and they are not the same thing to anybody reading it
+        // afterwards.
+        await auditService.LogActivityAsync(container.Id, actingAdminId,
+            correctingASettledPaper ? "SettledDecisionCorrectedByAdmin" : "PublicationMovedByAdmin",
+            (correctingASettledPaper
+                ? "Corrected a decision that had already been recorded. "
+                : string.Empty)
+            + string.Join("; ", changes) + ". " + request.Comments,
             newStatus: container.CurrentPipeline.ToString());
 
         // Whoever now has it. Told rather than left to notice, which is the whole point of moving

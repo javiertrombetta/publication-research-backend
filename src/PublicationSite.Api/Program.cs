@@ -264,7 +264,40 @@ builder.Services.AddSwaggerGen(options =>
     {
         Title = "AIS Research Publication Site API",
         Version = ApiVersion.Current,
-        Description = "Backend API for the AIS Research Publication Site."
+
+        // Written out rather than left as one line, because this document is what somebody
+        // integrating against the API reads first and the three things below are what they would
+        // otherwise have to work out by trial: how a reply is shaped, how to get a token, and that
+        // the routes carry no version.
+        Description = """
+            The API behind the AIS Research Publication Site: research proposals, ethics approval
+            and the research paper, with the people who decide on each.
+
+            **Replies.** Every endpoint answers with the same envelope:
+            `{ "success": bool, "data": …, "message": string?, "errors": [string]? }`. The one
+            exception is a request that fails validation, which answers 400 with a
+            `ValidationProblemDetails` naming each field, because that is the shape the framework
+            produces and rewriting it would lose the field names.
+
+            **Status codes.** 401 means no token or an expired one. 403 means signed in and not
+            entitled: either the role is wrong for the endpoint or the record belongs to somebody
+            else. 404 is also the answer where saying "that exists but is not yours" would itself
+            disclose something. 409 means somebody else changed the record while this request was
+            being prepared. 422 means the request was understood and refused by a rule of the
+            workflow, and the message says which.
+
+            **Signing in.** POST `api/auth/login` returns an access token and a refresh token. Send
+            the access token as `Authorization: Bearer …`. Endpoints with no padlock take no token.
+
+            **Versions.** Routes are `api/…` and carry no version: the version names this document,
+            not the paths, so a description can be reissued without breaking anything written
+            against it.
+
+            **Paging.** Paged endpoints take `page` and `pageSize` and answer with
+            `{ items, page, pageSize, totalCount }`. Leaving `pageSize` out uses the page length the
+            institution has configured. Many also take `sortBy` and `sortDescending`, and a
+            `search`.
+            """
     });
 
     var jwtScheme = new OpenApiSecurityScheme

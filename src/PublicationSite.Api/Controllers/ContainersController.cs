@@ -210,6 +210,12 @@ public class ContainersController(IContainerService containerService, ICurrentUs
     /// Sets which step of which stage a publication is waiting at, so whoever should act next
     /// actually sees it. Its own endpoint rather than a side effect of correcting a document,
     /// because the two are separate decisions.
+    ///
+    /// A publication whose paper has been accepted or published is refused unless the request sets
+    /// <c>correctingSettledDecision</c>. That exists so an acceptance recorded in error can be put
+    /// right, since there is nowhere else to put it right, while an ordinary move cannot disturb a
+    /// decision by accident. A correction is written into the publication's history as a
+    /// correction, with the reason given.
     /// </summary>
     /// <response code="200">The publication.</response>
     /// <response code="400">The request did not pass validation. Which field, and why, comes back as a problem document rather than the usual envelope.</response>
@@ -228,7 +234,8 @@ public class ContainersController(IContainerService containerService, ICurrentUs
     public async Task<IActionResult> Move(Guid id, [FromBody] MoveContainerRequest request)
     {
         var result = await containerService.MoveToAsync(id, request, currentUser.UserId);
-        return Ok(ApiResponse<PublicationContainerDto>.Ok(result, "Moved."));
+        return Ok(ApiResponse<PublicationContainerDto>.Ok(result,
+            request.CorrectingSettledDecision ? "Corrected." : "Moved."));
     }
 
     /// <summary>
