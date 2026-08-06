@@ -45,7 +45,7 @@ public class ProposalServiceTests : IDisposable
         _settingService.Setup(s => s.GetProposalSettingsAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ProposalSettingsDto(1, 3, SupervisorsExpressInterest: true));
 
-        _sut = new ProposalService(_fixture.Context, _accessService.Object, _auditService.Object,
+        _sut = new ProposalService(_fixture.ServiceContext, _accessService.Object, _auditService.Object,
             _notificationService.Object, _settings, _settingService.Object, new DecisionCommentPolicy(new SystemSettingsProvider(_fixture.Context, new MemoryCache(new MemoryCacheOptions()))));
     }
 
@@ -279,11 +279,11 @@ public class ProposalServiceTests : IDisposable
             new SendToSupervisorsRequest([proposal.Id], [supervisor.Id], "Please review", DateTime.UtcNow.AddDays(7)),
             coordinator.Id);
 
-        // Forgotten, so what the method reads has to come from its own query. Everything the test
-        // touched is still tracked otherwise, and EF fills a navigation in from what it is already
-        // holding: the test would pass with the Include missing and fail in front of a real
-        // request, which arrives on a context that knows nothing.
-        _fixture.Context.ChangeTracker.Clear();
+        // Both contexts forget, so what the method reads has to come from its own query. The send
+        // above ran on the service's context and left the container loaded there; EF would fill
+        // this call's navigation in from it, and the test would pass with the Include missing and
+        // fail in front of a real request, which arrives knowing nothing.
+        _fixture.Reread();
 
         await _sut.SelectAsFeasibleAsync(proposal.Id, supervisor.Id, new SupervisorSelectionRequest("I could take this."));
 
@@ -522,7 +522,7 @@ public class ProposalServiceTests : IDisposable
 
         await _sut.AssignSupervisorAsync(chosen.Id, new AssignSupervisorRequest(supervisor.Id, "Great fit"), coordinator.Id);
 
-        var updatedContainer = await _fixture.Context.PublicationContainers.FindAsync(container.Id);
+        var updatedContainer = await _fixture.Reread().PublicationContainers.FindAsync(container.Id);
         updatedContainer!.AssignedSupervisorId.Should().Be(supervisor.Id);
         updatedContainer.CurrentPipeline.Should().Be(PipelineStage.EthicsApproval);
 
@@ -568,7 +568,7 @@ public class ProposalServiceTests : IDisposable
         await _sut.AssignSupervisorAsync(proposal.Id, new AssignSupervisorRequest(supervisor.Id, "Assigned"), coordinator.Id);
 
         // Proposals are still first; what follows them is the stage this institution runs next.
-        (await _fixture.Context.PublicationContainers.FindAsync(container.Id))!.CurrentPipeline
+        (await _fixture.Reread().PublicationContainers.FindAsync(container.Id))!.CurrentPipeline
             .Should().Be(PipelineStage.ResearchPaper);
     }
 
@@ -608,7 +608,7 @@ public class ProposalServiceTests : IDisposable
 
         // Exactly one assigned and the rest turned down, which is the shape the coordinator's own
         // assignment leaves behind.
-        var after = await _fixture.Context.ResearchProposals
+        var after = await _fixture.Reread().ResearchProposals
             .Where(p => p.PublicationContainerId == container.Id).ToListAsync();
 
         after.Single(p => p.Id == other.Id).Status.Should().Be(ProposalStatus.Assigned);

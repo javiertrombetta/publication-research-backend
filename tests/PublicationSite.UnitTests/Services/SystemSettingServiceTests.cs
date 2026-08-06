@@ -53,7 +53,7 @@ public class SystemSettingServiceTests : IDisposable
         // Storage is only reached when a destination is being saved or tested, and none of these
         // tests do either, so a stub is honest here in a way it would not be for the settings
         // provider above.
-        return new SystemSettingService(_fixture.Context, provider, _auditService.Object,
+        return new SystemSettingService(_fixture.ServiceContext, provider, _auditService.Object,
             environment.Object, configuration, new Mock<IFileStorageService>().Object,
             new Mock<IStorageMigrationService>().Object);
     }

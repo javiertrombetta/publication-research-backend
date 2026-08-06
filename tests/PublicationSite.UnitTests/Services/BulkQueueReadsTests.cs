@@ -34,16 +34,16 @@ public class BulkQueueReadsTests : IDisposable
 
     public BulkQueueReadsTests()
     {
-        var access = new ContainerAccessService(_fixture.Context);
+        var access = new ContainerAccessService(_fixture.ServiceContext);
         var settings = new Mock<ISystemSettingService>();
         var comments = new DecisionCommentPolicy(
             new SystemSettingsProvider(_fixture.Context, new MemoryCache(new MemoryCacheOptions())));
 
-        _ethics = new EthicsService(_fixture.Context, access, Mock.Of<IAuditService>(),
+        _ethics = new EthicsService(_fixture.ServiceContext, access, Mock.Of<IAuditService>(),
             Mock.Of<INotificationService>(), Mock.Of<IFileStorageService>(),
             comments, settings.Object, NullLogger<EthicsService>.Instance);
 
-        _publications = new PublicationService(_fixture.Context, access, Mock.Of<IAuditService>(),
+        _publications = new PublicationService(_fixture.ServiceContext, access, Mock.Of<IAuditService>(),
             Mock.Of<INotificationService>(), Mock.Of<IFileStorageService>(),
             comments, settings.Object, NullLogger<PublicationService>.Instance);
     }

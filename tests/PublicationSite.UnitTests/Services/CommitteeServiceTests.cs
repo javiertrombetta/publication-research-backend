@@ -46,7 +46,7 @@ public class CommitteeServiceTests : IDisposable
         _settingService.Setup(s => s.GetPaperWorkflowSettingsAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(new PaperWorkflowSettingsDto(true, true, true, true));
 
-        _sut = new CommitteeService(_fixture.Context, _accessService.Object, _auditService.Object,
+        _sut = new CommitteeService(_fixture.ServiceContext, _accessService.Object, _auditService.Object,
             _notificationService.Object, _settingService.Object, new DecisionCommentPolicy(new SystemSettingsProvider(_fixture.Context, new MemoryCache(new MemoryCacheOptions()))));
     }
 
@@ -266,7 +266,7 @@ public class CommitteeServiceTests : IDisposable
                 OverrideComposition: true),
             coordinator.Id);
 
-        _fixture.Context.CommitteeMembers.Count(m => m.UserId == member.Id).Should().Be(1);
+        _fixture.Reread().CommitteeMembers.Count(m => m.UserId == member.Id).Should().Be(1);
 
         // What was appointed becomes what this publication is judged by. Left at the old figures,
         // everything downstream would describe a committee that does not exist.
@@ -407,8 +407,11 @@ public class CommitteeServiceTests : IDisposable
         var committee = await _sut.AssignAsync(
             publication.Id, new AssignCommitteeRequest([member.Id], 1, "Assign"), coordinator.Id);
 
-        // What an administrator moving the publication does to it.
-        publication.Status = moved;
+        // What an administrator moving the publication does to it. Read afresh first: assigning the
+        // committee changed this row on the service's own context, and mutating the copy this test
+        // has been holding would have EF compare against a stale original and write nothing.
+        var current = await _fixture.Reread().Publications.FirstAsync(p => p.Id == publication.Id);
+        current.Status = moved;
         await _fixture.Context.SaveChangesAsync();
 
         var act = () => _sut.MemberReviewAsync(committee.Id, member.Id, new CommitteeMemberReviewRequest(true, "Fine."));

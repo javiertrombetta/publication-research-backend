@@ -15,7 +15,7 @@ public class AuditLogQueryServiceTests : IDisposable
 
     public AuditLogQueryServiceTests()
     {
-        _sut = new AuditLogQueryService(_fixture.Context);
+        _sut = new AuditLogQueryService(_fixture.ServiceContext);
     }
 
     public void Dispose() => _fixture.Dispose();

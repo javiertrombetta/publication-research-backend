@@ -48,7 +48,7 @@ public class EthicsServiceTests : IDisposable
         _settingService.Setup(s => s.GetPaperWorkflowSettingsAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(new PaperWorkflowSettingsDto(true, true, true, true));
 
-        _sut = new EthicsService(_fixture.Context, _accessService.Object, _auditService.Object, _notificationService.Object, _fileStorageService.Object,
+        _sut = new EthicsService(_fixture.ServiceContext, _accessService.Object, _auditService.Object, _notificationService.Object, _fileStorageService.Object,
             new DecisionCommentPolicy(new SystemSettingsProvider(_fixture.Context, new MemoryCache(new MemoryCacheOptions()))),
             _settingService.Object,
             NullLogger<EthicsService>.Instance);
@@ -189,7 +189,7 @@ public class EthicsServiceTests : IDisposable
 
         // Backdated, and marked as already reported, so the assertions below can only pass if the
         // supervisor's decision genuinely restarted the step rather than leaving it as it was.
-        var approval = await _fixture.Context.EthicsApprovals.FirstAsync(a => a.PublicationContainerId == container.Id);
+        var approval = await _fixture.Reread().EthicsApprovals.FirstAsync(a => a.PublicationContainerId == container.Id);
         approval.StepEnteredAt = DateTime.UtcNow.AddDays(-40);
         approval.OverdueReportedAt = DateTime.UtcNow.AddDays(-10);
         await _fixture.Context.SaveChangesAsync();
@@ -199,7 +199,7 @@ public class EthicsServiceTests : IDisposable
 
         // The student now owes the upload, and owes it from today. What was reported about the
         // supervisor's step goes with the step.
-        approval = await _fixture.Context.EthicsApprovals.FirstAsync(a => a.PublicationContainerId == container.Id);
+        approval = await _fixture.Reread().EthicsApprovals.FirstAsync(a => a.PublicationContainerId == container.Id);
         approval.StepEnteredAt.Should().BeAfter(DateTime.UtcNow.AddMinutes(-1));
         approval.OverdueReportedAt.Should().BeNull();
         approval.DueSoonWarnedAt.Should().BeNull();
@@ -345,7 +345,7 @@ public class EthicsServiceTests : IDisposable
 
         await _sut.CoordinatorReviewNotRequiredAsync(container.Id, coordinator.Id, new CoordinatorNotRequiredReviewRequest(false, "Agreed"));
 
-        var updatedContainer = await _fixture.Context.PublicationContainers.FindAsync(container.Id);
+        var updatedContainer = await _fixture.Reread().PublicationContainers.FindAsync(container.Id);
         updatedContainer!.CurrentPipeline.Should().Be(PipelineStage.ResearchPaper);
         (await _sut.GetApprovalAsync(container.Id, student.Id)).Status.Should().Be(EthicsStatus.NotRequired.ToString());
     }
@@ -374,7 +374,7 @@ public class EthicsServiceTests : IDisposable
         await _sut.SubmitSupervisorRequirementDecisionAsync(container.Id, supervisor.Id, new SupervisorRequirementDecisionRequest(false, "Not needed"));
         await _sut.CoordinatorReviewNotRequiredAsync(container.Id, coordinator.Id, new CoordinatorNotRequiredReviewRequest(false, "Agreed"));
 
-        var departmentId = await _fixture.Context.StudentProfiles.Where(s => s.UserId == student.Id).Select(s => s.DepartmentId).FirstAsync();
+        var departmentId = await _fixture.Reread().StudentProfiles.Where(s => s.UserId == student.Id).Select(s => s.DepartmentId).FirstAsync();
         var department = await _fixture.Context.Departments.FindAsync(departmentId);
         var hod = TestDataBuilder.User(_fixture.Context);
         TestDataBuilder.HeadOfDepartmentProfile(_fixture.Context, hod, department!);
@@ -453,7 +453,7 @@ public class EthicsServiceTests : IDisposable
         await _sut.CoordinatorFinalDecisionAsync(container.Id, coordinator.Id, new CoordinatorFinalDecisionRequest(true, "Approved"));
 
         (await _sut.GetApprovalAsync(container.Id, student.Id)).Status.Should().Be(EthicsStatus.Verified.ToString());
-        var updatedContainer = await _fixture.Context.PublicationContainers.FindAsync(container.Id);
+        var updatedContainer = await _fixture.Reread().PublicationContainers.FindAsync(container.Id);
         updatedContainer!.CurrentPipeline.Should().Be(PipelineStage.ResearchPaper);
     }
 
@@ -592,7 +592,7 @@ public class EthicsServiceTests : IDisposable
         await _sut.CoordinatorFinalDecisionAsync(container.Id, coordinator.Id, new CoordinatorFinalDecisionRequest(true, "Closed"));
 
         (await _sut.GetApprovalAsync(container.Id, student.Id)).Status.Should().Be(EthicsStatus.NotRequired.ToString());
-        (await _fixture.Context.PublicationContainers.FindAsync(container.Id))!.CurrentPipeline
+        (await _fixture.Reread().PublicationContainers.FindAsync(container.Id))!.CurrentPipeline
             .Should().Be(PipelineStage.ResearchPaper);
     }
 

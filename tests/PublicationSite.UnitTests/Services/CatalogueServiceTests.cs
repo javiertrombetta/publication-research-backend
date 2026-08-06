@@ -19,7 +19,7 @@ public class CatalogueServiceTests : IDisposable
 
     public CatalogueServiceTests()
     {
-        _sut = new CatalogueService(_fixture.Context, _fileStorageService.Object);
+        _sut = new CatalogueService(_fixture.ServiceContext, _fileStorageService.Object);
     }
 
     public void Dispose() => _fixture.Dispose();

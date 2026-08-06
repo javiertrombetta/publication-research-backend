@@ -16,7 +16,7 @@ public class ContainerAccessServiceTests : IDisposable
 
     public ContainerAccessServiceTests()
     {
-        _sut = new ContainerAccessService(_fixture.Context);
+        _sut = new ContainerAccessService(_fixture.ServiceContext);
     }
 
     public void Dispose() => _fixture.Dispose();
