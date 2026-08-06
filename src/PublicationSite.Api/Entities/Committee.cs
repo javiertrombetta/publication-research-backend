@@ -20,7 +20,6 @@ public class Committee : IHaveAConcurrencyStamp
     public DateTime? OverdueReportedAt { get; set; }
     public DateTime? DueSoonWarnedAt { get; set; }
 
-    public ICollection<CommitteeRoleConfig> RoleConfigs { get; set; } = [];
     public ICollection<CommitteeMember> Members { get; set; } = [];
 
     /// <summary>

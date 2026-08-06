@@ -1,6 +1,6 @@
 # Entity–Relationship Diagram
 
-46 tables in MySQL 8. 45 are shown below as entities, `UserRoles` drawn as a direct many-to-many, and
+45 tables in MySQL 8. 44 are shown below as entities, `UserRoles` drawn as a direct many-to-many, and
 `__EFMigrationsHistory` left out as EF Core's own migration bookkeeping, not part of the data model.
 Verified column-for-column against `SHOW TABLES` / `DESCRIBE` on the live database.
 
@@ -251,12 +251,6 @@ erDiagram
         varchar Status
         int MinApprovalsRequired
     }
-    CommitteeRoleConfigs {
-        char36 Id PK
-        char36 CommitteeId FK
-        varchar RoleType
-        int RequiredCount
-    }
     CommitteeMembers {
         char36 Id PK
         char36 CommitteeId FK
@@ -369,7 +363,6 @@ erDiagram
     Users ||--o{ Reviews : "reviewer"
     Publications ||--o| Committees : ""
     Users ||--o{ Committees : "created by"
-    Committees ||--o{ CommitteeRoleConfigs : ""
     Committees ||--o{ CommitteeMembers : ""
     Users ||--o{ CommitteeMembers : ""
     Users ||--o{ Notifications : ""
@@ -450,7 +443,7 @@ line = the foreign key also carries a unique index (one-to-one).
 | `EthicsDocumentRequirements` | The documents an administrator asks for. Retired rather than deleted, since uploads reference them. | PK `Id` · UK `Name` |
 | `EthicsApprovalRequirements` | The list one approval was asked for, copied when documentation was requested so a later change applies to new work only. | PK `Id` · FK `EthicsApprovalId`, `EthicsDocumentRequirementId` |
 
-### 🟨 Pipeline 3: Research paper & committee (8 tables)
+### 🟨 Pipeline 3: Research paper & committee (7 tables)
 
 | Table | Description | Keys |
 | --- | --- | --- |
@@ -458,7 +451,6 @@ line = the foreign key also carries a unique index (one-to-one).
 | `PublicationVersions` | Every uploaded file, numbered and kept, and nothing is overwritten. | PK `Id` · FK `PublicationId`, `UploadedByUserId` |
 | `Reviews` | A supervisor or committee member's decision + comments on one version. | PK `Id` · FK `PublicationVersionId`, `ReviewerUserId` |
 | `Committees` | The evaluation committee assigned to one publication. | PK `Id` · FK `PublicationId` (UK) |
-| `CommitteeRoleConfigs` | Required member counts per role, either the global default or a per-committee override. | PK `Id` · FK `CommitteeId` (nullable) |
 | `CommitteeMembers` | Membership + individual approve/reject decision. | PK `Id` · FK `CommitteeId`, `UserId` |
 | `PublicationKeywords` | Join table: which keywords are attached to a published paper. | PK `KeywordsId+PublicationsId` |
 | `PublicationResearchAreas` | Join table: which research areas a publication is tagged with. | PK `PublicationsId+ResearchAreasId` |

@@ -14,5 +14,5 @@ namespace PublicationSite.Api.Common;
 /// </summary>
 public static class ApiVersion
 {
-    public const string Current = "v1.2";
+    public const string Current = "v2.0";
 }

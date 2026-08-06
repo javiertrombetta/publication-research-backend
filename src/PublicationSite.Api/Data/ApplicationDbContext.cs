@@ -44,7 +44,6 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<Review> Reviews => Set<Review>();
 
     public DbSet<Committee> Committees => Set<Committee>();
-    public DbSet<CommitteeRoleConfig> CommitteeRoleConfigs => Set<CommitteeRoleConfig>();
     public DbSet<CommitteeMember> CommitteeMembers => Set<CommitteeMember>();
 
     public DbSet<Notification> Notifications => Set<Notification>();

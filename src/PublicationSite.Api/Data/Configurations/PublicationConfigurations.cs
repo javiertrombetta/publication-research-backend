@@ -90,16 +90,6 @@ public class CommitteeConfiguration : IEntityTypeConfiguration<Committee>
     }
 }
 
-public class CommitteeRoleConfigConfiguration : IEntityTypeConfiguration<CommitteeRoleConfig>
-{
-    public void Configure(EntityTypeBuilder<CommitteeRoleConfig> builder)
-    {
-        builder.HasOne(rc => rc.Committee)
-            .WithMany(c => c.RoleConfigs)
-            .HasForeignKey(rc => rc.CommitteeId)
-            .OnDelete(DeleteBehavior.Cascade);
-    }
-}
 
 public class CommitteeMemberConfiguration : IEntityTypeConfiguration<CommitteeMember>
 {

@@ -32,10 +32,4 @@ public interface ICommitteeService
         Guid memberUserId, PageRequest page, string? search = null, bool awaitingMeOnly = false,
         CancellationToken cancellationToken = default);
     Task MemberReviewAsync(Guid committeeId, Guid memberUserId, CommitteeMemberReviewRequest request, CancellationToken cancellationToken = default);
-
-    Task<IReadOnlyList<CommitteeRoleConfigDto>> GetDefaultConfigAsync(CancellationToken cancellationToken = default);
-    Task SetDefaultConfigAsync(SetCommitteeRoleConfigRequest request, CancellationToken cancellationToken = default);
-    Task<IReadOnlyList<CommitteeRoleConfigDto>> GetCommitteeConfigAsync(Guid committeeId, CancellationToken cancellationToken = default);
-    /// <param name="actingAsAdmin">True when an administrator is doing this. Otherwise the caller has to be the coordinator of the publication this committee sits on.</param>
-    Task SetCommitteeConfigAsync(Guid committeeId, SetCommitteeRoleConfigRequest request, Guid actingUserId, bool actingAsAdmin = false, CancellationToken cancellationToken = default);
 }

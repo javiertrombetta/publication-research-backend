@@ -55,10 +55,6 @@ public record AssignCommitteeRequest(
 
 public record CommitteeMemberReviewRequest(bool Approve, string Comments);
 
-public record CommitteeRoleConfigDto(Guid? CommitteeId, string RoleType, int RequiredCount);
-
-public record SetCommitteeRoleConfigRequest(string RoleType, int RequiredCount);
-
 /// <summary>
 /// As much of a research paper as a committee member needs to see before opening it: enough to
 /// tell their assignments apart and to judge what they are about.
