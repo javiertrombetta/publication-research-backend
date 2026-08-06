@@ -3,6 +3,7 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.EntityFrameworkCore;
 using Moq;
 using PublicationSite.Api.Common;
+using PublicationSite.Api.DTOs.Common;
 using PublicationSite.Api.Common.Exceptions;
 using PublicationSite.Api.DTOs.Committees;
 using PublicationSite.Api.Entities;
@@ -386,6 +387,63 @@ public class CommitteeServiceTests : IDisposable
         var act = () => _sut.AssignAsync(publication.Id, new AssignCommitteeRequest([member.Id], 1, "Second"), coordinator.Id);
 
         await act.Should().ThrowAsync<ConflictException>();
+    }
+
+    /// <summary>
+    /// A committee is appointed onto a paper under review and outlives it. An administrator can
+    /// send the paper back to its author while members have yet to vote, and those votes used to
+    /// arrive afterwards: the reading was wasted, and worse, the last of them completed the
+    /// committee, which where the coordinator does not decide papers writes the publication's
+    /// status and undid the revision the student had just been asked for.
+    /// </summary>
+    [Theory]
+    [InlineData(PublicationStatus.RevisionsRequested)]
+    [InlineData(PublicationStatus.Draft)]
+    [InlineData(PublicationStatus.Accepted)]
+    public async Task MemberReviewAsync_refuses_once_the_paper_has_left_the_committee(PublicationStatus moved)
+    {
+        var (publication, _, coordinator) = SeedApprovedPublication();
+        var member = SeedCommitteeMember();
+        var committee = await _sut.AssignAsync(
+            publication.Id, new AssignCommitteeRequest([member.Id], 1, "Assign"), coordinator.Id);
+
+        // What an administrator moving the publication does to it.
+        publication.Status = moved;
+        await _fixture.Context.SaveChangesAsync();
+
+        var act = () => _sut.MemberReviewAsync(committee.Id, member.Id, new CommitteeMemberReviewRequest(true, "Fine."));
+
+        await act.Should().ThrowAsync<BusinessRuleException>();
+
+        _fixture.Context.CommitteeMembers.Single(m => m.UserId == member.Id)
+            .Decision.Should().Be(CommitteeMemberDecision.Pending);
+        _fixture.Context.Publications.Single(p => p.Id == publication.Id)
+            .Status.Should().Be(moved, "the vote must not write over where the paper was moved to");
+    }
+
+    /// <summary>
+    /// And it stops being offered. The member's queue asked only whether their own vote was
+    /// outstanding, so a withdrawn paper stayed on their list and in the count on their dashboard.
+    /// </summary>
+    [Fact]
+    public async Task A_paper_that_has_left_the_committee_stops_appearing_as_awaiting_this_member()
+    {
+        var (publication, _, coordinator) = SeedApprovedPublication();
+        var member = SeedCommitteeMember();
+        await _sut.AssignAsync(publication.Id, new AssignCommitteeRequest([member.Id], 1, "Assign"), coordinator.Id);
+
+        (await _sut.GetAssignmentsForMemberAsync(member.Id, new PageRequest(), awaitingMeOnly: true))
+            .TotalCount.Should().Be(1);
+
+        publication.Status = PublicationStatus.RevisionsRequested;
+        await _fixture.Context.SaveChangesAsync();
+
+        (await _sut.GetAssignmentsForMemberAsync(member.Id, new PageRequest(), awaitingMeOnly: true))
+            .TotalCount.Should().Be(0);
+
+        // Still on the record of what they were appointed to, which is theirs to look back on.
+        (await _sut.GetAssignmentsForMemberAsync(member.Id, new PageRequest()))
+            .TotalCount.Should().Be(1);
     }
 
     [Fact]

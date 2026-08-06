@@ -360,8 +360,12 @@ public class CommitteeService(
         // the page rather than about them.
         if (awaitingMeOnly)
         {
-            filtered = filtered.Where(c => c.Members.Any(
-                m => m.UserId == memberUserId && m.Decision == CommitteeMemberDecision.Pending));
+            // Still theirs to vote on, and still there to be voted on. A paper an administrator has
+            // sent back to its author is not waiting on this member any more, and listing it asks
+            // them to read something that has been withdrawn.
+            filtered = filtered.Where(c =>
+                c.Publication.Status == PublicationStatus.UnderReview
+                && c.Members.Any(m => m.UserId == memberUserId && m.Decision == CommitteeMemberDecision.Pending));
         }
 
         // One term across the paper and its author, applied before the page is cut so it searches
@@ -425,6 +429,19 @@ public class CommitteeService(
         if (member.Decision != CommitteeMemberDecision.Pending)
         {
             throw new ConflictException("You have already submitted your decision for this committee.");
+        }
+
+        // The paper has to still be with the committee. A committee is appointed onto a paper under
+        // review and outlives it: an administrator can send the paper back to its author for
+        // revision while some members have yet to vote, and nothing stopped those votes arriving
+        // afterwards. Worse than a wasted reading, the last of them completed the committee, and
+        // where the coordinator does not decide papers that completion writes the publication's
+        // status: the revision the student was asked for was undone by a vote cast on the version
+        // that was withdrawn.
+        if (committee.Publication.Status != PublicationStatus.UnderReview)
+        {
+            throw new BusinessRuleException(
+                "This paper is no longer with the committee, so a decision can no longer be recorded against it.");
         }
 
         await commentPolicy.EnsureAsync(request.Approve
