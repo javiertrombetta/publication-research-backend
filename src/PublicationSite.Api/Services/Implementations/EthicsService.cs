@@ -116,6 +116,20 @@ public class EthicsService(
     {
         var approval = await GetApprovalForSupervisorAsync(publicationContainerId, supervisorId, cancellationToken);
 
+        // Only while it is still theirs. The helper above checks who is asking and never checked
+        // whether the question was still open, and this was the one ethics decision of the seven
+        // with no such guard.
+        //
+        // So a supervisor could rule again at any point afterwards. Sent twice at the same instant,
+        // both went through and the publication's history recorded the decision twice over. Sent
+        // again later, it reached back past the coordinator who had already picked it up and
+        // changed which route the stage was on, without that coordinator being told.
+        if (approval.Status != EthicsStatus.PendingSupervisorDecision || approval.SupervisorDecisionAt is not null)
+        {
+            throw new BusinessRuleException(
+                "This publication's ethics stage is no longer waiting on your decision.");
+        }
+
         await commentPolicy.EnsureAsync(DecisionPoints.EthicsSupervisorRuling, request.Comments, cancellationToken);
 
         approval.IsRequiredPerSupervisor = request.IsRequired;

@@ -126,6 +126,42 @@ public class EthicsServiceTests : IDisposable
         await act.Should().ThrowAsync<BusinessRuleException>();
     }
 
+    /// <summary>
+    /// The first ethics decision was the one of the seven with no guard on the state, only on who
+    /// was asking. Sent twice at the same instant both went through and the publication's history
+    /// recorded the decision twice; sent again later it reached back past the coordinator who had
+    /// already picked the stage up and changed which route it was on, without telling them.
+    /// </summary>
+    [Fact]
+    public async Task SupervisorRequirementDecision_is_refused_once_it_has_been_made()
+    {
+        var (student, supervisor, _, container) = SeedAssignedContainer();
+        await _sut.SubmitDeclarationAsync(container.Id, student.Id, new EthicsDeclarationRequest("Yes"));
+        await _sut.SubmitSupervisorRequirementDecisionAsync(container.Id, supervisor.Id,
+            new SupervisorRequirementDecisionRequest(false, "No documentation needed."));
+
+        var act = () => _sut.SubmitSupervisorRequirementDecisionAsync(container.Id, supervisor.Id,
+            new SupervisorRequirementDecisionRequest(true, "On second thoughts."));
+
+        await act.Should().ThrowAsync<BusinessRuleException>();
+
+        var approval = await _fixture.Context.EthicsApprovals.FirstAsync(a => a.PublicationContainerId == container.Id);
+        approval.Status.Should().Be(EthicsStatus.NotRequired, "the first decision stands");
+        approval.IsRequiredPerSupervisor.Should().BeFalse();
+    }
+
+    /// <summary>And not before the student has declared, which is what opens the question.</summary>
+    [Fact]
+    public async Task SupervisorRequirementDecision_is_refused_before_the_student_has_declared()
+    {
+        var (_, supervisor, _, container) = SeedAssignedContainer();
+
+        var act = () => _sut.SubmitSupervisorRequirementDecisionAsync(container.Id, supervisor.Id,
+            new SupervisorRequirementDecisionRequest(true, "Getting ahead of it."));
+
+        await act.Should().ThrowAsync<Exception>();
+    }
+
     [Fact]
     public async Task SupervisorRequirementDecision_required_moves_to_pending_upload_and_notifies_student()
     {
