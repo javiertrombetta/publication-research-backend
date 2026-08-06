@@ -302,6 +302,12 @@ table read through `ISystemSettingsProvider` (cached in memory, invalidated on w
 list. Nothing outside the provider spells a key as a literal, because a typo in a reader silently yields the
 default rather than failing.
 
+That cache lives in the process, which is correct while the API runs as one replica, and the deployment
+scripts pin `--max-replicas 1`. Raising that is the one change that would break it: a setting saved on one
+replica would leave the other answering from its own copy for up to five minutes, so an administrator would
+watch a change take effect and then appear to undo itself depending on which replica served the next request.
+Scaling out means moving this cache somewhere shared, or dropping its lifetime to nothing.
+
 | Group | Covers |
 | --- | --- |
 | `committees` | Required reviewers and externals, minimum approvals, and who may be put on one |
