@@ -1,3 +1,4 @@
+using FluentValidation;
 namespace PublicationSite.Api.DTOs.Auth;
 
 /// <summary>
@@ -45,3 +46,20 @@ public record InvitationPreviewDto(
     DateTime ExpiresAt);
 
 public record AcceptInvitationRequest(string Token, string Password);
+
+/// <summary>
+/// The service already refuses an unrecognised role, a missing department and a nameless person.
+/// What it could not refuse was a name longer than the column, which reached the database and came
+/// back as a server error rather than as the one field to shorten.
+/// </summary>
+public class CreateInvitationRequestValidator : AbstractValidator<CreateInvitationRequest>
+{
+    public CreateInvitationRequestValidator()
+    {
+        RuleFor(x => x.Email).NotEmpty().EmailAddress().MaximumLength(256);
+        RuleFor(x => x.FirstName).NotEmpty().MaximumLength(100);
+        RuleFor(x => x.LastName).NotEmpty().MaximumLength(100);
+        RuleFor(x => x.Role).NotEmpty();
+    }
+}
+

@@ -52,9 +52,14 @@ public class UserService(
         // chooser: sending them a proposal is asking a question nobody is there to answer.
         if (availableOnly) query = query.Where(u => u.IsAvailable);
 
-        if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<UserStatus>(status, true, out var statusFilter))
+        if (!string.IsNullOrWhiteSpace(status))
         {
-            query = query.Where(u => u.Status == statusFilter);
+            // As above: an unrecognised status matches nobody rather than everybody. The directory
+            // is where an administrator goes to find the disabled accounts, and handing back all of
+            // them under that heading is the answer most likely to be believed.
+            query = Enum.TryParse<UserStatus>(status, true, out var statusFilter)
+                ? query.Where(u => u.Status == statusFilter)
+                : query.Where(_ => false);
         }
 
         if (!string.IsNullOrWhiteSpace(search))
