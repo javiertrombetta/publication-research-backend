@@ -1519,7 +1519,7 @@
                 }
               ]
             },
-            "description": "Publications across the institution, filtered by student, coordinator, status or which\nethics decision they are waiting at, one page at a time. A coordinator passes their own\nid, since the whole institution is not their queue."
+            "description": "Publications across the institution, filtered by student, coordinator, status or which\nethics decision they are waiting at, one page at a time.\n\nA coordinator gets their own, whatever they ask for. Every screen of theirs already sent\ntheir id, so this changes nothing any of them shows, but asking politely was the only thing\nkeeping the rest of the institution off the wire: an omitted filter listed all thirty\npublications, in departments whose records the same account is refused when it opens one.\nA listing that hands back what the next request will not is worse than either answer."
           },
           "response": []
         },
@@ -1853,7 +1853,7 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/api/containers/:id/activity-history?From=&To=&Action=&ActorUserId=&Page=&PageSize=&SortBy=&SortDescending=",
+              "raw": "{{base_url}}/api/containers/:id/activity-history?From=&To=&Action=&ActorUserId=&Search=&Page=&PageSize=&SortBy=&SortDescending=",
               "host": [
                 "{{base_url}}"
               ],
@@ -1886,6 +1886,12 @@
                   "key": "ActorUserId",
                   "value": "",
                   "description": "Whoever did it. The person acted on behalf of counts too, since that is who it was for.",
+                  "disabled": true
+                },
+                {
+                  "key": "Search",
+                  "value": "",
+                  "description": "Free text over the action, the person and the comment they left. The filters above each\nanswer one question exactly; this answers the question somebody actually arrives with,\nwhich is usually half a remembered phrase from a comment.",
                   "disabled": true
                 },
                 {
@@ -1985,14 +1991,14 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"stage\": 0,\n  \"comments\": \"\",\n  \"ethicsStep\": \"\",\n  \"paperStatus\": \"\"\n}",
+              "raw": "{\n  \"stage\": 0,\n  \"comments\": \"\",\n  \"ethicsStep\": \"\",\n  \"paperStatus\": \"\",\n  \"correctingSettledDecision\": false\n}",
               "options": {
                 "raw": {
                   "language": "json"
                 }
               }
             },
-            "description": "Sets which step of which stage a publication is waiting at, so whoever should act next\nactually sees it. Its own endpoint rather than a side effect of correcting a document,\nbecause the two are separate decisions."
+            "description": "Sets which step of which stage a publication is waiting at, so whoever should act next\nactually sees it. Its own endpoint rather than a side effect of correcting a document,\nbecause the two are separate decisions.\n\nA publication whose paper has been accepted or published is refused unless the request sets\n`correctingSettledDecision`. That exists so an acceptance recorded in error can be put\nright, since there is nowhere else to put it right, while an ordinary move cannot disturb a\ndecision by accident. A correction is written into the publication's history as a\ncorrection, with the reason given."
           },
           "response": []
         },
@@ -2125,7 +2131,7 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/api/containers/:containerId/proposals",
+              "raw": "{{base_url}}/api/containers/:containerId/proposals?SortBy=&SortDescending=",
               "host": [
                 "{{base_url}}"
               ],
@@ -2134,6 +2140,20 @@
                 "containers",
                 ":containerId",
                 "proposals"
+              ],
+              "query": [
+                {
+                  "key": "SortBy",
+                  "value": "",
+                  "description": "The column, named as the screen sends it. Unknown names fall back to the default order.",
+                  "disabled": true
+                },
+                {
+                  "key": "SortDescending",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                }
               ],
               "variable": [
                 {
@@ -2803,6 +2823,34 @@
           "response": []
         },
         {
+          "name": "The ethics of several publications at once: for each, its approval and the documents\nuploaded against it",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/containers/ethics?ids=",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "containers",
+                "ethics"
+              ],
+              "query": [
+                {
+                  "key": "ids",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "The ethics of several publications at once: for each, its approval and the documents\nuploaded against it.\n\nFor the queues that show a page of publications with their ethics. Asking per publication\nmade a screen cost two requests a row, which is invisible on a small department and grows\nwith a large one. An id the caller may not read is left out of the answer rather than\nrefusing the whole request: these ids come from a listing that was already theirs, so its\nabsence means the publication moved, not that they were reaching for something."
+          },
+          "response": []
+        },
+        {
           "name": "Where the ethics workflow has got to on this publication: the declaration, the\nsupervisor's decision, which documents were asked for, what has been uploaded and\nreviewed, and whose turn it is now",
           "request": {
             "method": "GET",
@@ -2923,7 +2971,7 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/api/containers/:containerId/ethics/documents",
+              "raw": "{{base_url}}/api/containers/:containerId/ethics/documents?SortBy=&SortDescending=",
               "host": [
                 "{{base_url}}"
               ],
@@ -2933,6 +2981,20 @@
                 ":containerId",
                 "ethics",
                 "documents"
+              ],
+              "query": [
+                {
+                  "key": "SortBy",
+                  "value": "",
+                  "description": "The column, named as the screen sends it. Unknown names fall back to the default order.",
+                  "disabled": true
+                },
+                {
+                  "key": "SortDescending",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                }
               ],
               "variable": [
                 {
@@ -3484,6 +3546,34 @@
             "method": "GET",
             "header": [],
             "url": {
+              "raw": "{{base_url}}/api/containers/publications?ids=",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "containers",
+                "publications"
+              ],
+              "query": [
+                {
+                  "key": "ids",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "One research paper, for the people it concerns: its student, their supervisor and\ncoordinator, the head of that department, its committee, and an administrator.\n\nFor the coordinator's decision queue, which asked for the paper and then for its reviews\nonce per row. As with the ethics equivalent, an id the caller may not read is left out\nrather than refusing the request."
+          },
+          "response": []
+        },
+        {
+          "name": "One research paper, by its own id rather than by the publication it belongs to",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
               "raw": "{{base_url}}/api/publications/:publicationId",
               "host": [
                 "{{base_url}}"
@@ -3501,7 +3591,7 @@
                 }
               ]
             },
-            "description": "One research paper, for the people it concerns: its student, their supervisor and\ncoordinator, the head of that department, its committee, and an administrator."
+            "description": "One research paper, by its own id rather than by the publication it belongs to.\n\nFor a caller holding a paper id and nothing else, which is where a review, a version and a\ncommittee decision all point. Who may read it is the same question as who may read the\npublication it sits on."
           },
           "response": []
         },
@@ -3600,7 +3690,7 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/api/publications/:publicationId/versions",
+              "raw": "{{base_url}}/api/publications/:publicationId/versions?SortBy=&SortDescending=",
               "host": [
                 "{{base_url}}"
               ],
@@ -3609,6 +3699,20 @@
                 "publications",
                 ":publicationId",
                 "versions"
+              ],
+              "query": [
+                {
+                  "key": "SortBy",
+                  "value": "",
+                  "description": "The column, named as the screen sends it. Unknown names fall back to the default order.",
+                  "disabled": true
+                },
+                {
+                  "key": "SortDescending",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                }
               ],
               "variable": [
                 {
@@ -3837,7 +3941,7 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/api/publications/:publicationId/reviews",
+              "raw": "{{base_url}}/api/publications/:publicationId/reviews?SortBy=&SortDescending=",
               "host": [
                 "{{base_url}}"
               ],
@@ -3846,6 +3950,20 @@
                 "publications",
                 ":publicationId",
                 "reviews"
+              ],
+              "query": [
+                {
+                  "key": "SortBy",
+                  "value": "",
+                  "description": "The column, named as the screen sends it. Unknown names fall back to the default order.",
+                  "disabled": true
+                },
+                {
+                  "key": "SortDescending",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                }
               ],
               "variable": [
                 {
@@ -4861,12 +4979,12 @@
       "name": "Notifications",
       "item": [
         {
-          "name": "This person's notifications, newest first, optionally only the unread ones",
+          "name": "One page of this person's notifications, newest first, optionally only the unread ones and\noptionally matching a search",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/api/notifications?unreadOnly=",
+              "raw": "{{base_url}}/api/notifications?unreadOnly=&search=&Page=&PageSize=&SortBy=&SortDescending=",
               "host": [
                 "{{base_url}}"
               ],
@@ -4880,10 +4998,67 @@
                   "value": "",
                   "description": "Only what this person has not read yet, which is what the bell in the top bar shows.",
                   "disabled": true
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Matched against the title and the message of each notification. Ignored when blank.",
+                  "disabled": true
+                },
+                {
+                  "key": "Page",
+                  "value": "",
+                  "description": "Which page to return, counted from one. Out-of-range numbers are clamped rather than\nrefused: they arrive from stale links as often as from a working client.",
+                  "disabled": true
+                },
+                {
+                  "key": "PageSize",
+                  "value": "",
+                  "description": "Zero means \"however long the institution says\", which is the usual case: the site sends no\npage size at all and takes the configured one. A caller that names a number gets it, up to\nthe ceiling above.",
+                  "disabled": true
+                },
+                {
+                  "key": "SortBy",
+                  "value": "",
+                  "description": "Which column to order by, and whether to reverse it.\n\nIt belongs here, on the request, rather than in the client. Sorting the ten rows a page\nhappens to hold is not sorting the list: the oldest proposal in the department is on the\nlast page, and a reader clicking \"oldest first\" expects to see it, not the oldest of\nwhatever ten they were already looking at. Ordering has to happen before the page is cut.\n\nThe name is whatever the endpoint documents; an unknown one falls back to that endpoint's\nown default rather than failing, because a sort key is a view preference and not worth\nrefusing a page over.",
+                  "disabled": true
+                },
+                {
+                  "key": "SortDescending",
+                  "value": "",
+                  "description": "Reverses PublicationSite.Api.DTOs.Common.PageRequest.SortBy. Ignored where no column has been named, since there is\nnothing to reverse but the endpoint's own default order.",
+                  "disabled": true
                 }
               ]
             },
-            "description": "This person's notifications, newest first, optionally only the unread ones. Every\nnotification is delivered here whether or not email is switched on, so this is the\nrecord rather than a copy of one."
+            "description": "One page of this person's notifications, newest first, optionally only the unread ones and\noptionally matching a search. Every notification is delivered here whether or not email is\nswitched on, so this is the record rather than a copy of one."
+          },
+          "response": []
+        },
+        {
+          "name": "One notification of this person's, by id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/notifications/:id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "notifications",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "The notification."
+                }
+              ]
+            },
+            "description": "One notification of this person's, by id.\n\nFor a caller that has an id and wants what it points at. Searching a page for it stopped\nworking the moment this list was paged, and paging through the lot to find one is not a\nthing to ask of anybody."
           },
           "response": []
         },
@@ -4952,6 +5127,327 @@
               ]
             },
             "description": "Clears the whole unread count in one go, and says how many that was."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "ContainerMessages",
+      "item": [
+        {
+          "name": "Whether this is switched on, who the caller may write to on this publication, and what a\nmessage may carry",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/containers/:containerId/messages/context",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "containers",
+                ":containerId",
+                "messages",
+                "context"
+              ],
+              "variable": [
+                {
+                  "key": "containerId",
+                  "value": "",
+                  "description": "The publication container this belongs to."
+                }
+              ]
+            },
+            "description": "Whether this is switched on, who the caller may write to on this publication, and what a\nmessage may carry. What a screen needs before anybody has written anything."
+          },
+          "response": []
+        },
+        {
+          "name": "The caller's own correspondence on this publication, newest first",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/containers/:containerId/messages?with=&Page=&PageSize=&SortBy=&SortDescending=",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "containers",
+                ":containerId",
+                "messages"
+              ],
+              "query": [
+                {
+                  "key": "with",
+                  "value": "",
+                  "description": "Narrows it to the exchange with one person. Left out, it returns the lot.",
+                  "disabled": true
+                },
+                {
+                  "key": "Page",
+                  "value": "",
+                  "description": "Which page to return, counted from one. Out-of-range numbers are clamped rather than\nrefused: they arrive from stale links as often as from a working client.",
+                  "disabled": true
+                },
+                {
+                  "key": "PageSize",
+                  "value": "",
+                  "description": "Zero means \"however long the institution says\", which is the usual case: the site sends no\npage size at all and takes the configured one. A caller that names a number gets it, up to\nthe ceiling above.",
+                  "disabled": true
+                },
+                {
+                  "key": "SortBy",
+                  "value": "",
+                  "description": "Which column to order by, and whether to reverse it.\n\nIt belongs here, on the request, rather than in the client. Sorting the ten rows a page\nhappens to hold is not sorting the list: the oldest proposal in the department is on the\nlast page, and a reader clicking \"oldest first\" expects to see it, not the oldest of\nwhatever ten they were already looking at. Ordering has to happen before the page is cut.\n\nThe name is whatever the endpoint documents; an unknown one falls back to that endpoint's\nown default rather than failing, because a sort key is a view preference and not worth\nrefusing a page over.",
+                  "disabled": true
+                },
+                {
+                  "key": "SortDescending",
+                  "value": "",
+                  "description": "Reverses PublicationSite.Api.DTOs.Common.PageRequest.SortBy. Ignored where no column has been named, since there is\nnothing to reverse but the endpoint's own default order.",
+                  "disabled": true
+                }
+              ],
+              "variable": [
+                {
+                  "key": "containerId",
+                  "value": "",
+                  "description": "The publication container this belongs to."
+                }
+              ]
+            },
+            "description": "The caller's own correspondence on this publication, newest first."
+          },
+          "response": []
+        },
+        {
+          "name": "Writes to somebody about this publication, with up to five files",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/containers/:containerId/messages",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "containers",
+                ":containerId",
+                "messages"
+              ],
+              "variable": [
+                {
+                  "key": "containerId",
+                  "value": "",
+                  "description": "The publication container this belongs to."
+                }
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "RecipientUserId",
+                  "type": "text",
+                  "value": ""
+                },
+                {
+                  "key": "Body",
+                  "type": "text",
+                  "value": ""
+                },
+                {
+                  "key": "Files",
+                  "type": "text",
+                  "value": ""
+                }
+              ]
+            },
+            "description": "Writes to somebody about this publication, with up to five files.\n\nThe files are for what a message needs: a screenshot of the error, a photograph of a signed\npage. The documents a process asks for are uploaded where that process asks for them; one\nattached here is one nobody reviewing that process will ever see."
+          },
+          "response": []
+        },
+        {
+          "name": "Marks as read what one person has sent the caller here, which is what opening a conversation\ndoes",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/containers/:containerId/messages/read?with=",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "containers",
+                ":containerId",
+                "messages",
+                "read"
+              ],
+              "query": [
+                {
+                  "key": "with",
+                  "value": "",
+                  "description": "",
+                  "disabled": true
+                }
+              ],
+              "variable": [
+                {
+                  "key": "containerId",
+                  "value": "",
+                  "description": "The publication container this belongs to."
+                }
+              ]
+            },
+            "description": "Marks as read what one person has sent the caller here, which is what opening a conversation\ndoes."
+          },
+          "response": []
+        },
+        {
+          "name": "Opens a file that came with a message the caller sent or received",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/containers/:containerId/messages/attachments/:attachmentId",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "containers",
+                ":containerId",
+                "messages",
+                "attachments",
+                ":attachmentId"
+              ],
+              "variable": [
+                {
+                  "key": "containerId",
+                  "value": "",
+                  "description": "The publication container this belongs to."
+                },
+                {
+                  "key": "attachmentId",
+                  "value": "",
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Opens a file that came with a message the caller sent or received."
+          },
+          "response": []
+        },
+        {
+          "name": "The rules in force on this publication, the people they could be about, and the roles they\ncould be about",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/containers/:containerId/messages/rules",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "containers",
+                ":containerId",
+                "messages",
+                "rules"
+              ],
+              "variable": [
+                {
+                  "key": "containerId",
+                  "value": "",
+                  "description": "The publication container this belongs to."
+                }
+              ]
+            },
+            "description": "The rules in force on this publication, the people they could be about, and the roles they\ncould be about.\n\nAdministrators only. These rules decide who can say anything to whom, which is not a control\nto hand to the people it governs."
+          },
+          "response": []
+        },
+        {
+          "name": "Stops, or allows, messages on this publication for the whole publication, for a role on it,\nor for one named person",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/containers/:containerId/messages/rules",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "containers",
+                ":containerId",
+                "messages",
+                "rules"
+              ],
+              "variable": [
+                {
+                  "key": "containerId",
+                  "value": "",
+                  "description": "The publication container this belongs to."
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"targetRole\": \"\",\n  \"targetUserId\": \"00000000-0000-0000-0000-000000000000\",\n  \"allowed\": false,\n  \"reason\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Stops, or allows, messages on this publication for the whole publication, for a role on it,\nor for one named person. Replaces whatever was already said about the same target.\n\nA rule works both ways: somebody it stops neither writes nor is written to here. It also\ncloses a conversation they were already in, which is the difference between this and\nnarrowing the institution's settings."
+          },
+          "response": []
+        },
+        {
+          "name": "Takes a rule away, so this publication follows the institution's settings again for whoever\nit was about",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/containers/:containerId/messages/rules/:ruleId",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "containers",
+                ":containerId",
+                "messages",
+                "rules",
+                ":ruleId"
+              ],
+              "variable": [
+                {
+                  "key": "containerId",
+                  "value": "",
+                  "description": "The publication container this belongs to."
+                },
+                {
+                  "key": "ruleId",
+                  "value": "",
+                  "description": ""
+                }
+              ]
+            },
+            "description": "Takes a rule away, so this publication follows the institution's settings again for whoever\nit was about."
           },
           "response": []
         }
@@ -5379,6 +5875,60 @@
               }
             },
             "description": "Changes those limits. They are applied at upload, so files already accepted stay."
+          },
+          "response": []
+        },
+        {
+          "name": "Whether people may write to each other through a publication, whether those contacts are\nnoted in its activity history, and what a message may carry",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/settings/messaging",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "settings",
+                "messaging"
+              ]
+            },
+            "description": "Whether people may write to each other through a publication, whether those contacts are\nnoted in its activity history, and what a message may carry."
+          },
+          "response": []
+        },
+        {
+          "name": "Changes them",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/settings/messaging",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "settings",
+                "messaging"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"enabled\": false,\n  \"recordedInActivityHistory\": false,\n  \"allowedExtensions\": \"\",\n  \"studentsMayWrite\": false,\n  \"studentMayWriteToRoles\": [\n    \"\"\n  ],\n  \"staffMayWrite\": false,\n  \"staffMayWriteToStudentRoles\": [\n    \"\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Changes them. Switching messaging off hides the screen and refuses new messages; it never\nremoves what people have already written to each other."
           },
           "response": []
         },
@@ -6181,6 +6731,71 @@
               "type": "noauth"
             },
             "description": "Turns an invitation into an account: the invited person sets their password and is given the\nrole the invitation was sent for. Open without a session, because the person accepting has\nno account yet. The token in the link is what proves they were invited."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Support",
+      "item": [
+        {
+          "name": "Whether the desk can be written to from inside the site, and its address for when it\ncannot",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/support/contact",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "support",
+                "contact"
+              ]
+            },
+            "description": "Whether the desk can be written to from inside the site, and its address for when it\ncannot. A screen asks this before deciding whether to offer a form or a mail link."
+          },
+          "response": []
+        },
+        {
+          "name": "Sends a message to the IT desk, with up to three files",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/support/contact",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "support",
+                "contact"
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "Subject",
+                  "type": "text",
+                  "value": ""
+                },
+                {
+                  "key": "Body",
+                  "type": "text",
+                  "value": ""
+                },
+                {
+                  "key": "Files",
+                  "type": "text",
+                  "value": ""
+                }
+              ]
+            },
+            "description": "Sends a message to the IT desk, with up to three files.\n\nNothing is stored: the desk is a mailbox rather than a role here, so there is no\nnotification to raise and no record to keep beyond the audit line saying it was sent. The\nreply-to is the sender's own address, so the answer reaches them rather than the site."
           },
           "response": []
         }
