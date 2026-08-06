@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using PublicationSite.Api.Common;
 using PublicationSite.Api.Common.Options;
+using PublicationSite.Api.DTOs.Messages;
 using PublicationSite.Api.Entities;
 using PublicationSite.Api.Enums;
 using PublicationSite.Api.Services.Interfaces;
@@ -302,7 +303,8 @@ public static class DemoDataSeeder
 
         // A conversation on a publication, so the messages screen is not a heading over an empty
         // box on every one of them. One exchange answered, one question still waiting.
-        await SeedMessagesAsync(db, cancellationToken);
+        await SeedMessagesAsync(services, db, cancellationToken);
+        await SeedMessagingRuleAsync(db, admin, cancellationToken);
 
         // One supervisor is not taking work on. The chooser on Send proposals leaves them out and
         // the administrator's screens still show them, which is the difference between this and an
@@ -431,14 +433,20 @@ public static class DemoDataSeeder
     /// for the people in it, which is how somebody would actually name one.
     /// </summary>
     /// <summary>
-    /// Two conversations on the publication furthest along, so the messages screen has something on
-    /// it and the unread badge has something to count.
+    /// Conversations on the publication furthest along, so the messages screen has something on it
+    /// and the unread badge has something to count.
     ///
-    /// One exchange finished, one question still waiting for an answer, and no attachments: a
-    /// seeded file would have to be written to whatever storage this deployment is pointed at, and
-    /// what the screen needs to demonstrate is the conversation.
+    /// Sent through the service rather than written as rows. Rows were quicker and quietly wrong:
+    /// a real message raises a notification for whoever receives it, and a seeded one that did not
+    /// left the demonstration's notification lists saying less than the site actually says. Going
+    /// through the service also means the seeded data can only be data the rules would have
+    /// allowed, which is the point of a demonstration dataset.
+    ///
+    /// One exchange finished and read, one question still waiting, and one file attached, so the
+    /// attach-and-download path has something to exercise.
     /// </summary>
-    private static async Task SeedMessagesAsync(ApplicationDbContext db, CancellationToken cancellationToken)
+    private static async Task SeedMessagesAsync(
+        IServiceProvider services, ApplicationDbContext db, CancellationToken cancellationToken)
     {
         if (await db.ContainerMessages.AnyAsync(cancellationToken)) return;
 
@@ -450,40 +458,77 @@ public static class DemoDataSeeder
 
         if (container?.AssignedSupervisorId is not { } supervisorId) return;
 
-        var opened = DateTime.UtcNow.AddDays(-6);
+        var messages = services.GetRequiredService<IContainerMessageService>();
 
-        db.ContainerMessages.AddRange(
-            new ContainerMessage
-            {
-                PublicationContainerId = container.Id,
-                SenderUserId = container.StudentId,
-                RecipientUserId = supervisorId,
-                Body = "One of my participants has asked to withdraw after the interview. Do I take "
-                       + "their transcript out of the analysis entirely, or keep it and note the "
-                       + "withdrawal?",
-                SentAt = opened,
-                ReadAt = opened.AddHours(3)
-            },
-            new ContainerMessage
-            {
-                PublicationContainerId = container.Id,
-                SenderUserId = supervisorId,
-                RecipientUserId = container.StudentId,
-                Body = "Take it out. The consent form we approved says withdrawal means the data is "
-                       + "not used, and that is the promise they were given. Note in the method "
-                       + "section that one participant withdrew, with no other detail about them.",
-                SentAt = opened.AddHours(4),
-                ReadAt = opened.AddHours(5)
-            },
-            new ContainerMessage
-            {
-                PublicationContainerId = container.Id,
-                SenderUserId = container.StudentId,
-                RecipientUserId = container.CoordinatorId,
-                Body = "Am I able to submit the paper while the ethics amendment is still being "
-                       + "looked at, or does it have to wait for that to come back?",
-                SentAt = DateTime.UtcNow.AddDays(-1)
-            });
+        var withdrawal = await messages.SendAsync(container.Id, container.StudentId,
+            new SendContainerMessageRequest(supervisorId,
+                "One of my participants has asked to withdraw after the interview. Do I take their "
+                + "transcript out of the analysis entirely, or keep it and note the withdrawal?"),
+            [], cancellationToken);
+
+        await messages.SendAsync(container.Id, supervisorId,
+            new SendContainerMessageRequest(container.StudentId,
+                "Take it out. The consent form we approved says withdrawal means the data is not "
+                + "used, and that is the promise they were given. Note in the method section that "
+                + "one participant withdrew, with no other detail about them."),
+            [], cancellationToken);
+
+        // The one with a file on it: a student showing the coordinator what they are looking at,
+        // which is what an attachment on a message is nearly always for.
+        using var screenshot = new MemoryStream(DemoDocuments.Pdf(
+            "What the upload screen shows me",
+            "Attached to a message, not to the ethics file: this is a question, not a submission."));
+
+        await messages.SendAsync(container.Id, container.StudentId,
+            new SendContainerMessageRequest(container.CoordinatorId,
+                "Am I able to submit the paper while the ethics amendment is still being looked at, "
+                + "or does it have to wait for that to come back? I have attached what the screen "
+                + "says when I try."),
+            [(screenshot, "what-the-screen-says.pdf")], cancellationToken);
+
+        // The first exchange has been read by both of them; the question to the coordinator has
+        // not, so one badge on the screen has something to show.
+        await messages.MarkReadAsync(container.Id, supervisorId, container.StudentId, cancellationToken);
+        await messages.MarkReadAsync(container.Id, container.StudentId, supervisorId, cancellationToken);
+
+        _ = withdrawal;
+    }
+
+    /// <summary>
+    /// One rule on one publication, so the administrator's "Who may write" tab is not a heading
+    /// over an empty table.
+    ///
+    /// Deliberately not the publication carrying the conversation above: a demonstration that
+    /// silences the one exchange there is to read would leave whoever is testing wondering where
+    /// the messages went.
+    /// </summary>
+    private static async Task SeedMessagingRuleAsync(
+        ApplicationDbContext db, ApplicationUser admin, CancellationToken cancellationToken)
+    {
+        if (await db.ContainerMessagingRules.AnyAsync(cancellationToken)) return;
+
+        var conversational = await db.ContainerMessages
+            .Select(m => m.PublicationContainerId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        var container = await db.PublicationContainers
+            .Where(c => c.AssignedSupervisorId != null && !conversational.Contains(c.Id))
+            .OrderBy(c => c.CreatedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (container?.AssignedSupervisorId is not { } supervisorId) return;
+
+        db.ContainerMessagingRules.Add(new ContainerMessagingRule
+        {
+            PublicationContainerId = container.Id,
+            TargetUserId = supervisorId,
+            Allowed = false,
+            Reason = "A complaint about this supervision is being looked into. Messages here go "
+                     + "through the coordinator until it is settled.",
+            SetByUserId = admin.Id,
+            SetAt = DateTime.UtcNow.AddDays(-2)
+        });
 
         await db.SaveChangesAsync(cancellationToken);
     }
