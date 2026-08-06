@@ -162,6 +162,24 @@ public class ProposalService(
         await auditService.LogActivityAsync(container.Id, studentId, "ProposalsSubmitted",
             $"{drafts.Count} research proposal(s) submitted for evaluation.",
             previousStatus: ProposalStatus.Draft.ToString(), newStatus: ProposalStatus.Submitted.ToString());
+
+        // The first handover in the whole workflow, and it was the only silent one. Every step of
+        // the ethics stage and every step of the paper tells whoever is next that it is their turn;
+        // a student finishing their proposals told nobody, and the coordinator found out by
+        // happening to open the dispatch screen.
+        // Read here rather than joined onto the container: this helper is shared with saving a
+        // draft, and a join on every keystroke's worth of work for a name used once is waste.
+        var student = await db.Users
+            .Where(u => u.Id == container.StudentId)
+            .Select(u => u.FirstName + " " + u.LastName)
+            .FirstOrDefaultAsync(cancellationToken) ?? "A student";
+
+        await notificationService.NotifyAsync(container.CoordinatorId, NotificationType.ProposalsAwaitingEvaluation,
+            "Research proposals ready to send out",
+            $"{student} has submitted "
+            + $"{drafts.Count} research {(drafts.Count == 1 ? "proposal" : "proposals")}. "
+            + "Please log in to send them to supervisors.",
+            nameof(PublicationContainer), container.Id, cancellationToken);
     }
 
     public async Task RequestNewSubmissionAsync(
@@ -545,7 +563,7 @@ public class ProposalService(
     public async Task SelectAsFeasibleAsync(Guid proposalId, Guid supervisorId, SupervisorSelectionRequest request, CancellationToken cancellationToken = default)
     {
         var selection = await db.ProposalSupervisorSelections
-            .Include(s => s.Proposal)
+            .Include(s => s.Proposal).ThenInclude(p => p.PublicationContainer)
             .FirstOrDefaultAsync(s => s.ProposalId == proposalId && s.SupervisorId == supervisorId, cancellationToken)
             ?? throw new ForbiddenException("This proposal was not sent to you for evaluation.");
 
@@ -564,6 +582,15 @@ public class ProposalService(
 
         await auditService.LogActivityAsync(selection.Proposal.PublicationContainerId, supervisorId,
             "ProposalSelectedBySupervisor", request.Comments ?? "Marked as feasible to supervise.");
+
+        // And the answer coming back, for the same reason: it is now the coordinator's turn to
+        // allocate, and nothing said so.
+        await notificationService.NotifyAsync(
+            selection.Proposal.PublicationContainer.CoordinatorId, NotificationType.ProposalsAwaitingEvaluation,
+            "A supervisor has answered",
+            $"A supervisor has said they could supervise '{selection.Proposal.Title}'. "
+            + "Please log in to allocate it.",
+            nameof(PublicationContainer), selection.Proposal.PublicationContainerId, cancellationToken);
     }
 
     public async Task<IReadOnlyList<SupervisorInvitationDto>> GetSelectionsAsync(Guid proposalId, Guid requestingUserId, CancellationToken cancellationToken = default)
