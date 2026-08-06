@@ -396,6 +396,76 @@ public class ContainerServiceTests : IDisposable
             .Which.PaperAwaitingRole.Should().BeNull();
     }
 
+    /// <summary>
+    /// A publication whose paper has been judged is the record of that judgement. Moving it back to
+    /// an earlier step would leave the record saying something the decision does not, and the
+    /// people it landed on would have nothing left to do with it. The administrator's screen
+    /// withdraws the control at that point, along with every other one it loses; this is the same
+    /// rule where it belongs, because a screen is not a rule.
+    /// </summary>
+    [Theory]
+    [InlineData(PublicationStatus.Accepted)]
+    [InlineData(PublicationStatus.Published)]
+    public async Task MoveToAsync_refuses_once_the_paper_has_been_judged(PublicationStatus judged)
+    {
+        var department = TestDataBuilder.Department(_fixture.Context);
+        var student = TestDataBuilder.User(_fixture.Context);
+        TestDataBuilder.StudentProfile(_fixture.Context, student, department);
+        var container = TestDataBuilder.Container(
+            _fixture.Context, student, TestDataBuilder.User(_fixture.Context),
+            stage: PipelineStage.ResearchPaper);
+
+        _fixture.Context.Publications.Add(new Publication
+        {
+            PublicationContainerId = container.Id,
+            Title = "Latency perception in progressive web applications",
+            Status = judged
+        });
+        await _fixture.Context.SaveChangesAsync();
+
+        var act = () => _sut.MoveToAsync(container.Id,
+            new MoveContainerRequest((int)PipelineStage.EthicsApproval, "Reopening it.", EthicsSteps.StudentUpload),
+            Guid.NewGuid());
+
+        (await act.Should().ThrowAsync<BusinessRuleException>())
+            .Which.Message.Should().Contain("settled");
+
+        (await _fixture.Reread().PublicationContainers.FirstAsync(c => c.Id == container.Id))
+            .CurrentPipeline.Should().Be(PipelineStage.ResearchPaper, "the publication stays where the decision left it");
+    }
+
+    /// <summary>And a paper still being worked on is moved as before.</summary>
+    [Fact]
+    public async Task MoveToAsync_still_moves_a_paper_that_is_under_review()
+    {
+        var department = TestDataBuilder.Department(_fixture.Context);
+        var student = TestDataBuilder.User(_fixture.Context);
+        TestDataBuilder.StudentProfile(_fixture.Context, student, department);
+        var container = TestDataBuilder.Container(
+            _fixture.Context, student, TestDataBuilder.User(_fixture.Context),
+            stage: PipelineStage.ResearchPaper);
+
+        _fixture.Context.Publications.Add(new Publication
+        {
+            PublicationContainerId = container.Id,
+            Title = "Latency perception in progressive web applications",
+            Status = PublicationStatus.UnderReview
+        });
+        _fixture.Context.EthicsApprovals.Add(new EthicsApproval
+        {
+            PublicationContainerId = container.Id,
+            Status = EthicsStatus.PendingVerification
+        });
+        await _fixture.Context.SaveChangesAsync();
+
+        var act = () => _sut.MoveToAsync(container.Id,
+            new MoveContainerRequest((int)PipelineStage.EthicsApproval, "The consent form was the wrong one.",
+                EthicsSteps.StudentUpload),
+            Guid.NewGuid());
+
+        await act.Should().NotThrowAsync();
+    }
+
     [Fact]
     public async Task MoveToAsync_puts_the_ethics_stage_back_to_the_student_and_clears_what_came_after()
     {
