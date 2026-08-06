@@ -63,3 +63,15 @@ public record AwaitingCommitteeDto(
     string StudentName,
     int? RequiredReviewerMembers,
     int? RequiredExternalCommitteeMembers);
+
+/// <summary>
+/// One publication's paper and what the committee said about it, for a screen filling in a page.
+///
+/// The coordinator's decision queue asked for the paper and then for its reviews, once per row,
+/// for the same reason and at the same cost as the ethics queues.
+/// </summary>
+public record ContainerPaperDto(
+    Guid PublicationContainerId,
+    PublicationDto Paper,
+    IReadOnlyList<ReviewDto> Reviews);
+

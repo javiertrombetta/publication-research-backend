@@ -67,3 +67,17 @@ public record CoordinatorFinalDecisionRequest(
     bool Approve, string Comments, IReadOnlyList<Guid>? DocumentIds = null);
 
 public record EthicsGuidanceDto(string Title, string Content);
+
+/// <summary>
+/// One publication's whole ethics picture, for a screen filling in a page of them.
+///
+/// The queues that show ethics ask for the approval and then for its documents, once per row. Ten
+/// rows was twenty requests and around seventy database queries for one screen, all of it invisible
+/// on a demonstration set where the queues hold one or two. Asked for as a set it is a fixed cost
+/// whatever the page holds.
+/// </summary>
+public record ContainerEthicsDto(
+    Guid PublicationContainerId,
+    EthicsApprovalDto Approval,
+    IReadOnlyList<EthicsDocumentDto> Documents);
+

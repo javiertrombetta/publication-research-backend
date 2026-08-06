@@ -112,6 +112,64 @@ public class EthicsService(
         return ToDto(approval, declaration);
     }
 
+    /// <summary>
+    /// The ethics of a set of publications, in a fixed number of queries.
+    ///
+    /// The two ethics queues fill in a page by asking for the approval and then for its documents,
+    /// once per row: ten rows was twenty requests and around seventy database queries for one
+    /// screen. It never showed on a demonstration set where those queues hold one or two, and it
+    /// grows with the department.
+    ///
+    /// Whoever is asking is narrowed once, by the same rule that answers about a single
+    /// publication, rather than asked per row. An id they may not read is simply absent from the
+    /// answer: the caller got these ids from a listing that was already theirs, so a refusal would
+    /// be about a race rather than about a right, and losing the row is the honest outcome.
+    /// </summary>
+    public async Task<IReadOnlyList<ContainerEthicsDto>> GetEthicsForAsync(
+        IReadOnlyCollection<Guid> publicationContainerIds, Guid requestingUserId,
+        CancellationToken cancellationToken = default)
+    {
+        if (publicationContainerIds.Count == 0) return [];
+
+        var readable = await accessService
+            .WhereReadableBy(db.PublicationContainers.Where(c => publicationContainerIds.Contains(c.Id)), requestingUserId)
+            .Select(c => c.Id)
+            .ToListAsync(cancellationToken);
+
+        if (readable.Count == 0) return [];
+
+        var approvals = await db.EthicsApprovals
+            .Where(a => readable.Contains(a.PublicationContainerId))
+            .ToListAsync(cancellationToken);
+
+        var declarations = await db.EthicsDeclarations
+            .Where(d => readable.Contains(d.PublicationContainerId))
+            .ToListAsync(cancellationToken);
+
+        // Projected in the query rather than through the helper, for the reason GetDocumentsAsync
+        // gives: the requirement's name lives on a navigation nothing here loads.
+        var documents = await db.EthicsDocuments
+            .Where(d => readable.Contains(d.EthicsApproval.PublicationContainerId))
+            .OrderByDescending(d => d.UploadedAt)
+            .Select(d => new
+            {
+                d.EthicsApproval.PublicationContainerId,
+                Dto = new EthicsDocumentDto(
+                    d.Id, d.EthicsDocumentRequirement.Name, d.FileName, d.Version,
+                    d.Status.ToString(), d.UploadedAt, d.ReviewComments)
+            })
+            .ToListAsync(cancellationToken);
+
+        var byContainer = documents
+            .GroupBy(d => d.PublicationContainerId)
+            .ToDictionary(g => g.Key, g => (IReadOnlyList<EthicsDocumentDto>)[.. g.Select(d => d.Dto)]);
+
+        return [.. approvals.Select(a => new ContainerEthicsDto(
+            a.PublicationContainerId,
+            ToDto(a, declarations.FirstOrDefault(d => d.PublicationContainerId == a.PublicationContainerId)),
+            byContainer.TryGetValue(a.PublicationContainerId, out var theirs) ? theirs : []))];
+    }
+
     public async Task SubmitSupervisorRequirementDecisionAsync(Guid publicationContainerId, Guid supervisorId, SupervisorRequirementDecisionRequest request, CancellationToken cancellationToken = default)
     {
         var approval = await GetApprovalForSupervisorAsync(publicationContainerId, supervisorId, cancellationToken);

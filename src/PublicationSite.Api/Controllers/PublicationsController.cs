@@ -118,6 +118,25 @@ public class PublicationsController(IPublicationService publicationService, ICur
     /// <response code="401">No access token was sent, or the one sent has expired.</response>
     /// <response code="403">Signed in, but this record is not yours to see or act on.</response>
     /// <response code="404">No publication with that id.</response>
+    /// <summary>
+    /// The papers of several publications at once, each with what its committee said.
+    /// </summary>
+    /// <remarks>
+    /// For the coordinator's decision queue, which asked for the paper and then for its reviews
+    /// once per row. As with the ethics equivalent, an id the caller may not read is left out
+    /// rather than refusing the request.
+    /// </remarks>
+    /// <response code="200">One entry per publication whose paper this caller may read.</response>
+    /// <response code="401">No access token was sent, or the one sent has expired.</response>
+    [HttpGet("api/containers/publications")]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<ContainerPaperDto>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> GetPapersFor([FromQuery] Guid[] ids, CancellationToken cancellationToken)
+    {
+        var result = await publicationService.GetPapersForAsync(ids, currentUser.UserId, cancellationToken);
+        return Ok(ApiResponse<IReadOnlyList<ContainerPaperDto>>.Ok(result));
+    }
+
     [HttpGet("api/publications/{publicationId:guid}")]
     [ProducesResponseType(typeof(ApiResponse<PublicationDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
