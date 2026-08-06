@@ -42,7 +42,8 @@ DEFAULT_BASE_URL = "http://localhost:5020"
 FOLDER_ORDER = [
     "Health", "DevTools", "Auth", "Users", "Departments", "Containers", "Proposals",
     "Ethics", "Publications", "Committees", "SupervisorGroups", "Catalogue", "Dashboard",
-    "Notifications", "Settings", "WorkflowRules", "AuditLog", "Invitations",
+    "Notifications", "ContainerMessages", "Settings", "WorkflowRules", "AuditLog",
+    "Invitations", "Support",
 ]
 
 # Saves the tokens so every other request in the collection just works.
@@ -75,17 +76,38 @@ def load_spec(api: Optional[str], spec: Optional[str]) -> dict:
         return json.loads(pathlib.Path(spec).read_text())
 
     base = (api or "http://localhost:5020").rstrip("/")
-    # The version is in the path, so ask the index which ones exist rather than guessing.
-    for candidate in ("/swagger/v1.1/swagger.json", "/swagger/v1/swagger.json"):
+
+    # The document's version is in its path, and it is raised whenever endpoints are added, so a
+    # list of versions written here goes stale exactly when this script is most needed. The first
+    # candidate is read out of the source that declares it; the rest are there for an older
+    # instance somebody is pointing at.
+    candidates = [c for c in (declared_api_version(), "v1.2", "v1.1", "v1") if c]
+    seen = set()
+
+    for version in candidates:
+        if version in seen:
+            continue
+        seen.add(version)
         try:
-            with urllib.request.urlopen(base + candidate, timeout=30) as f:
+            with urllib.request.urlopen(f"{base}/swagger/{version}/swagger.json", timeout=30) as f:
                 return json.load(f)
         except Exception:
             continue
 
     raise SystemExit(
-        f"Could not read the OpenAPI description from {base}. Start the API, or pass --spec."
+        f"Could not read the OpenAPI description from {base} at any of {', '.join(candidates)}. "
+        "Start the API, or pass --spec."
     )
+
+
+def declared_api_version() -> Optional[str]:
+    """The version the API says it answers as, read from the one file that declares it."""
+    source = HERE.parent.parent / "src" / "PublicationSite.Api" / "Common" / "ApiVersion.cs"
+    if not source.exists():
+        return None
+
+    found = re.search(r'Current\s*=\s*"([^"]+)"', source.read_text())
+    return found.group(1) if found else None
 
 
 def resolve(schema: dict, spec: dict, depth: int = 0) -> object:
