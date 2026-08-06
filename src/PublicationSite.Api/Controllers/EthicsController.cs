@@ -57,6 +57,28 @@ public class EthicsController(IEthicsService ethicsService, ICurrentUserService 
     }
 
     /// <summary>
+    /// The ethics of several publications at once: for each, its approval and the documents
+    /// uploaded against it.
+    /// </summary>
+    /// <remarks>
+    /// For the queues that show a page of publications with their ethics. Asking per publication
+    /// made a screen cost two requests a row, which is invisible on a small department and grows
+    /// with a large one. An id the caller may not read is left out of the answer rather than
+    /// refusing the whole request: these ids come from a listing that was already theirs, so its
+    /// absence means the publication moved, not that they were reaching for something.
+    /// </remarks>
+    /// <response code="200">One entry per publication whose ethics this caller may read.</response>
+    /// <response code="401">No access token was sent, or the one sent has expired.</response>
+    [HttpGet("api/containers/ethics")]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<ContainerEthicsDto>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> GetEthicsFor([FromQuery] Guid[] ids, CancellationToken cancellationToken)
+    {
+        var result = await ethicsService.GetEthicsForAsync(ids, currentUser.UserId, cancellationToken);
+        return Ok(ApiResponse<IReadOnlyList<ContainerEthicsDto>>.Ok(result));
+    }
+
+    /// <summary>
     /// Where the ethics workflow has got to on this publication: the declaration, the
     /// supervisor's decision, which documents were asked for, what has been uploaded and
     /// reviewed, and whose turn it is now.

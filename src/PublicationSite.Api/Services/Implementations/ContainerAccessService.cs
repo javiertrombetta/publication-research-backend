@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using PublicationSite.Api.Common;
 using PublicationSite.Api.Common.Exceptions;
 using PublicationSite.Api.Data;
+using PublicationSite.Api.Entities;
 using PublicationSite.Api.Services.Interfaces;
 
 namespace PublicationSite.Api.Services.Implementations;
@@ -18,15 +19,19 @@ public class ContainerAccessService(ApplicationDbContext db) : IContainerAccessS
     /// Expressed as a single predicate the database answers it in one pass and stops as soon as
     /// any branch matches.
     /// </summary>
-    public async Task<bool> CanAccessAsync(Guid publicationContainerId, Guid userId)
+    public async Task<bool> CanAccessAsync(Guid publicationContainerId, Guid userId) =>
+        await WhereReadableBy(db.PublicationContainers.Where(c => c.Id == publicationContainerId), userId)
+            .AnyAsync();
+
+    public IQueryable<PublicationContainer> WhereReadableBy(
+        IQueryable<PublicationContainer> containers, Guid userId)
     {
         var roles = db.UserRoles
             .Where(ur => ur.UserId == userId)
             .Join(db.Roles, ur => ur.RoleId, r => r.Id, (ur, r) => r.Name);
 
-        return await db.PublicationContainers
-            .Where(c => c.Id == publicationContainerId)
-            .AnyAsync(c =>
+        return containers
+            .Where(c =>
                 // An Admin sees everything; the others see what is theirs.
                 roles.Any(name => name == RoleNames.Admin)
                 || c.StudentId == userId
@@ -40,7 +45,7 @@ public class ContainerAccessService(ApplicationDbContext db) : IContainerAccessS
                 // And a committee member sees the publication they were appointed to.
                 || db.CommitteeMembers.Any(m =>
                     m.UserId == userId
-                    && m.Committee.Publication.PublicationContainerId == publicationContainerId));
+                    && m.Committee.Publication.PublicationContainerId == c.Id));
     }
 
     public async Task EnsureAccessAsync(Guid publicationContainerId, Guid userId)

@@ -53,4 +53,8 @@ public interface IEthicsService
     /// </summary>
     Task<IReadOnlyList<RequiredEthicsDocumentDto>> GetRequiredDocumentsAsync(
         Guid publicationContainerId, Guid requestingUserId, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<ContainerEthicsDto>> GetEthicsForAsync(
+        IReadOnlyCollection<Guid> publicationContainerIds, Guid requestingUserId,
+        CancellationToken cancellationToken = default);
 }

@@ -653,6 +653,53 @@ public class PublicationService(
             .ToListAsync(cancellationToken);
     }
 
+    /// <summary>
+    /// The papers of a set of publications, with what the committee said, in a fixed number of
+    /// queries. The coordinator's decision queue asked for the paper and then for its reviews once
+    /// per row, at the same cost and for the same reason as the ethics queues.
+    /// </summary>
+    public async Task<IReadOnlyList<ContainerPaperDto>> GetPapersForAsync(
+        IReadOnlyCollection<Guid> publicationContainerIds, Guid requestingUserId,
+        CancellationToken cancellationToken = default)
+    {
+        if (publicationContainerIds.Count == 0) return [];
+
+        var readable = await accessService
+            .WhereReadableBy(db.PublicationContainers.Where(c => publicationContainerIds.Contains(c.Id)), requestingUserId)
+            .Select(c => c.Id)
+            .ToListAsync(cancellationToken);
+
+        if (readable.Count == 0) return [];
+
+        var papers = await db.Publications
+            .Where(p => readable.Contains(p.PublicationContainerId))
+            .Include(p => p.Keywords)
+            .Include(p => p.ResearchAreas)
+            .ToListAsync(cancellationToken);
+
+        var paperIds = papers.Select(p => p.Id).ToList();
+
+        var reviews = await db.Reviews
+            .Where(r => paperIds.Contains(r.PublicationVersion.PublicationId))
+            .OrderByDescending(r => r.ReviewedAt)
+            .Select(r => new
+            {
+                r.PublicationVersion.PublicationId,
+                Dto = new ReviewDto(r.Id, r.ReviewerUser.FirstName + " " + r.ReviewerUser.LastName,
+                    r.ReviewerType.ToString(), r.Decision.ToString(), r.Comments, r.ReviewedAt)
+            })
+            .ToListAsync(cancellationToken);
+
+        var byPaper = reviews
+            .GroupBy(r => r.PublicationId)
+            .ToDictionary(g => g.Key, g => (IReadOnlyList<ReviewDto>)[.. g.Select(r => r.Dto)]);
+
+        return [.. papers.Select(p => new ContainerPaperDto(
+            p.PublicationContainerId,
+            ToDto(p),
+            byPaper.TryGetValue(p.Id, out var theirs) ? theirs : []))];
+    }
+
     public async Task CoordinatorFinalDecisionAsync(Guid publicationId, Guid coordinatorId, PaperReviewDecisionRequest request, CancellationToken cancellationToken = default)
     {
         var publication = await db.Publications.Include(p => p.PublicationContainer).Include(p => p.Committee)
