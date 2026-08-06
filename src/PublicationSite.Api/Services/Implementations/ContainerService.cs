@@ -550,9 +550,15 @@ public class ContainerService(
 
         if (query.StudentId is not null) containers = containers.Where(c => c.StudentId == query.StudentId);
         if (query.CoordinatorId is not null) containers = containers.Where(c => c.CoordinatorId == query.CoordinatorId);
-        if (!string.IsNullOrWhiteSpace(query.Status) && Enum.TryParse<ContainerStatus>(query.Status, true, out var statusFilter))
+        if (!string.IsNullOrWhiteSpace(query.Status))
         {
-            containers = containers.Where(c => c.Status == statusFilter);
+        // Matching nothing rather than dropping the filter, which is what every other filter on
+        // this listing does with a value it does not recognise. Dropped, a request narrowing to a
+        // status came back with the whole institution, and a screen drawing that list under its own
+        // heading states as fact something nobody asked for.
+            containers = Enum.TryParse<ContainerStatus>(query.Status, true, out var statusFilter)
+                ? containers.Where(c => c.Status == statusFilter)
+                : containers.Where(_ => false);
         }
 
         containers = WherePaperAwaiting(containers, query.PaperAwaiting);
