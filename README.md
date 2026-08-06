@@ -222,6 +222,11 @@ orders by it looks broken. Each publication is also dated back by its own amount
 academic years, some queues have genuinely been waiting longer than others, and one ethics review is far
 enough past the institution's window to be overdue.
 
+One ethics document is retired rather than active. It is asked for while these publications are built,
+so every one of them supplied it, and stopped afterwards, so nothing started later is asked. That is the
+state which explains why a document can be retired but never deleted, and it is the only way to see it
+without first setting one up and waiting for a publication to be asked for it.
+
 Every account uses the password `DevTest123!`.
 
 Password hashing is deliberately cheaper on a deployment that seeds this data. Identity's default
