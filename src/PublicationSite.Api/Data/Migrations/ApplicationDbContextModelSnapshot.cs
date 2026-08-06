@@ -520,6 +520,71 @@ namespace PublicationSite.Api.Data.Migrations
                     b.ToTable("CommitteeRoleConfigs");
                 });
 
+            modelBuilder.Entity("PublicationSite.Api.Entities.ContainerMessage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("PublicationContainerId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime?>("ReadAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid>("RecipientUserId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<Guid>("SenderUserId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("SentAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RecipientUserId");
+
+                    b.HasIndex("SenderUserId");
+
+                    b.HasIndex("PublicationContainerId", "SentAt");
+
+                    b.ToTable("ContainerMessages");
+                });
+
+            modelBuilder.Entity("PublicationSite.Api.Entities.ContainerMessageAttachment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<Guid>("ContainerMessageId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("varchar(300)");
+
+                    b.Property<string>("FilePath")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("varchar(1000)");
+
+                    b.Property<long>("SizeInBytes")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ContainerMessageId");
+
+                    b.ToTable("ContainerMessageAttachments");
+                });
+
             modelBuilder.Entity("PublicationSite.Api.Entities.CoordinatorProfile", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1708,6 +1773,44 @@ namespace PublicationSite.Api.Data.Migrations
                     b.Navigation("Committee");
                 });
 
+            modelBuilder.Entity("PublicationSite.Api.Entities.ContainerMessage", b =>
+                {
+                    b.HasOne("PublicationSite.Api.Entities.PublicationContainer", "PublicationContainer")
+                        .WithMany("Messages")
+                        .HasForeignKey("PublicationContainerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("PublicationSite.Api.Entities.ApplicationUser", "RecipientUser")
+                        .WithMany()
+                        .HasForeignKey("RecipientUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("PublicationSite.Api.Entities.ApplicationUser", "SenderUser")
+                        .WithMany()
+                        .HasForeignKey("SenderUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("PublicationContainer");
+
+                    b.Navigation("RecipientUser");
+
+                    b.Navigation("SenderUser");
+                });
+
+            modelBuilder.Entity("PublicationSite.Api.Entities.ContainerMessageAttachment", b =>
+                {
+                    b.HasOne("PublicationSite.Api.Entities.ContainerMessage", "ContainerMessage")
+                        .WithMany("Attachments")
+                        .HasForeignKey("ContainerMessageId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ContainerMessage");
+                });
+
             modelBuilder.Entity("PublicationSite.Api.Entities.CoordinatorProfile", b =>
                 {
                     b.HasOne("PublicationSite.Api.Entities.Department", "Department")
@@ -2144,6 +2247,11 @@ namespace PublicationSite.Api.Data.Migrations
                     b.Navigation("RoleConfigs");
                 });
 
+            modelBuilder.Entity("PublicationSite.Api.Entities.ContainerMessage", b =>
+                {
+                    b.Navigation("Attachments");
+                });
+
             modelBuilder.Entity("PublicationSite.Api.Entities.CoordinatorProfile", b =>
                 {
                     b.Navigation("AssignedContainers");
@@ -2186,6 +2294,8 @@ namespace PublicationSite.Api.Data.Migrations
                     b.Navigation("EthicsApproval");
 
                     b.Navigation("EthicsDeclaration");
+
+                    b.Navigation("Messages");
 
                     b.Navigation("Proposals");
 

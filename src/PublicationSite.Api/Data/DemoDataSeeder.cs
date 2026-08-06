@@ -300,6 +300,10 @@ public static class DemoDataSeeder
             infoTechCoordinator, [infoTechSupervisor, infoTechSupervisorTwo],
             businessCoordinator, [businessSupervisor, businessSupervisorTwo], cancellationToken);
 
+        // A conversation on a publication, so the messages screen is not a heading over an empty
+        // box on every one of them. One exchange answered, one question still waiting.
+        await SeedMessagesAsync(db, cancellationToken);
+
         // One supervisor is not taking work on. The chooser on Send proposals leaves them out and
         // the administrator's screens still show them, which is the difference between this and an
         // account an administrator has disabled.
@@ -426,6 +430,64 @@ public static class DemoDataSeeder
     /// administrator's tidying screen has something to tidy. Named for a research area rather than
     /// for the people in it, which is how somebody would actually name one.
     /// </summary>
+    /// <summary>
+    /// Two conversations on the publication furthest along, so the messages screen has something on
+    /// it and the unread badge has something to count.
+    ///
+    /// One exchange finished, one question still waiting for an answer, and no attachments: a
+    /// seeded file would have to be written to whatever storage this deployment is pointed at, and
+    /// what the screen needs to demonstrate is the conversation.
+    /// </summary>
+    private static async Task SeedMessagesAsync(ApplicationDbContext db, CancellationToken cancellationToken)
+    {
+        if (await db.ContainerMessages.AnyAsync(cancellationToken)) return;
+
+        var container = await db.PublicationContainers
+            .Where(c => c.AssignedSupervisorId != null)
+            .OrderByDescending(c => c.CurrentPipeline)
+            .ThenBy(c => c.CreatedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (container?.AssignedSupervisorId is not { } supervisorId) return;
+
+        var opened = DateTime.UtcNow.AddDays(-6);
+
+        db.ContainerMessages.AddRange(
+            new ContainerMessage
+            {
+                PublicationContainerId = container.Id,
+                SenderUserId = container.StudentId,
+                RecipientUserId = supervisorId,
+                Body = "One of my participants has asked to withdraw after the interview. Do I take "
+                       + "their transcript out of the analysis entirely, or keep it and note the "
+                       + "withdrawal?",
+                SentAt = opened,
+                ReadAt = opened.AddHours(3)
+            },
+            new ContainerMessage
+            {
+                PublicationContainerId = container.Id,
+                SenderUserId = supervisorId,
+                RecipientUserId = container.StudentId,
+                Body = "Take it out. The consent form we approved says withdrawal means the data is "
+                       + "not used, and that is the promise they were given. Note in the method "
+                       + "section that one participant withdrew, with no other detail about them.",
+                SentAt = opened.AddHours(4),
+                ReadAt = opened.AddHours(5)
+            },
+            new ContainerMessage
+            {
+                PublicationContainerId = container.Id,
+                SenderUserId = container.StudentId,
+                RecipientUserId = container.CoordinatorId,
+                Body = "Am I able to submit the paper while the ethics amendment is still being "
+                       + "looked at, or does it have to wait for that to come back?",
+                SentAt = DateTime.UtcNow.AddDays(-1)
+            });
+
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
     private static async Task SeedSupervisorGroupsAsync(
         ApplicationDbContext db,
         ApplicationUser infoTechCoordinator, ApplicationUser[] infoTechSupervisors,

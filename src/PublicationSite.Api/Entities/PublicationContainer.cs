@@ -46,6 +46,12 @@ public class PublicationContainer : IHaveAConcurrencyStamp
     public ICollection<ActivityHistoryEntry> ActivityHistory { get; set; } = [];
 
     /// <summary>
+    /// What people have written to each other about this publication. Not the record of what was
+    /// decided, which is <see cref="ActivityHistory"/>; see <see cref="ContainerMessage"/>.
+    /// </summary>
+    public ICollection<ContainerMessage> Messages { get; set; } = [];
+
+    /// <summary>
     /// Changed on every save, and part of the WHERE clause of every UPDATE. See
     /// <see cref="IHaveAConcurrencyStamp"/> for why a decision needs one.
     /// </summary>

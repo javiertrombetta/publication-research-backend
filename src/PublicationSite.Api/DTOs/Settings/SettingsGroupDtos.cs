@@ -134,6 +134,24 @@ public record UploadSettingsDto(int MaxMegabytes, string AllowedExtensions);
 public record UpdateUploadSettingsRequest(int MaxMegabytes, string AllowedExtensions);
 
 /// <summary>
+/// Whether people may write to each other through a publication, and what happens when they do.
+/// </summary>
+/// <param name="Enabled">Off hides the screen and refuses the endpoint. What was already written stays readable.</param>
+/// <param name="RecordedInActivityHistory">Whether the publication's activity history notes that a message was sent. It never records what was said.</param>
+/// <param name="AllowedExtensions">What a message may carry, with or without leading dots. Separate from the document list, since a question usually comes with a screenshot and a process document belongs where that process asks for it.</param>
+public record MessagingSettingsDto(
+    bool Enabled,
+    bool RecordedInActivityHistory,
+    string AllowedExtensions,
+    int MaximumLength = SettingKeys.MessageMaximumLength,
+    int MaximumAttachments = SettingKeys.MessageMaximumAttachments);
+
+public record UpdateMessagingSettingsRequest(
+    bool Enabled,
+    bool RecordedInActivityHistory,
+    string AllowedExtensions);
+
+/// <summary>
 /// Where uploaded files are kept: ethics documents, research paper versions and profile photos.
 ///
 /// Changing it points new uploads somewhere else and nothing more. Every stored file records the

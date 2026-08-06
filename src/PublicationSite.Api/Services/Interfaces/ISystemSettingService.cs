@@ -43,6 +43,11 @@ public interface ISystemSettingService
     Task<UploadSettingsDto> UpdateUploadSettingsAsync(
         UpdateUploadSettingsRequest request, Guid actingAdminId, CancellationToken cancellationToken = default);
 
+    Task<MessagingSettingsDto> GetMessagingSettingsAsync(CancellationToken cancellationToken = default);
+
+    Task<MessagingSettingsDto> UpdateMessagingSettingsAsync(
+        UpdateMessagingSettingsRequest request, Guid actingAdminId, CancellationToken cancellationToken = default);
+
     Task<InstitutionSettingsDto> GetInstitutionSettingsAsync(CancellationToken cancellationToken = default);
 
     Task<InstitutionSettingsDto> UpdateInstitutionSettingsAsync(
