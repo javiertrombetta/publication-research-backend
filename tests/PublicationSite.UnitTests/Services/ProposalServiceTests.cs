@@ -229,8 +229,8 @@ public class ProposalServiceTests : IDisposable
         var proposal = await _sut.CreateAsync(container.Id, student.Id, new SaveProposalRequest("A", "Abstract"));
         await _sut.FinishSubmissionAsync(container.Id, student.Id);
 
-        var supervisor1 = TestDataBuilder.User(_fixture.Context);
-        var supervisor2 = TestDataBuilder.User(_fixture.Context);
+        var supervisor1 = Supervisor();
+        var supervisor2 = Supervisor();
 
         await _sut.SendToSupervisorsAsync(
             new SendToSupervisorsRequest([proposal.Id], [supervisor1.Id, supervisor2.Id], "Please review"), coordinator.Id);
@@ -262,7 +262,7 @@ public class ProposalServiceTests : IDisposable
         var third = await _sut.CreateAsync(container.Id, student.Id, new SaveProposalRequest("C", "Abstract C"));
         await _sut.FinishSubmissionAsync(container.Id, student.Id);
 
-        var supervisor = TestDataBuilder.User(_fixture.Context);
+        var supervisor = Supervisor();
 
         await _sut.SendToSupervisorsAsync(
             new SendToSupervisorsRequest([first.Id, second.Id, third.Id], [supervisor.Id], "All three are worth a look."),
@@ -273,13 +273,121 @@ public class ProposalServiceTests : IDisposable
             It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<Guid?>()), Times.Once);
     }
 
+    /// <summary>
+    /// The screens only ever offer an available Supervisor, and nothing made that true of the
+    /// request. An id belonging to a student, an administrator, a disabled account or to nobody at
+    /// all was carried out: the last failed on the foreign key and surfaced as a server error, the
+    /// rest succeeded and put the work in the hands of somebody who is not a supervisor.
+    /// </summary>
+    [Theory]
+    [InlineData("student")]
+    [InlineData("disabled")]
+    [InlineData("no role at all")]
+    [InlineData("unavailable")]
+    [InlineData("nobody")]
+    public async Task SendToSupervisorsAsync_refuses_anybody_who_cannot_supervise(string who)
+    {
+        var (student, coordinator, container) = SeedContainer();
+        var proposal = await _sut.CreateAsync(container.Id, student.Id, new SaveProposalRequest("A", "Abstract"));
+        await _sut.FinishSubmissionAsync(container.Id, student.Id);
+
+        var target = who switch
+        {
+            "nobody" => Guid.NewGuid(),
+            _ => SeedWhoCannotSupervise(who).Id
+        };
+
+        var act = () => _sut.SendToSupervisorsAsync(
+            new SendToSupervisorsRequest([proposal.Id], [target], "Please review", DateTime.UtcNow.AddDays(7)),
+            coordinator.Id);
+
+        await act.Should().ThrowAsync<BusinessRuleException>();
+
+        (await _fixture.Context.ProposalSupervisorSelections
+            .AnyAsync(sel => sel.ProposalId == proposal.Id)).Should().BeFalse();
+    }
+
+    /// <summary>
+    /// The same guard on the other route in. Where the institution appoints directly there is no
+    /// offer to check against, so this is the only thing between the request and a publication
+    /// supervised by a student.
+    /// </summary>
+    [Fact]
+    public async Task AssignSupervisorAsync_refuses_somebody_who_cannot_supervise()
+    {
+        _fixture.Context.SystemSettings.Add(new SystemSetting
+        {
+            Key = SettingKeys.ProposalsSupervisorsExpressInterest,
+            Value = "false"
+        });
+        await _fixture.Context.SaveChangesAsync();
+
+        var (student, coordinator, container) = SeedContainer();
+        var proposal = await _sut.CreateAsync(container.Id, student.Id, new SaveProposalRequest("A", "Abstract"));
+        await _sut.FinishSubmissionAsync(container.Id, student.Id);
+
+        var act = () => _sut.AssignSupervisorAsync(proposal.Id,
+            new AssignSupervisorRequest(SeedWhoCannotSupervise("student").Id, "Appointing them."), coordinator.Id);
+
+        await act.Should().ThrowAsync<BusinessRuleException>();
+
+        (await _fixture.Context.PublicationContainers.FirstAsync(c => c.Id == container.Id))
+            .AssignedSupervisorId.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task SendToSupervisorsAsync_still_accepts_an_available_supervisor()
+    {
+        var (student, coordinator, container) = SeedContainer();
+        var proposal = await _sut.CreateAsync(container.Id, student.Id, new SaveProposalRequest("A", "Abstract"));
+        await _sut.FinishSubmissionAsync(container.Id, student.Id);
+
+        var supervisor = Supervisor();
+
+        await _sut.SendToSupervisorsAsync(
+            new SendToSupervisorsRequest([proposal.Id], [supervisor.Id], "Please review", DateTime.UtcNow.AddDays(7)),
+            coordinator.Id);
+
+        (await _fixture.Context.ProposalSupervisorSelections
+            .CountAsync(sel => sel.ProposalId == proposal.Id)).Should().Be(1);
+    }
+
+    /// <summary>
+    /// An account that can actually take supervision on. The role matters now: sending proposals
+    /// to somebody who does not hold it is refused, which is the point, and a fixture that leaves
+    /// it off is describing a coordinator picking a name the screens never offered.
+    /// </summary>
+    private ApplicationUser Supervisor()
+    {
+        var user = TestDataBuilder.User(_fixture.Context);
+        TestDataBuilder.GrantRole(_fixture.Context, user, RoleNames.Supervisor);
+        return user;
+    }
+
+    private ApplicationUser SeedWhoCannotSupervise(string who)
+    {
+        var user = TestDataBuilder.User(_fixture.Context,
+            status: who == "disabled" ? UserStatus.Disabled : UserStatus.Enabled);
+
+        if (who == "student") TestDataBuilder.GrantRole(_fixture.Context, user, RoleNames.Student);
+        if (who == "disabled" || who == "unavailable") TestDataBuilder.GrantRole(_fixture.Context, user, RoleNames.Supervisor);
+
+        if (who == "unavailable")
+        {
+            user.IsAvailable = false;
+            _fixture.Context.SaveChanges();
+        }
+
+        return user;
+    }
+
     [Fact]
     public async Task SendToSupervisorsAsync_goes_through_without_a_message_when_the_institution_asks_for_none()
     {
         var (student, coordinator, container) = SeedContainer();
         var proposal = await _sut.CreateAsync(container.Id, student.Id, new SaveProposalRequest("A", "Abstract"));
         await _sut.FinishSubmissionAsync(container.Id, student.Id);
-        var supervisor = TestDataBuilder.User(_fixture.Context);
+        var supervisor = Supervisor();
 
         // No row written, so the decision stands at its default, which is optional.
         await _sut.SendToSupervisorsAsync(
@@ -295,7 +403,7 @@ public class ProposalServiceTests : IDisposable
         var (student, coordinator, container) = SeedContainer();
         var proposal = await _sut.CreateAsync(container.Id, student.Id, new SaveProposalRequest("A", "Abstract"));
         await _sut.FinishSubmissionAsync(container.Id, student.Id);
-        var supervisor = TestDataBuilder.User(_fixture.Context);
+        var supervisor = Supervisor();
 
         _fixture.Context.SystemSettings.Add(new SystemSetting
         {
@@ -318,7 +426,7 @@ public class ProposalServiceTests : IDisposable
         await _sut.FinishSubmissionAsync(container.Id, student.Id);
 
         var impostor = TestDataBuilder.User(_fixture.Context);
-        var supervisor = TestDataBuilder.User(_fixture.Context);
+        var supervisor = Supervisor();
 
         var act = () => _sut.SendToSupervisorsAsync(new SendToSupervisorsRequest([proposal.Id], [supervisor.Id], "x"), impostor.Id);
 
@@ -331,7 +439,7 @@ public class ProposalServiceTests : IDisposable
         var (student, coordinator, container) = SeedContainer();
         var proposal = await _sut.CreateAsync(container.Id, student.Id, new SaveProposalRequest("A", "Abstract"));
         await _sut.FinishSubmissionAsync(container.Id, student.Id);
-        var supervisor = TestDataBuilder.User(_fixture.Context);
+        var supervisor = Supervisor();
         await _sut.SendToSupervisorsAsync(new SendToSupervisorsRequest([proposal.Id], [supervisor.Id], "x"), coordinator.Id);
 
         await _sut.SelectAsFeasibleAsync(proposal.Id, supervisor.Id, new SupervisorSelectionRequest("Happy to supervise"));
@@ -363,7 +471,7 @@ public class ProposalServiceTests : IDisposable
         var other = await _sut.CreateAsync(container.Id, student.Id, new SaveProposalRequest("Other", "B"));
         await _sut.FinishSubmissionAsync(container.Id, student.Id);
 
-        var supervisor = TestDataBuilder.User(_fixture.Context);
+        var supervisor = Supervisor();
         await _sut.SendToSupervisorsAsync(new SendToSupervisorsRequest([chosen.Id], [supervisor.Id], "x"), coordinator.Id);
         await _sut.SelectAsFeasibleAsync(chosen.Id, supervisor.Id, new SupervisorSelectionRequest(null));
 
@@ -391,7 +499,7 @@ public class ProposalServiceTests : IDisposable
         var (student, coordinator, container) = SeedContainer();
         var proposal = await _sut.CreateAsync(container.Id, student.Id, new SaveProposalRequest("A", "Abstract"));
         await _sut.FinishSubmissionAsync(container.Id, student.Id);
-        var supervisor = TestDataBuilder.User(_fixture.Context);
+        var supervisor = Supervisor();
 
         var act = () => _sut.AssignSupervisorAsync(proposal.Id, new AssignSupervisorRequest(supervisor.Id, "x"), coordinator.Id);
 
@@ -408,7 +516,7 @@ public class ProposalServiceTests : IDisposable
         var proposal = await _sut.CreateAsync(container.Id, student.Id, new SaveProposalRequest("A", "Abstract"));
         await _sut.FinishSubmissionAsync(container.Id, student.Id);
 
-        var supervisor = TestDataBuilder.User(_fixture.Context);
+        var supervisor = Supervisor();
         await _sut.SendToSupervisorsAsync(
             new SendToSupervisorsRequest([proposal.Id], [supervisor.Id], "Please review"), coordinator.Id);
         await _sut.SelectAsFeasibleAsync(proposal.Id, supervisor.Id, new SupervisorSelectionRequest(null));
@@ -429,7 +537,7 @@ public class ProposalServiceTests : IDisposable
         PublicationStatus paperStatus)
     {
         var (student, coordinator, container) = SeedContainer();
-        var supervisor = TestDataBuilder.User(_fixture.Context);
+        var supervisor = Supervisor();
         container.AssignedSupervisorId = supervisor.Id;
         container.CurrentPipeline = PipelineStage.ResearchPaper;
 
