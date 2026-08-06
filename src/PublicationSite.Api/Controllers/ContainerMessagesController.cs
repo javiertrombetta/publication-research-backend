@@ -141,7 +141,7 @@ public class ContainerMessagesController(
     /// <response code="403">Signed in, but this publication is not yours to see.</response>
     /// <response code="404">No such attachment on this publication, or it belongs to a conversation you are not in.</response>
     [HttpGet("api/containers/{containerId:guid}/messages/attachments/{attachmentId:guid}")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(FileResult), StatusCodes.Status200OK, "application/octet-stream")]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]

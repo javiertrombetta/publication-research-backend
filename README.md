@@ -33,7 +33,7 @@ src/PublicationSite.Api/
 ```
 
 **Database schema:** see [docs/erd.md](docs/erd.md) for the full entity–relationship diagram (renders
-natively on GitHub) and a table-by-table data dictionary. All 43 tables are documented there, checked
+natively on GitHub) and a table-by-table data dictionary. All 46 tables are documented there, checked
 against `SHOW TABLES` on a live database rather than against the last time somebody remembered to look.
 
 ## Getting started
@@ -110,28 +110,28 @@ reference settles into: the endpoints somebody happened to explain are described
 method name and a bare `Success`, and a reader cannot tell which they are looking at until they
 have read it.
 
-- **18 of 18 groups** carry a description, on the controller class.
-- **165 of 165 operations** carry a summary and an operation id.
-- **671 responses** are declared, and none of them is left showing only its reason phrase.
+- **20 of 20 groups** carry a description, on the controller class.
+- **180 of 180 operations** carry a summary and an operation id.
+- **730 responses** are declared, and none of them is left showing only its reason phrase.
 - **Every parameter** carries a description, in the route and in the query alike.
 
-Read off `/swagger/v1.1/swagger.json` rather than counted by hand, so the figures can be checked
+Read off `/swagger/v1.2/swagger.json` rather than counted by hand, so the figures can be checked
 against the running API instead of being believed.
 
 Three of those are filled in by filters in `Common/Swagger/` rather than at each action, and each is
 there because writing it at the action was what had gone wrong:
 
-- **The padlock.** A bearer requirement declared once for the document lands on all 165, so the
+- **The padlock.** A bearer requirement declared once for the document lands on all 180, so the
   seventeen that take no token described signing in as needing the token you sign in to get, and Try
   it out sent an Authorization header the endpoint never asked for. `BearerRequirementFilter`
   attaches it per operation instead, from what each one actually requires.
-- **Route identifiers.** Eighty of them mean the same thing, and the same sentence written at eighty
+- **Route identifiers.** Ninety-one of them mean the same thing, and the same sentence written at ninety-one
   actions is the kind of duplication that stops being maintained after the third.
 - **Whitespace.** Summaries are XML comments, so their later lines arrive carrying the indentation
   of the source file. A browser hides that; Markdown does not, and the Postman collection is
   generated from this document.
 
-A downloadable file says which type it is, so the five that return one no longer describe a PDF, a
+A downloadable file says which type it is, so the six that return one no longer describe a PDF, a
 CSV or a photo as `application/json`.
 
 The error responses are not guesswork. `ExceptionHandlingMiddleware` maps five exception types onto
@@ -158,8 +158,8 @@ the declared type per endpoint is whichever one that endpoint actually produces.
 summary is `.WithSummary(...)`; its group description and its 200 are filled in by
 `Common/Swagger/HealthTagDescriptionFilter.cs`.
 
-The version is `Common/ApiVersion.cs`, currently **v1.1**, and the document is served under it at
-`/swagger/v1.1/swagger.json`. It is deliberately not in the route. Every path stays `api/…`, which
+The version is `Common/ApiVersion.cs`, currently **v1.2**, and the document is served under it at
+`/swagger/v1.2/swagger.json`. It is deliberately not in the route. Every path stays `api/…`, which
 is what the frontend, the Postman collection and the team's saved requests are written against.
 Raise the minor part when endpoints are added or described, the major part when something already
 published changes shape. The Swagger UI is pointed at the endpoint explicitly, since its default
@@ -264,6 +264,13 @@ It runs in the background once the server is listening, not before. Against a ho
 enough that doing it inline would hold the health check open past the point where a platform gives up on
 the deploy. `GET /api/dev/demo-data` (Admin) reports whether it has finished.
 
+Two things in it exist so the newest screens are not headings over empty boxes. One publication carries a
+conversation: an exchange between a student and their supervisor that has been read, and a question to the
+coordinator that has not, with a file on it so the attach-and-download path has something to exercise.
+Another carries a rule stopping one named supervisor, with the reason an administrator would have given.
+They are on different publications on purpose, since a demonstration that silenced the one exchange there
+is to read would send whoever is testing looking for a fault.
+
 ### Starting a test run from a known state
 
 A developer's machine has the reset switched on, in `appsettings.Development.json`. A test run that
@@ -322,6 +329,7 @@ Scaling out means moving this cache somewhere shared, or dropping its lifetime t
 | `access` | Registration mode, single sign-on, invitation validity, token lifetimes |
 | `notifications` | SMTP server and the master email switch |
 | `storage` | Where uploads are written: local disk, S3 or Azure Blob |
+| `messaging` | Whether people may write to each other on a publication, who may write to whom, whether contacts are noted in the activity history, and what a message may carry |
 | `institution` | Name, email domains, contact addresses, privacy policy, rows per page |
 
 Three of these needed the code that reads them to change, because ASP.NET Core binds the equivalent options
@@ -362,6 +370,77 @@ rules for work already under way:
 
 Containers and approvals that predate the snapshots have none, and fall back to whatever is configured now,
 which is the only figure anyone ever agreed for them.
+
+## Writing to each other about a publication
+
+A student with a question about their own research had nowhere here to ask it, so they asked by
+personal email and the answer lived in one mailbox. `ContainerMessage` puts the exchange on the
+publication instead, where the supervisor who picks the student up next year can read it.
+
+Access to a publication is what gets somebody to the endpoint. It is not what lets them read a
+conversation: every listing is the caller's own correspondence, and a coordinator with full sight of
+the proposals, the ethics file and the paper does not thereby read what the student wrote to their
+supervisor. The same test guards the attachments, so an administrator is refused a file out of an
+exchange they are not in.
+
+Who may write to whom is the administrator's to set, in two directions, each with a switch and a
+list of roles:
+
+- **A student writes to** whichever of the people on their own publication the institution names.
+  The list offers only roles that identify a particular person there: the supervisor assigned to it,
+  the coordinator running it, the head of their department, and the committee appointed to judge the
+  paper, read from the seats actually filled rather than from the role at large. Admin is not on
+  offer, because no administrator is attached to a publication and it would mean all of them at once.
+- **Staff write to the student** from a list of their own, by default everyone with a job here.
+
+Nothing ticked means nobody, and that is stored as a marker rather than as an empty string: an empty
+value cannot be told apart from a setting nobody has ever written, and those two have to mean
+opposite things. Narrowing a list stops new conversations and leaves one already under way
+answerable, so nobody is left holding a message they cannot reply to; switching a direction off is
+absolute and does silence it.
+
+**Rules on a single publication** (`ContainerMessagingRule`, Admin-only) override all of that for one
+publication, for when it needs different handling: a supervision that has gone wrong, a complaint
+being looked into, somebody who has asked not to be contacted. Three kinds, told apart by which
+target is set: the whole publication, a role on it, or one named person. The most specific wins, and
+among roles a refusal wins, because somebody holding two roles where one is stopped is stopped.
+
+A rule is symmetrical: whoever it stops neither writes nor is written to, and a conversation they
+were already in closes. The consequence worth knowing is that a conversation needs both ends
+permitted, so exempting a coordinator from a publication-wide stop does nothing until the student is
+exempted too. A reason is required, and setting or removing a rule goes onto the publication's
+activity history, because it changes who may say anything about it.
+
+The notification a message raises says who wrote and that there is something to read, never what it
+said: notifications are emailed where that is switched on, and something written inside the site
+should not leave it in full. Whether a contact is noted in the activity history is a setting, off
+unless an institution asks for it, and it records the fact and never the contents, because that
+history is read by everybody with access to the publication.
+
+Attachments have their own list of file types, separate from the document one. A question usually
+arrives with a screenshot, and widening the document list to allow an image would have widened it
+for ethics documents too. The screen says plainly that documents a process asks for belong on that
+process's own screen, because one attached to a message is one nobody reviewing that process sees.
+
+## Writing to the IT desk
+
+`api/support/contact` takes a message and up to three files and puts them in the mailbox at
+`institution.it-support-email`. Nothing is stored and no notification is raised: IT support is a desk
+with a mailbox rather than a role anybody signs in as, so there is nobody here to mark it as read and
+no publication for it to belong to. The audit trail keeps the fact and the subject, never the
+message.
+
+It is sent from the site's own address, because a message claiming to come from a student's address
+is one the receiving server has every reason to refuse; the reply-to is theirs, so the answer reaches
+the person. A failure to send is reported rather than swallowed, which is a departure from how email
+is treated everywhere else here and deliberate: elsewhere a failed email is a copy of a notification
+already in the database, and here the email is the whole delivery.
+
+Signed in only. The desk supports the institution's own students and staff, and a form open to the
+world that emails files to a fixed address is a relay for whoever finds it. Somebody without an
+account is offered the address itself, to write to from their own mail client. Both the form and that
+fallback depend on there being a mail server: with none configured the API refuses and says so, so a
+screen never takes a message it cannot deliver.
 
 ## How people get accounts
 
@@ -420,6 +499,12 @@ listings: 407 audit entries over 82 pages, every one of them once.
   (recording the former address), then replaces the identifying fields, disables the account and locks it out
   permanently. The person can no longer sign in and is no longer identifiable; what they did stays
   attributable.
+- **A judged paper is the record of what was judged.** Once a paper is accepted or published, moving
+  the publication is refused, because it would leave the record saying something the decision did
+  not. An acceptance entered in error is still correctable, since there is nowhere else to correct
+  one, but the request has to ask for it as a correction: an ordinary move cannot disturb a decision
+  by accident, and a correction is written into the history under its own action with the reason
+  given.
 - **Deadlines mark work as overdue; they never block it.** A deadline that stopped a supervisor responding
   late would only strand the student waiting on them.
 
@@ -476,7 +561,7 @@ are marked so in the collection, read from the description rather than from a li
 
 `base_url` is `http://localhost:5020`. A collection aimed at a hosted instance stops working the day
 that instance is taken down, and sends whatever you are experimenting with to a shared database;
-point it elsewhere by editing the environment. It covers all 165 endpoints. Regenerate after adding
+point it elsewhere by editing the environment. It covers all 180 endpoints. Regenerate after adding
 one:
 
 ```bash
@@ -496,7 +581,7 @@ Run everything:
 dotnet test
 ```
 
-237 tests: 230 unit, 7 integration.
+399 tests: 392 unit, 7 integration.
 
 - **Unit tests** exercise the service layer directly against a fresh SQLite in-memory database per test
   (relational/FK-enforcing, unlike the EF Core InMemory provider), with `UserManager`/`SignInManager` mocked via

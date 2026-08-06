@@ -30,7 +30,13 @@ public class RouteParameterDescriptionFilter : IOperationFilter
         ["userId"] = "The user this is about.",
         ["token"] = "The single-use token from the emailed link. It is consumed by a successful call.",
         ["search"] = "A word to look for. Matched against the names and titles this listing shows, "
-                   + "so a reader can find a row by whichever of them they remember."
+                   + "so a reader can find a row by whichever of them they remember.",
+        ["attachmentId"] = "The file that came with a message.",
+        ["ruleId"] = "The messaging rule set on this publication.",
+        ["with"] = "The other person in the conversation, by user id.",
+        ["ids"] = "The publication containers to answer about, repeated once per id. "
+                + "Anything the caller may not read is left out rather than refusing the request.",
+        ["SortDescending"] = "Reverses the order named by sortBy. Ignored where no column is named."
     };
 
     /// <summary>What a bare <c>id</c> identifies, which is whatever its group is about.</summary>

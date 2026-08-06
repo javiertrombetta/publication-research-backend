@@ -1,6 +1,6 @@
 # Entity–Relationship Diagram
 
-43 tables in MySQL 8. 42 are shown below as entities, `UserRoles` drawn as a direct many-to-many, and
+46 tables in MySQL 8. 45 are shown below as entities, `UserRoles` drawn as a direct many-to-many, and
 `__EFMigrationsHistory` left out as EF Core's own migration bookkeeping, not part of the data model.
 Verified column-for-column against `SHOW TABLES` / `DESCRIBE` on the live database.
 
@@ -125,6 +125,31 @@ erDiagram
         char36 OnBehalfOfUserId FK
         varchar Action
         text Comments
+    }
+    ContainerMessages {
+        char36 Id PK
+        char36 PublicationContainerId FK
+        char36 SenderUserId FK
+        char36 RecipientUserId FK
+        text Body
+        datetime SentAt
+        datetime ReadAt
+    }
+    ContainerMessageAttachments {
+        char36 Id PK
+        char36 ContainerMessageId FK
+        varchar FileName
+        varchar FilePath
+        bigint SizeInBytes
+    }
+    ContainerMessagingRules {
+        char36 Id PK
+        char36 PublicationContainerId FK
+        varchar TargetRole
+        char36 TargetUserId FK
+        bool Allowed
+        varchar Reason
+        char36 SetByUserId FK
     }
     ResearchProposals {
         char36 Id PK
@@ -310,6 +335,11 @@ erDiagram
     Users ||--o{ PublicationContainers : "as coordinator"
     Users o|..o{ PublicationContainers : "as supervisor"
     PublicationContainers ||--o{ ActivityHistoryEntries : ""
+    PublicationContainers ||--o{ ContainerMessages : ""
+    ContainerMessages ||--o{ ContainerMessageAttachments : ""
+    PublicationContainers ||--o{ ContainerMessagingRules : ""
+    Users ||--o{ ContainerMessages : "sends"
+    Users ||--o{ ContainerMessagingRules : "sets"
     Users ||--o{ ActivityHistoryEntries : "actor"
     Users o|..o{ ActivityHistoryEntries : "on behalf of"
     PublicationContainers ||--o{ ResearchProposals : ""
@@ -392,12 +422,15 @@ line = the foreign key also carries a unique index (one-to-one).
 | `SupervisorGroupMembers` | Who is in one of those sets. | PK `SupervisorGroupId+SupervisorId` |
 | `DepartmentMemberships` | The departments a supervisor or reviewer belongs to, beyond the single one their profile names: both can serve more than one. | PK `Id` · FK `UserId`, `DepartmentId` |
 
-### 🟩 Container core (2 tables)
+### 🟩 Container core (5 tables)
 
 | Table | Description | Keys |
 | --- | --- | --- |
 | `PublicationContainers` | The hub for one student's publication process: student, coordinator, assigned supervisor, current pipeline. | PK `Id` · FK `StudentId`, `CoordinatorId` |
 | `ActivityHistoryEntries` | Mandatory-comment narrative log of every change to a container, visible to everyone with access. | PK `Id` · FK `PublicationContainerId`, `ActorUserId` |
+| `ContainerMessages` | What two people wrote to each other about this publication. Separate from the activity history on purpose: that is the record of what was decided and is read by everyone with access, this is a question and an answer between the two of them. | PK `Id` · FK `PublicationContainerId`, `SenderUserId`, `RecipientUserId` |
+| `ContainerMessageAttachments` | A file sent with a message: a screenshot, a photograph of a signed page. Not where the documents a process asks for belong. | PK `Id` · FK `ContainerMessageId` |
+| `ContainerMessagingRules` | An administrator's decision about messaging on this publication alone, over whatever the institution has decided in general. Both targets null means the whole publication; otherwise a role or one named person. | PK `Id` · FK `PublicationContainerId`, `TargetUserId`, `SetByUserId` |
 
 ### 🟧 Pipeline 1: Research proposals (3 tables)
 
