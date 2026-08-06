@@ -2151,7 +2151,7 @@
                 {
                   "key": "SortDescending",
                   "value": "",
-                  "description": "",
+                  "description": "Reverses the order named by sortBy. Ignored where no column is named.",
                   "disabled": true
                 }
               ],
@@ -2841,7 +2841,7 @@
                 {
                   "key": "ids",
                   "value": "",
-                  "description": "",
+                  "description": "The publication containers to answer about, repeated once per id. Anything the caller may not read is left out rather than refusing the request.",
                   "disabled": true
                 }
               ]
@@ -2992,7 +2992,7 @@
                 {
                   "key": "SortDescending",
                   "value": "",
-                  "description": "",
+                  "description": "Reverses the order named by sortBy. Ignored where no column is named.",
                   "disabled": true
                 }
               ],
@@ -3559,7 +3559,7 @@
                 {
                   "key": "ids",
                   "value": "",
-                  "description": "",
+                  "description": "The publication containers to answer about, repeated once per id. Anything the caller may not read is left out rather than refusing the request.",
                   "disabled": true
                 }
               ]
@@ -3710,7 +3710,7 @@
                 {
                   "key": "SortDescending",
                   "value": "",
-                  "description": "",
+                  "description": "Reverses the order named by sortBy. Ignored where no column is named.",
                   "disabled": true
                 }
               ],
@@ -3961,7 +3961,7 @@
                 {
                   "key": "SortDescending",
                   "value": "",
-                  "description": "",
+                  "description": "Reverses the order named by sortBy. Ignored where no column is named.",
                   "disabled": true
                 }
               ],
@@ -4402,130 +4402,6 @@
               }
             },
             "description": "Records this member's own decision and the comments behind it, once. When the last member\nhas voted the committee is complete and the coordinator is told there is a decision to make."
-          },
-          "response": []
-        },
-        {
-          "name": "How many members of each kind a committee needs by default",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{base_url}}/api/settings/default-committee",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "api",
-                "settings",
-                "default-committee"
-              ]
-            },
-            "description": "How many members of each kind a committee needs by default."
-          },
-          "response": []
-        },
-        {
-          "name": "Changes that default",
-          "request": {
-            "method": "PUT",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/api/settings/default-committee",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "api",
-                "settings",
-                "default-committee"
-              ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"roleType\": \"\",\n  \"requiredCount\": 0\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "description": "Changes that default. It applies to publications opened afterwards: each one keeps the\nfigures it was opened under."
-          },
-          "response": []
-        },
-        {
-          "name": "The composition one particular committee was built to",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{base_url}}/api/committees/:committeeId/config",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "api",
-                "committees",
-                ":committeeId",
-                "config"
-              ],
-              "variable": [
-                {
-                  "key": "committeeId",
-                  "value": "",
-                  "description": "The evaluation committee this is about."
-                }
-              ]
-            },
-            "description": "The composition one particular committee was built to."
-          },
-          "response": []
-        },
-        {
-          "name": "Overrides the composition for one committee, for a paper that genuinely needs a\ndifferent panel from the standard one",
-          "request": {
-            "method": "PUT",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/api/committees/:committeeId/config",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "api",
-                "committees",
-                ":committeeId",
-                "config"
-              ],
-              "variable": [
-                {
-                  "key": "committeeId",
-                  "value": "",
-                  "description": "The evaluation committee this is about."
-                }
-              ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"roleType\": \"\",\n  \"requiredCount\": 0\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "description": "Overrides the composition for one committee, for a paper that genuinely needs a\ndifferent panel from the standard one."
           },
           "response": []
         }
@@ -5293,7 +5169,7 @@
                 {
                   "key": "with",
                   "value": "",
-                  "description": "",
+                  "description": "The other person in the conversation, by user id.",
                   "disabled": true
                 }
               ],
@@ -5336,7 +5212,7 @@
                 {
                   "key": "attachmentId",
                   "value": "",
-                  "description": ""
+                  "description": "The file that came with a message."
                 }
               ]
             },
@@ -5443,7 +5319,7 @@
                 {
                   "key": "ruleId",
                   "value": "",
-                  "description": ""
+                  "description": "The messaging rule set on this publication."
                 }
               ]
             },

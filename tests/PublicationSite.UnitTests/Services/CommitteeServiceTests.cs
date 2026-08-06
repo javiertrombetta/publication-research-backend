@@ -500,22 +500,6 @@ public class CommitteeServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Default_and_per_committee_role_configuration_round_trip()
-    {
-        await _sut.SetDefaultConfigAsync(new SetCommitteeRoleConfigRequest("Reviewer", 2));
-        var defaults = await _sut.GetDefaultConfigAsync();
-        defaults.Should().ContainSingle(c => c.RoleType == "Reviewer" && c.RequiredCount == 2);
-
-        var (publication, _, coordinator) = SeedApprovedPublication();
-        var member = SeedCommitteeMember();
-        var committee = await _sut.AssignAsync(publication.Id, new AssignCommitteeRequest([member.Id], 1, "x"), coordinator.Id);
-
-        await _sut.SetCommitteeConfigAsync(committee.Id, new SetCommitteeRoleConfigRequest("External", 1), coordinator.Id);
-        var committeeConfig = await _sut.GetCommitteeConfigAsync(committee.Id);
-        committeeConfig.Should().ContainSingle(c => c.RoleType == "External" && c.RequiredCount == 1);
-    }
-
-    [Fact]
     public async Task AssignAsync_rejects_a_committee_that_does_not_match_the_required_composition()
     {
         var (publication, _, coordinator) = SeedApprovedPublication();

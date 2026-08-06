@@ -33,7 +33,7 @@ src/PublicationSite.Api/
 ```
 
 **Database schema:** see [docs/erd.md](docs/erd.md) for the full entity–relationship diagram (renders
-natively on GitHub) and a table-by-table data dictionary. All 46 tables are documented there, checked
+natively on GitHub) and a table-by-table data dictionary. All 45 tables are documented there, checked
 against `SHOW TABLES` on a live database rather than against the last time somebody remembered to look.
 
 ## Getting started
@@ -111,21 +111,21 @@ method name and a bare `Success`, and a reader cannot tell which they are lookin
 have read it.
 
 - **20 of 20 groups** carry a description, on the controller class.
-- **180 of 180 operations** carry a summary and an operation id.
-- **730 responses** are declared, and none of them is left showing only its reason phrase.
+- **176 of 176 operations** carry a summary and an operation id.
+- **713 responses** are declared, and none of them is left showing only its reason phrase.
 - **Every parameter** carries a description, in the route and in the query alike.
 
-Read off `/swagger/v1.2/swagger.json` rather than counted by hand, so the figures can be checked
+Read off `/swagger/v2.0/swagger.json` rather than counted by hand, so the figures can be checked
 against the running API instead of being believed.
 
 Three of those are filled in by filters in `Common/Swagger/` rather than at each action, and each is
 there because writing it at the action was what had gone wrong:
 
-- **The padlock.** A bearer requirement declared once for the document lands on all 180, so the
+- **The padlock.** A bearer requirement declared once for the document lands on all 176, so the
   seventeen that take no token described signing in as needing the token you sign in to get, and Try
   it out sent an Authorization header the endpoint never asked for. `BearerRequirementFilter`
   attaches it per operation instead, from what each one actually requires.
-- **Route identifiers.** Ninety-one of them mean the same thing, and the same sentence written at ninety-one
+- **Route identifiers.** Eighty-nine of them mean the same thing, and the same sentence written at eighty-nine
   actions is the kind of duplication that stops being maintained after the third.
 - **Whitespace.** Summaries are XML comments, so their later lines arrive carrying the indentation
   of the source file. A browser hides that; Markdown does not, and the Postman collection is
@@ -158,8 +158,9 @@ the declared type per endpoint is whichever one that endpoint actually produces.
 summary is `.WithSummary(...)`; its group description and its 200 are filled in by
 `Common/Swagger/HealthTagDescriptionFilter.cs`.
 
-The version is `Common/ApiVersion.cs`, currently **v1.2**, and the document is served under it at
-`/swagger/v1.2/swagger.json`. It is deliberately not in the route. Every path stays `api/…`, which
+The version is `Common/ApiVersion.cs`, currently **v2.0**, and the document is served under it at
+`/swagger/v2.0/swagger.json`. The major part moved because four endpoints were withdrawn, which is
+exactly the kind of change a caller has to act on. It is deliberately not in the route. Every path stays `api/…`, which
 is what the frontend, the Postman collection and the team's saved requests are written against.
 Raise the minor part when endpoints are added or described, the major part when something already
 published changes shape. The Swagger UI is pointed at the endpoint explicitly, since its default
@@ -532,6 +533,11 @@ listings: 407 audit entries over 82 pages, every one of them once.
 - A second way to reassign a coordinator. Opening a publication and moving one to somebody else were two
   endpoints doing the same thing, and only one checked the role, the department and the reason. The other
   now refuses and says where that change belongs.
+- Per-committee role configuration. `CommitteeRoleConfigs` had a table, four endpoints and a service
+  section, and nothing in the workflow ever read it: what a committee must be composed of comes from
+  the settings and is snapshotted onto each publication when it is opened. An administrator calling
+  `PUT api/settings/default-committee` was therefore saving a figure that changed nothing, which is
+  worse than the endpoint not existing. The table is dropped and the endpoints are withdrawn.
 
 ## Deployment
 
@@ -561,7 +567,7 @@ are marked so in the collection, read from the description rather than from a li
 
 `base_url` is `http://localhost:5020`. A collection aimed at a hosted instance stops working the day
 that instance is taken down, and sends whatever you are experimenting with to a shared database;
-point it elsewhere by editing the environment. It covers all 180 endpoints. Regenerate after adding
+point it elsewhere by editing the environment. It covers all 176 endpoints. Regenerate after adding
 one:
 
 ```bash
@@ -581,7 +587,7 @@ Run everything:
 dotnet test
 ```
 
-399 tests: 392 unit, 7 integration.
+398 tests: 391 unit, 7 integration.
 
 - **Unit tests** exercise the service layer directly against a fresh SQLite in-memory database per test
   (relational/FK-enforcing, unlike the EF Core InMemory provider), with `UserManager`/`SignInManager` mocked via

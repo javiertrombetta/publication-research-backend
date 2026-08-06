@@ -498,28 +498,6 @@ namespace PublicationSite.Api.Data.Migrations
                     b.ToTable("CommitteeMemberProfiles");
                 });
 
-            modelBuilder.Entity("PublicationSite.Api.Entities.CommitteeRoleConfig", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("char(36)");
-
-                    b.Property<Guid?>("CommitteeId")
-                        .HasColumnType("char(36)");
-
-                    b.Property<int>("RequiredCount")
-                        .HasColumnType("int");
-
-                    b.Property<int>("RoleType")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CommitteeId");
-
-                    b.ToTable("CommitteeRoleConfigs");
-                });
-
             modelBuilder.Entity("PublicationSite.Api.Entities.ContainerMessage", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1804,16 +1782,6 @@ namespace PublicationSite.Api.Data.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("PublicationSite.Api.Entities.CommitteeRoleConfig", b =>
-                {
-                    b.HasOne("PublicationSite.Api.Entities.Committee", "Committee")
-                        .WithMany("RoleConfigs")
-                        .HasForeignKey("CommitteeId")
-                        .OnDelete(DeleteBehavior.Cascade);
-
-                    b.Navigation("Committee");
-                });
-
             modelBuilder.Entity("PublicationSite.Api.Entities.ContainerMessage", b =>
                 {
                     b.HasOne("PublicationSite.Api.Entities.PublicationContainer", "PublicationContainer")
@@ -2310,8 +2278,6 @@ namespace PublicationSite.Api.Data.Migrations
             modelBuilder.Entity("PublicationSite.Api.Entities.Committee", b =>
                 {
                     b.Navigation("Members");
-
-                    b.Navigation("RoleConfigs");
                 });
 
             modelBuilder.Entity("PublicationSite.Api.Entities.ContainerMessage", b =>
