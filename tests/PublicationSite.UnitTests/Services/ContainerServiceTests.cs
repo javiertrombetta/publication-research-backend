@@ -403,10 +403,8 @@ public class ContainerServiceTests : IDisposable
     /// withdraws the control at that point, along with every other one it loses; this is the same
     /// rule where it belongs, because a screen is not a rule.
     /// </summary>
-    [Theory]
-    [InlineData(PublicationStatus.Accepted)]
-    [InlineData(PublicationStatus.Published)]
-    public async Task MoveToAsync_refuses_once_the_paper_has_been_judged(PublicationStatus judged)
+    /// <summary>A publication whose paper has already been judged, which is what these three turn on.</summary>
+    private PublicationContainer SeedContainerWithPaper(PublicationStatus judged)
     {
         var department = TestDataBuilder.Department(_fixture.Context);
         var student = TestDataBuilder.User(_fixture.Context);
@@ -421,20 +419,65 @@ public class ContainerServiceTests : IDisposable
             Title = "Latency perception in progressive web applications",
             Status = judged
         });
-        await _fixture.Context.SaveChangesAsync();
+        _fixture.Context.SaveChanges();
+        return container;
+    }
+
+    [Theory]
+    [InlineData(PublicationStatus.Accepted)]
+    [InlineData(PublicationStatus.Published)]
+    public async Task MoveToAsync_refuses_a_judged_paper_unless_it_is_asked_for_as_a_correction(PublicationStatus status)
+    {
+        var container = SeedContainerWithPaper(status);
 
         var act = () => _sut.MoveToAsync(container.Id,
-            new MoveContainerRequest((int)PipelineStage.EthicsApproval, "Reopening it.", EthicsSteps.StudentUpload),
+            new MoveContainerRequest((int)PipelineStage.EthicsApproval, "Reopening it.", EthicsStep: EthicsSteps.StudentUpload),
             Guid.NewGuid());
 
         (await act.Should().ThrowAsync<BusinessRuleException>())
-            .Which.Message.Should().Contain("settled");
-
-        (await _fixture.Reread().PublicationContainers.FirstAsync(c => c.Id == container.Id))
-            .CurrentPipeline.Should().Be(PipelineStage.ResearchPaper, "the publication stays where the decision left it");
+            .Which.Message.Should().Contain("corrected");
     }
 
-    /// <summary>And a paper still being worked on is moved as before.</summary>
+    [Theory]
+    [InlineData(PublicationStatus.Accepted)]
+    [InlineData(PublicationStatus.Published)]
+    public async Task MoveToAsync_corrects_a_judged_paper_when_the_administrator_says_so(PublicationStatus status)
+    {
+        // An acceptance recorded in error has to be fixable, and there is nowhere else to fix it.
+        var container = SeedContainerWithPaper(status);
+
+        // Putting the paper back under review, which is what correcting an acceptance means:
+        // the publication stays at the paper stage and the decision on it is undone.
+        await _sut.MoveToAsync(container.Id,
+            new MoveContainerRequest((int)PipelineStage.ResearchPaper,
+                "Accepted against the wrong publication; the committee never saw this one.",
+                PaperStatus: nameof(PublicationStatus.UnderReview), CorrectingSettledDecision: true),
+            Guid.NewGuid());
+
+        _fixture.Reread();
+
+        var paper = await _fixture.Context.Publications.FirstAsync(p => p.PublicationContainerId == container.Id);
+        paper.Status.Should().Be(PublicationStatus.UnderReview);
+        paper.IsPublished.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task MoveToAsync_records_a_correction_as_a_correction_and_keeps_the_reason()
+    {
+        var container = SeedContainerWithPaper(PublicationStatus.Accepted);
+
+        await _sut.MoveToAsync(container.Id,
+            new MoveContainerRequest((int)PipelineStage.ResearchPaper,
+                "Accepted against the wrong publication.",
+                PaperStatus: nameof(PublicationStatus.UnderReview), CorrectingSettledDecision: true),
+            Guid.NewGuid());
+
+        _auditService.Verify(a => a.LogActivityAsync(
+            container.Id, It.IsAny<Guid>(), "SettledDecisionCorrectedByAdmin",
+            It.Is<string>(c => c.Contains("Corrected a decision") && c.Contains("wrong publication")),
+            It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<Guid?>()), Times.Once);
+    }
+
     [Fact]
     public async Task MoveToAsync_still_moves_a_paper_that_is_under_review()
     {

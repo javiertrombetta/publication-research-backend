@@ -120,11 +120,24 @@ public record ReassignContainerRequest(
 /// <param name="EthicsStep">Which ethics step it should be waiting at, by the names in EthicsSteps. Ignored outside the ethics stage.</param>
 /// <param name="PaperStatus">What the paper's status should be. Ignored outside the paper stage, and Published is refused: publishing is the student's decision and has its own trail.</param>
 /// <param name="Comments">Why. Required, and recorded on the publication's history.</param>
+/// <param name="CorrectingSettledDecision">
+/// Set only to correct a paper that was accepted or published by mistake.
+///
+/// A publication whose paper has been judged is the record of that judgement, so moving it is not
+/// an ordinary step: it makes the record say something the decision did not. It stays possible,
+/// because an acceptance recorded in error has to be fixable and there is nowhere else to fix it,
+/// but it has to be asked for by name. Without this the move is refused and the reply says so, so
+/// it cannot happen by replaying an ordinary one.
+///
+/// The reason in <paramref name="Comments"/> is kept on the publication's history either way, and
+/// a correction is recorded as a correction rather than as a move.
+/// </param>
 public record MoveContainerRequest(
     int Stage,
     string Comments,
     string? EthicsStep = null,
-    string? PaperStatus = null);
+    string? PaperStatus = null,
+    bool CorrectingSettledDecision = false);
 
 /// <summary>
 /// Admin manual assignment: opens a publication for a student and names its coordinator.
