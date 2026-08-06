@@ -42,5 +42,8 @@ public enum NotificationType
     CommitteeReviewOverdue,
 
     /// <summary>A committee is close to the time allowed for it. Goes to the members who have not decided.</summary>
-    CommitteeReviewDueSoon
+    CommitteeReviewDueSoon,
+
+    /// <summary>Somebody has written to this person about a publication, through the site.</summary>
+    MessageReceived
 }

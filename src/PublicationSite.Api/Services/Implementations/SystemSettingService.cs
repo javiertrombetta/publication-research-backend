@@ -418,6 +418,42 @@ public class SystemSettingService(
         return await GetUploadSettingsAsync(cancellationToken);
     }
 
+    // ---------- Writing to each other ----------
+
+    public async Task<MessagingSettingsDto> GetMessagingSettingsAsync(CancellationToken cancellationToken = default) =>
+        new(
+            await settings.GetBoolAsync(SettingKeys.MessagingEnabled,
+                SettingKeys.DefaultMessagingEnabled, cancellationToken),
+            await settings.GetBoolAsync(SettingKeys.MessagingRecordedInActivityHistory,
+                SettingKeys.DefaultMessagingRecordedInActivityHistory, cancellationToken),
+            await settings.GetStringAsync(SettingKeys.MessagingAllowedExtensions, cancellationToken)
+                ?? SettingKeys.DefaultMessagingAllowedExtensions);
+
+    public async Task<MessagingSettingsDto> UpdateMessagingSettingsAsync(
+        UpdateMessagingSettingsRequest request, Guid actingAdminId, CancellationToken cancellationToken = default)
+    {
+        var extensions = NormaliseExtensions(request.AllowedExtensions);
+        if (extensions.Length == 0)
+        {
+            throw new BusinessRuleException("List at least one file type a message may carry, for example: pdf, png");
+        }
+
+        await SetPendingAsync(SettingKeys.MessagingEnabled, request.Enabled, actingAdminId, cancellationToken);
+        await SetPendingAsync(SettingKeys.MessagingRecordedInActivityHistory,
+            request.RecordedInActivityHistory, actingAdminId, cancellationToken);
+        await SetPendingAsync(SettingKeys.MessagingAllowedExtensions, extensions, actingAdminId, cancellationToken);
+
+        await CommitAsync(actingAdminId, "MessagingSettingsUpdated",
+            request.Enabled
+                ? $"People may write to each other through a publication. Contacts are "
+                  + (request.RecordedInActivityHistory ? "noted" : "not noted")
+                  + $" in the activity history. A message may carry: {extensions}."
+                : "Writing to each other through a publication is switched off. What has already been written stays readable.",
+            cancellationToken);
+
+        return await GetMessagingSettingsAsync(cancellationToken);
+    }
+
     /// <summary>
     /// Turns what an administrator types, "pdf, docx", into the ".pdf,.docx" the file store matches
     /// on. Nobody should have to know the internal spelling to configure this.

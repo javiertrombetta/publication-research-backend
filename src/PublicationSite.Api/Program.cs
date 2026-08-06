@@ -194,6 +194,7 @@ builder.Services.AddScoped<IPublicationService, PublicationService>();
 builder.Services.AddScoped<ICommitteeService, CommitteeService>();
 builder.Services.AddScoped<ICatalogueService, CatalogueService>();
 builder.Services.AddScoped<INotificationQueryService, NotificationQueryService>();
+builder.Services.AddScoped<IContainerMessageService, ContainerMessageService>();
 builder.Services.AddScoped<IAuditLogQueryService, AuditLogQueryService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 // Settings are read on paths as hot as signing in, so they are cached in memory rather than

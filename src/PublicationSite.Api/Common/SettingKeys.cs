@@ -172,6 +172,62 @@ public static class SettingKeys
     public const int DefaultMaxUploadMegabytes = 50;
     public const string DefaultAllowedUploadExtensions = ".pdf,.doc,.docx,.zip";
 
+    // ---------- Writing to each other ----------
+
+    /// <summary>
+    /// Whether people may write to each other through a publication at all.
+    ///
+    /// On unless an institution says otherwise: this is the route a student has to ask their
+    /// supervisor a question without leaving the record of their research, and switching it off
+    /// sends them back to personal email, where nothing that is said can be found again.
+    ///
+    /// Off hides the screen and refuses the endpoint. What has already been written stays: a
+    /// message somebody relied on is not a thing to delete because a switch moved.
+    /// </summary>
+    public const string MessagingEnabled = "messaging.enabled";
+
+    /// <summary>
+    /// Whether a message written here is noted in the publication's activity history.
+    ///
+    /// Off unless an institution says otherwise, and the cautious way round rather than the tidy
+    /// one. The activity history is read by everybody with access to the publication, so noting a
+    /// message there tells a coordinator and a head of department that a student wrote to their
+    /// supervisor, which is not theirs unless the institution has decided it is.
+    ///
+    /// What is noted is who wrote to whom and when, never what was said. Somewhere that treats
+    /// this record as the audit trail of a supervision needs the fact; nowhere needs the contents.
+    /// </summary>
+    public const string MessagingRecordedInActivityHistory = "messaging.record-in-activity-history";
+
+    /// <summary>
+    /// What a message may carry, comma-separated, leading dots optional.
+    ///
+    /// Its own list rather than the document one, because the two are for different things. A
+    /// student explaining a problem attaches a screenshot; the documents a process asks for are
+    /// uploaded where that process asks for them, and this list is not the place to widen that.
+    /// </summary>
+    public const string MessagingAllowedExtensions = "messaging.allowed-extensions";
+
+    public const bool DefaultMessagingEnabled = true;
+    public const bool DefaultMessagingRecordedInActivityHistory = false;
+
+    /// <summary>
+    /// Images, because a screenshot is what most questions come with, plus the everyday document
+    /// types. No archives: a zip in a conversation is a way to hand somebody a file the list would
+    /// otherwise have refused.
+    /// </summary>
+    public const string DefaultMessagingAllowedExtensions =
+        ".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg,.gif,.webp,.heic";
+
+    /// <summary>
+    /// How long one message may be. Long enough for anything anybody needs to explain, short
+    /// enough that the column is not a place to paste a dissertation into.
+    /// </summary>
+    public const int MessageMaximumLength = 4000;
+
+    /// <summary>How many files one message may carry.</summary>
+    public const int MessageMaximumAttachments = 5;
+
     // ---------- The institution ----------
 
     public const string InstitutionName = "institution.name";

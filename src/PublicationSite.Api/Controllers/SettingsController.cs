@@ -318,6 +318,46 @@ public class SettingsController(
         return Ok(ApiResponse<UploadSettingsDto>.Ok(result, "Saved. Applies to the next file anyone uploads."));
     }
 
+    // ---------- Writing to each other ----------
+
+    /// <summary>
+    /// Whether people may write to each other through a publication, whether those contacts are
+    /// noted in its activity history, and what a message may carry.
+    /// </summary>
+    /// <response code="200">The messaging settings.</response>
+    /// <response code="401">No access token was sent, or the one sent has expired.</response>
+    /// <response code="403">Signed in, but this is not something your role may do.</response>
+    [HttpGet("messaging")]
+    [ProducesResponseType(typeof(ApiResponse<MessagingSettingsDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetMessaging()
+    {
+        var result = await systemSettingService.GetMessagingSettingsAsync();
+        return Ok(ApiResponse<MessagingSettingsDto>.Ok(result));
+    }
+
+    /// <summary>
+    /// Changes them. Switching messaging off hides the screen and refuses new messages; it never
+    /// removes what people have already written to each other.
+    /// </summary>
+    /// <response code="200">The messaging settings.</response>
+    /// <response code="400">The request did not pass validation. Which field, and why, comes back as a problem document rather than the usual envelope.</response>
+    /// <response code="401">No access token was sent, or the one sent has expired.</response>
+    /// <response code="403">Signed in, but this is not something your role may do.</response>
+    /// <response code="422">Understood, and refused: the workflow does not allow this at the point it has reached.</response>
+    [HttpPut("messaging")]
+    [ProducesResponseType(typeof(ApiResponse<MessagingSettingsDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status422UnprocessableEntity)]
+    public async Task<IActionResult> UpdateMessaging([FromBody] UpdateMessagingSettingsRequest request)
+    {
+        var result = await systemSettingService.UpdateMessagingSettingsAsync(request, currentUser.UserId);
+        return Ok(ApiResponse<MessagingSettingsDto>.Ok(result, "Saved. Applies to the next message anyone writes."));
+    }
+
     // ---------- The institution ----------
 
     /// <summary>
