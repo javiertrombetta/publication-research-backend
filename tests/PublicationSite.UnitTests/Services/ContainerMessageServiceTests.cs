@@ -31,6 +31,7 @@ public class ContainerMessageServiceTests : IDisposable
     private readonly ApplicationUser _coordinator;
     private readonly ApplicationUser _supervisor;
     private readonly ApplicationUser _head;
+    private readonly ApplicationUser _admin;
     private readonly PublicationContainer _container;
 
     public ContainerMessageServiceTests()
@@ -67,6 +68,9 @@ public class ContainerMessageServiceTests : IDisposable
         _head = TestDataBuilder.User(_fixture.Context);
         TestDataBuilder.HeadOfDepartmentProfile(_fixture.Context, _head, _department);
         TestDataBuilder.GrantRole(_fixture.Context, _head, RoleNames.HeadOfDepartment);
+
+        _admin = TestDataBuilder.User(_fixture.Context);
+        TestDataBuilder.GrantRole(_fixture.Context, _admin, RoleNames.Admin);
 
         _container = TestDataBuilder.Container(_fixture.Context, _student, _coordinator, _supervisor);
 
@@ -480,5 +484,194 @@ public class ContainerMessageServiceTests : IDisposable
         var context = await _sut.GetMessagingAsync(_container.Id, _student.Id);
 
         context.Counterparts.Should().BeEmpty();
+    }
+
+    // ---------- What an administrator has decided about this one publication ----------
+
+    private Task<ContainerMessagingRuleDto> Rule(
+        bool allowed, string? role = null, ApplicationUser? person = null, string reason = "Under investigation.") =>
+        _sut.SetRuleAsync(_container.Id, _admin.Id,
+            new SetContainerMessagingRuleRequest(role, person?.Id, allowed, reason));
+
+    [Fact]
+    public async Task A_rule_can_stop_the_whole_publication()
+    {
+        await Rule(allowed: false);
+        _fixture.Reread();
+
+        (await _sut.GetMessagingAsync(_container.Id, _student.Id)).Counterparts.Should().BeEmpty();
+        (await _sut.GetMessagingAsync(_container.Id, _supervisor.Id)).Counterparts.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task A_rule_can_stop_one_role_and_leave_the_rest()
+    {
+        await Rule(allowed: false, role: RoleNames.Supervisor);
+        _fixture.Reread();
+
+        var studentSees = await _sut.GetMessagingAsync(_container.Id, _student.Id);
+        var supervisorSees = await _sut.GetMessagingAsync(_container.Id, _supervisor.Id);
+
+        // Both ways: the supervisor cannot write, and nobody can write to them.
+        studentSees.Counterparts.Should().NotContain(c => c.UserId == _supervisor.Id);
+        studentSees.Counterparts.Should().Contain(c => c.UserId == _coordinator.Id);
+        supervisorSees.Counterparts.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task A_rule_can_stop_one_person()
+    {
+        await Rule(allowed: false, person: _coordinator);
+        _fixture.Reread();
+
+        var studentSees = await _sut.GetMessagingAsync(_container.Id, _student.Id);
+
+        studentSees.Counterparts.Should().NotContain(c => c.UserId == _coordinator.Id);
+        studentSees.Counterparts.Should().Contain(c => c.UserId == _supervisor.Id);
+        (await _sut.GetMessagingAsync(_container.Id, _coordinator.Id)).Counterparts.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task A_rule_about_a_person_beats_one_about_their_role()
+    {
+        await Rule(allowed: false, role: RoleNames.Supervisor);
+        await Rule(allowed: true, person: _supervisor, reason: "This one is fine.");
+        _fixture.Reread();
+
+        (await _sut.GetMessagingAsync(_container.Id, _supervisor.Id))
+            .Counterparts.Should().ContainSingle(c => c.UserId == _student.Id);
+    }
+
+    [Fact]
+    public async Task A_rule_about_a_role_beats_one_about_the_whole_publication()
+    {
+        await Rule(allowed: false);
+        await Rule(allowed: true, role: RoleNames.Coordinator, reason: "The coordinator still needs to.");
+        _fixture.Reread();
+
+        // The coordinator is exempt and the supervisor is not, which is what the two rules say.
+        // Neither has anybody to write to yet: the student is still stopped by the rule over the
+        // whole publication, and a conversation needs both ends. The next test exempts them too.
+        (await _sut.GetMessagingAsync(_container.Id, _supervisor.Id)).Counterparts.Should().BeEmpty();
+        (await _sut.GetMessagingAsync(_container.Id, _coordinator.Id)).Counterparts.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Both_ends_have_to_be_let_through_for_a_conversation_to_be_possible()
+    {
+        // The rule that stops somebody stops them being written to as well, so exempting one side
+        // of a pair is not enough. Said plainly here because it is the one thing about these rules
+        // that surprises people.
+        await Rule(allowed: false);
+        await Rule(allowed: true, role: RoleNames.Coordinator, reason: "The coordinator still needs to.");
+        await Rule(allowed: true, person: _student, reason: "So they can be reached.");
+        _fixture.Reread();
+
+        (await _sut.GetMessagingAsync(_container.Id, _coordinator.Id))
+            .Counterparts.Should().ContainSingle(c => c.UserId == _student.Id);
+
+        // And still nobody else: the supervisor was never exempted.
+        (await _sut.GetMessagingAsync(_container.Id, _student.Id))
+            .Counterparts.Should().ContainSingle(c => c.UserId == _coordinator.Id);
+    }
+
+    [Fact]
+    public async Task A_rule_can_let_somebody_through_whom_the_institution_shuts_out()
+    {
+        Rules(studentsMayWrite: false);
+
+        await Rule(allowed: true, person: _student, reason: "This student needs to reach their supervisor.");
+        _fixture.Reread();
+
+        (await _sut.GetMessagingAsync(_container.Id, _student.Id)).Counterparts.Should().NotBeEmpty();
+    }
+
+    [Fact]
+    public async Task Stopping_somebody_closes_a_conversation_they_were_already_in()
+    {
+        // Unlike narrowing the institution's list, which leaves an exchange answerable. A rule on
+        // one publication is somebody deciding about that publication, and it has to bite.
+        await Send(_student, _supervisor, "A question.");
+        _fixture.Reread();
+
+        await Rule(allowed: false, person: _supervisor);
+        _fixture.Reread();
+
+        (await _sut.GetMessagingAsync(_container.Id, _student.Id))
+            .Counterparts.Should().NotContain(c => c.UserId == _supervisor.Id);
+    }
+
+    [Fact]
+    public async Task Sending_to_somebody_who_has_been_stopped_is_refused()
+    {
+        await Rule(allowed: false, person: _supervisor);
+        _fixture.Reread();
+
+        var act = () => Send(_student, _supervisor);
+
+        await act.Should().ThrowAsync<ForbiddenException>();
+    }
+
+    [Fact]
+    public async Task Removing_a_rule_puts_the_publication_back_as_it_was()
+    {
+        var rule = await Rule(allowed: false, person: _supervisor);
+        _fixture.Reread();
+
+        await _sut.RemoveRuleAsync(_container.Id, _admin.Id, rule.Id);
+        _fixture.Reread();
+
+        (await _sut.GetMessagingAsync(_container.Id, _student.Id))
+            .Counterparts.Should().Contain(c => c.UserId == _supervisor.Id);
+    }
+
+    [Fact]
+    public async Task Setting_the_same_target_twice_changes_the_rule_rather_than_adding_one()
+    {
+        await Rule(allowed: false, person: _supervisor);
+        await Rule(allowed: true, person: _supervisor, reason: "Resolved.");
+        _fixture.Reread();
+
+        var rules = await _sut.GetRulesAsync(_container.Id);
+
+        rules.Rules.Should().ContainSingle();
+        rules.Rules.Single().Allowed.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task A_rule_naming_both_a_role_and_a_person_is_refused()
+    {
+        var act = () => _sut.SetRuleAsync(_container.Id, _admin.Id,
+            new SetContainerMessagingRuleRequest(RoleNames.Supervisor, _supervisor.Id, false, "Because."));
+
+        await act.Should().ThrowAsync<BusinessRuleException>();
+    }
+
+    [Fact]
+    public async Task A_rule_with_no_reason_is_refused()
+    {
+        var act = () => Rule(allowed: false, person: _supervisor, reason: "   ");
+
+        await act.Should().ThrowAsync<BusinessRuleException>();
+    }
+
+    [Fact]
+    public async Task Setting_a_rule_is_written_into_the_publications_history()
+    {
+        await Rule(allowed: false, person: _supervisor, reason: "A complaint is being looked into.");
+
+        _auditService.Verify(a => a.LogActivityAsync(
+            _container.Id, _admin.Id, "Messaging stopped",
+            It.Is<string>(c => c.Contains("A complaint is being looked into")),
+            It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<Guid?>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task The_participants_are_everybody_with_a_part_in_the_publication()
+    {
+        var rules = await _sut.GetRulesAsync(_container.Id);
+
+        rules.Participants.Select(p => p.UserId)
+            .Should().BeEquivalentTo(new[] { _student.Id, _coordinator.Id, _supervisor.Id, _head.Id });
     }
 }

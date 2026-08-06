@@ -27,6 +27,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<ActivityHistoryEntry> ActivityHistoryEntries => Set<ActivityHistoryEntry>();
     public DbSet<ContainerMessage> ContainerMessages => Set<ContainerMessage>();
     public DbSet<ContainerMessageAttachment> ContainerMessageAttachments => Set<ContainerMessageAttachment>();
+    public DbSet<ContainerMessagingRule> ContainerMessagingRules => Set<ContainerMessagingRule>();
 
     public DbSet<ResearchProposal> ResearchProposals => Set<ResearchProposal>();
     public DbSet<ProposalSupervisorSelection> ProposalSupervisorSelections => Set<ProposalSupervisorSelection>();

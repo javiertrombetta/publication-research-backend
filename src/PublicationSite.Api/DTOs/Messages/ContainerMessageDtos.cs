@@ -64,3 +64,43 @@ public class SendContainerMessageForm
     /// </summary>
     public List<IFormFile>? Files { get; set; }
 }
+
+/// <summary>
+/// One administrator's decision about messaging on one publication.
+/// </summary>
+/// <param name="TargetRole">The role it is about, or null. Null in both targets means the whole publication.</param>
+/// <param name="TargetUserId">The person it is about, or null.</param>
+/// <param name="TargetDescription">What the rule is about, said in words, so a screen does not have to work it out: "Everybody on this publication", "Supervisors", or a person's name.</param>
+public record ContainerMessagingRuleDto(
+    Guid Id,
+    string? TargetRole,
+    Guid? TargetUserId,
+    string TargetDescription,
+    bool Allowed,
+    string Reason,
+    string SetByName,
+    DateTime SetAt);
+
+/// <summary>Somebody on this publication, for an administrator choosing who a rule is about.</summary>
+public record ContainerParticipantDto(Guid UserId, string Name, string Role);
+
+/// <summary>
+/// Everything the administrator's screen needs: the rules in force on this publication, the people
+/// it could be about, and the roles it could be about.
+/// </summary>
+/// <param name="InstitutionAllowsMessaging">False when messaging is off for the whole institution, in which case these rules change nothing and the screen should say so rather than implying otherwise.</param>
+public record ContainerMessagingRulesDto(
+    bool InstitutionAllowsMessaging,
+    IReadOnlyList<ContainerMessagingRuleDto> Rules,
+    IReadOnlyList<ContainerParticipantDto> Participants,
+    IReadOnlyList<string> SelectableRoles);
+
+/// <summary>
+/// A rule being set. Name at most one target: a role, a person, or neither for the whole
+/// publication.
+/// </summary>
+public record SetContainerMessagingRuleRequest(
+    string? TargetRole,
+    Guid? TargetUserId,
+    bool Allowed,
+    string Reason);

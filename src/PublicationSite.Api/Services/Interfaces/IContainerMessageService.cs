@@ -63,4 +63,29 @@ public interface IContainerMessageService
     /// </summary>
     Task<int> GetUnreadCountAsync(
         Guid publicationContainerId, Guid userId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// What an administrator has decided about messaging on this publication in particular, the
+    /// people it could be about, and the roles it could be about.
+    /// </summary>
+    Task<ContainerMessagingRulesDto> GetRulesAsync(
+        Guid publicationContainerId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Sets one, replacing whatever was already said about the same target. Silencing somebody
+    /// stops them writing and stops anybody writing to them: a one-way rule would leave the other
+    /// party sending into nothing.
+    /// </summary>
+    Task<ContainerMessagingRuleDto> SetRuleAsync(
+        Guid publicationContainerId,
+        Guid actingAdminId,
+        SetContainerMessagingRuleRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Takes one away, so this publication follows the institution's settings again for whoever it
+    /// was about.
+    /// </summary>
+    Task RemoveRuleAsync(
+        Guid publicationContainerId, Guid actingAdminId, Guid ruleId, CancellationToken cancellationToken = default);
 }

@@ -48,3 +48,36 @@ public class ContainerMessageAttachmentConfiguration : IEntityTypeConfiguration<
             .OnDelete(DeleteBehavior.Cascade);
     }
 }
+
+public class ContainerMessagingRuleConfiguration : IEntityTypeConfiguration<ContainerMessagingRule>
+{
+    public void Configure(EntityTypeBuilder<ContainerMessagingRule> builder)
+    {
+        builder.Property(r => r.TargetRole).HasMaxLength(64);
+        builder.Property(r => r.Reason).HasMaxLength(500).IsRequired();
+
+        builder.HasOne(r => r.PublicationContainer)
+            .WithMany(c => c.MessagingRules)
+            .HasForeignKey(r => r.PublicationContainerId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(r => r.TargetUser)
+            .WithMany()
+            .HasForeignKey(r => r.TargetUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(r => r.SetByUser)
+            .WithMany()
+            .HasForeignKey(r => r.SetByUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // Read whole, per publication, every time somebody opens the messages on it. There are
+        // never many, so this is the only index worth having.
+        //
+        // Not unique: MySQL counts NULLs as distinct in a unique index, so a constraint over the
+        // two nullable targets would let a second rule for the same role through and refuse
+        // nothing worth refusing. One rule per target is kept by the service, which looks for an
+        // existing one and updates it.
+        builder.HasIndex(r => r.PublicationContainerId);
+    }
+}
