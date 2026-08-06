@@ -7,11 +7,13 @@ namespace PublicationSite.Api.DTOs.Messages;
 /// </summary>
 /// <param name="Role">What they are here: "Supervisor", "Coordinator", "Head of Department", "Student", or the role they hold. Shown so a student picking from a list knows who they are choosing.</param>
 /// <param name="UnreadFromThem">How many of their messages this person has not opened yet.</param>
+/// <param name="LastMessageAt">When either of them last wrote, in either direction. Null when they have never written to each other. It is what a screen opens on once nothing is waiting: the conversation somebody came back to is the one they were last having.</param>
 public record MessageCounterpartDto(
     Guid UserId,
     string Name,
     string Role,
-    int UnreadFromThem);
+    int UnreadFromThem,
+    DateTime? LastMessageAt = null);
 
 /// <param name="Outgoing">True when the signed-in person wrote it. The two directions read differently, and the caller should not have to compare ids to tell them apart.</param>
 public record ContainerMessageDto(
