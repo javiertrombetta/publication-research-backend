@@ -208,8 +208,76 @@ public static class SettingKeys
     /// </summary>
     public const string MessagingAllowedExtensions = "messaging.allowed-extensions";
 
+    /// <summary>
+    /// Whether a student may start a conversation at all, and which of the people on their
+    /// publication they may start it with, as a comma-separated list of role names.
+    ///
+    /// Two settings rather than one because they answer different questions. The switch is whether
+    /// this route exists for students; the list is who is at the other end of it. An institution
+    /// turning the route off for a term should not have to rebuild its list of roles to turn it
+    /// back on.
+    ///
+    /// The list only ever names roles somebody actually holds on that publication: the supervisor
+    /// who was assigned to it, the coordinator running it, the head of the student's department,
+    /// and the committee appointed to judge the paper. There is no administrator attached to a
+    /// publication, so "Admin" is not on offer here; it would mean every administrator at once,
+    /// which is a different thing from writing to somebody responsible for your work.
+    /// </summary>
+    public const string MessagingStudentsMayWrite = "messaging.students-may-write";
+    public const string MessagingStudentMayWriteToRoles = "messaging.student-may-write-to";
+
+    /// <summary>
+    /// The same pair, the other way round: whether the people working on a publication may write to
+    /// the student, and which of them.
+    ///
+    /// The Staff role is not on offer in either list. It is the placeholder an institutional address
+    /// holds before an administrator says what the person actually is, so there is no job there yet
+    /// and nobody to write.
+    /// </summary>
+    public const string MessagingStaffMayWrite = "messaging.staff-may-write";
+    public const string MessagingStaffMayWriteToStudentRoles = "messaging.staff-may-write-to-student";
+
     public const bool DefaultMessagingEnabled = true;
     public const bool DefaultMessagingRecordedInActivityHistory = false;
+    public const bool DefaultMessagingStudentsMayWrite = true;
+    public const bool DefaultMessagingStaffMayWrite = true;
+
+    /// <summary>
+    /// The roles a student may write to when nobody has chosen: the three people responsible for
+    /// their publication. Not the committee, which is judging their paper.
+    /// </summary>
+    public static readonly string[] DefaultMessagingStudentMayWriteToRoles =
+    [
+        RoleNames.Supervisor, RoleNames.Coordinator, RoleNames.HeadOfDepartment
+    ];
+
+    /// <summary>Everyone who could have a reason to write to a student about their publication.</summary>
+    public static readonly string[] DefaultMessagingStaffMayWriteToStudentRoles =
+    [
+        RoleNames.Admin, RoleNames.HeadOfDepartment, RoleNames.Coordinator,
+        RoleNames.Supervisor, RoleNames.Reviewer, RoleNames.ExternalCommitteeMember
+    ];
+
+    /// <summary>
+    /// What an administrator may put on the student's list: the roles that name a particular person
+    /// on a particular publication. See <see cref="MessagingStudentMayWriteToRoles"/> for why Admin
+    /// is not among them.
+    /// </summary>
+    public static readonly string[] SelectableStudentMessagingRoles =
+    [
+        RoleNames.Supervisor, RoleNames.Coordinator, RoleNames.HeadOfDepartment,
+        RoleNames.Reviewer, RoleNames.ExternalCommitteeMember
+    ];
+
+    /// <summary>What an administrator may put on the staff list: everyone with a job here.</summary>
+    public static readonly string[] SelectableStaffMessagingRoles = RoleNames.Operational;
+
+    /// <summary>
+    /// The two roles on the student's list that name a committee seat rather than a post on the
+    /// publication. Reached through the committee appointed to judge the paper, so they are looked
+    /// up differently from the other three.
+    /// </summary>
+    public static readonly string[] CommitteeMessagingRoles = RoleNames.CommitteeRoles;
 
     /// <summary>
     /// Images, because a screenshot is what most questions come with, plus the everyday document

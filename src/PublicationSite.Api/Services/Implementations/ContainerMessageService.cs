@@ -16,6 +16,7 @@ public class ContainerMessageService(
     IFileStorageService fileStorageService,
     INotificationService notificationService,
     IAuditService auditService,
+    ISystemSettingService settingService,
     ISystemSettingsProvider settings) : IContainerMessageService
 {
     public async Task<ContainerMessagingDto> GetMessagingAsync(
@@ -233,19 +234,25 @@ public class ContainerMessageService(
     /// <summary>
     /// Who this person may write to about this publication.
     ///
-    /// Two rules, because there are two kinds of person here.
+    /// Two rules, because there are two kinds of person here, and both are the administrator's to
+    /// set. A student writes to whichever of the people on their publication the institution has
+    /// named: by default the supervisor they were assigned, the coordinator running it, and the head
+    /// of their department. Whoever is working on the publication writes to the student, again from
+    /// a named list, by default everybody with a job here.
     ///
-    /// The student writes to the people responsible for their publication: the supervisor they were
-    /// assigned, the coordinator running it, and the head of their department. Not to the whole
-    /// institution, and not to a committee member who is judging their paper.
+    /// Either direction can be switched off on its own, and a list with nothing on it means nobody.
+    /// A list nobody has ever configured means the default, which is not the same thing: an
+    /// institution that has never opened the settings screen should get the behaviour the system
+    /// was shipped with.
     ///
-    /// Everybody else on the publication writes to the student. That is what they are here for. The
-    /// Staff role is left out: it is the placeholder an institutional address holds before an
-    /// administrator says what the person actually is, so there is nobody there yet to write.
+    /// The Staff role is on neither list and cannot be put on one. It is the placeholder an
+    /// institutional address holds before an administrator says what the person actually is, so
+    /// there is no job there yet and nobody to write.
     ///
-    /// And to both, anybody who has already written to them here. Without that, a message from
-    /// somebody outside the first rule would arrive with no way to answer it, which is worse than
-    /// not being able to write to them in the first place.
+    /// On top of both, anybody who has already written to you here, so long as your direction is
+    /// switched on. Without that, a message from somebody the lists do not name would arrive with
+    /// no way to answer it, which is worse than not being able to write to them at all. Narrowing a
+    /// list stops new conversations; it does not gag somebody mid-exchange.
     /// </summary>
     private async Task<IReadOnlyList<MessageCounterpartDto>> CounterpartsAsync(
         Guid publicationContainerId, Guid userId, CancellationToken cancellationToken)
@@ -278,12 +285,35 @@ public class ContainerMessageService(
             }
         }
 
-        if (container.StudentId == userId)
-        {
-            Add(container.AssignedSupervisorId, container.SupervisorName, "Supervisor");
-            Add(container.CoordinatorId, container.CoordinatorName, "Coordinator");
+        var rules = await settingService.GetMessagingSettingsAsync(cancellationToken);
+        var isTheStudent = container.StudentId == userId;
 
-            if (container.DepartmentId is { } departmentId)
+        // Whether this person's direction is open at all. It gates the reply rule below as well as
+        // the lists: switching a direction off has to mean off, not "off unless somebody wrote to
+        // you first".
+        var mayWriteAtAll = isTheStudent
+            ? rules.StudentsMayWrite
+            : rules.StaffMayWrite && await HoldsAnOperationalRoleAsync(userId, cancellationToken);
+
+        if (!mayWriteAtAll)
+        {
+            return [];
+        }
+
+        if (isTheStudent)
+        {
+            if (rules.StudentMayWriteToRoles.Contains(RoleNames.Supervisor))
+            {
+                Add(container.AssignedSupervisorId, container.SupervisorName, "Supervisor");
+            }
+
+            if (rules.StudentMayWriteToRoles.Contains(RoleNames.Coordinator))
+            {
+                Add(container.CoordinatorId, container.CoordinatorName, "Coordinator");
+            }
+
+            if (rules.StudentMayWriteToRoles.Contains(RoleNames.HeadOfDepartment)
+                && container.DepartmentId is { } departmentId)
             {
                 var heads = await db.HeadOfDepartmentProfiles
                     .Where(h => h.DepartmentId == departmentId)
@@ -295,8 +325,36 @@ public class ContainerMessageService(
                     Add(head.UserId, head.Name, "Head of Department");
                 }
             }
+
+            // The committee, where an institution has said a student may write to it. Read from the
+            // seats actually filled on this publication rather than from the role at large: a
+            // reviewer somewhere else in the institution is not somebody this student has business
+            // with.
+            var committeeRoles = SettingKeys.CommitteeMessagingRoles
+                .Where(rules.StudentMayWriteToRoles.Contains)
+                .ToList();
+
+            if (committeeRoles.Count > 0)
+            {
+                var members = await db.CommitteeMembers
+                    .Where(m => m.Committee.Publication.PublicationContainerId == publicationContainerId)
+                    .Select(m => new
+                    {
+                        m.UserId,
+                        Name = m.User.FirstName + " " + m.User.LastName,
+                        Role = m.RoleType == CommitteeMemberRoleType.Reviewer
+                            ? RoleNames.Reviewer
+                            : RoleNames.ExternalCommitteeMember
+                    })
+                    .ToListAsync(cancellationToken);
+
+                foreach (var member in members.Where(m => committeeRoles.Contains(m.Role)))
+                {
+                    Add(member.UserId, member.Name, Readable(member.Role));
+                }
+            }
         }
-        else if (await HoldsAnOperationalRoleAsync(userId, cancellationToken))
+        else if (await HoldsAnyOfAsync(userId, rules.StaffMayWriteToStudentRoles, cancellationToken))
         {
             Add(container.StudentId, container.StudentName, "Student");
         }
@@ -394,10 +452,17 @@ public class ContainerMessageService(
     /// institutional address holds before an administrator says what the person is.
     /// </summary>
     private Task<bool> HoldsAnOperationalRoleAsync(Guid userId, CancellationToken cancellationToken) =>
-        db.UserRoles
-            .Where(ur => ur.UserId == userId)
-            .Join(db.Roles, ur => ur.RoleId, r => r.Id, (ur, r) => r.Name)
-            .AnyAsync(name => name != null && RoleNames.Operational.Contains(name), cancellationToken);
+        HoldsAnyOfAsync(userId, RoleNames.Operational, cancellationToken);
+
+    /// <summary>Whether this person holds any of the roles an administrator named.</summary>
+    private Task<bool> HoldsAnyOfAsync(
+        Guid userId, IReadOnlyList<string> roles, CancellationToken cancellationToken) =>
+        roles.Count == 0
+            ? Task.FromResult(false)
+            : db.UserRoles
+                .Where(ur => ur.UserId == userId)
+                .Join(db.Roles, ur => ur.RoleId, r => r.Id, (ur, r) => r.Name)
+                .AnyAsync(name => name != null && roles.Contains(name), cancellationToken);
 
     /// <summary>Role names as somebody would say them out loud.</summary>
     private static string Readable(string? role) => role switch

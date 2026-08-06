@@ -428,7 +428,61 @@ public class SystemSettingService(
             await settings.GetBoolAsync(SettingKeys.MessagingRecordedInActivityHistory,
                 SettingKeys.DefaultMessagingRecordedInActivityHistory, cancellationToken),
             await settings.GetStringAsync(SettingKeys.MessagingAllowedExtensions, cancellationToken)
-                ?? SettingKeys.DefaultMessagingAllowedExtensions);
+                ?? SettingKeys.DefaultMessagingAllowedExtensions,
+            await settings.GetBoolAsync(SettingKeys.MessagingStudentsMayWrite,
+                SettingKeys.DefaultMessagingStudentsMayWrite, cancellationToken),
+            await GetMessagingRolesAsync(SettingKeys.MessagingStudentMayWriteToRoles,
+                SettingKeys.SelectableStudentMessagingRoles,
+                SettingKeys.DefaultMessagingStudentMayWriteToRoles, cancellationToken),
+            await settings.GetBoolAsync(SettingKeys.MessagingStaffMayWrite,
+                SettingKeys.DefaultMessagingStaffMayWrite, cancellationToken),
+            await GetMessagingRolesAsync(SettingKeys.MessagingStaffMayWriteToStudentRoles,
+                SettingKeys.SelectableStaffMessagingRoles,
+                SettingKeys.DefaultMessagingStaffMayWriteToStudentRoles, cancellationToken),
+            SettingKeys.SelectableStudentMessagingRoles,
+            SettingKeys.SelectableStaffMessagingRoles);
+
+    /// <summary>
+    /// One of the two role lists, read back.
+    ///
+    /// Anything no longer selectable is dropped on the way out, so a role removed from the system
+    /// cannot linger in a stored list and quietly widen the rule. Nothing stored at all means the
+    /// default rather than "nobody": an institution that has never opened this screen should get
+    /// the behaviour the system was shipped with, not silence.
+    ///
+    /// Deliberately different from an administrator saving an empty list, which is stored as the
+    /// empty marker below and does mean nobody.
+    /// </summary>
+    private async Task<IReadOnlyList<string>> GetMessagingRolesAsync(
+        string key, IReadOnlyList<string> selectable, IReadOnlyList<string> fallback, CancellationToken cancellationToken)
+    {
+        var stored = await settings.GetStringAsync(key, cancellationToken);
+
+        if (stored is null)
+        {
+            return fallback;
+        }
+
+        if (stored == NobodyMarker)
+        {
+            return [];
+        }
+
+        return stored
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(selectable.Contains)
+            .Distinct()
+            .ToList();
+    }
+
+    /// <summary>
+    /// What is stored when an administrator ticks nothing.
+    ///
+    /// An empty string cannot be told apart from a setting nobody has ever written, and those two
+    /// have to mean opposite things: never configured is the default list, and deliberately empty
+    /// is nobody at all. A word no role is called says which one this is.
+    /// </summary>
+    private const string NobodyMarker = "(none)";
 
     public async Task<MessagingSettingsDto> UpdateMessagingSettingsAsync(
         UpdateMessagingSettingsRequest request, Guid actingAdminId, CancellationToken cancellationToken = default)
@@ -439,20 +493,72 @@ public class SystemSettingService(
             throw new BusinessRuleException("List at least one file type a message may carry, for example: pdf, png");
         }
 
+        var studentRoles = CheckMessagingRoles(
+            request.StudentMayWriteToRoles, SettingKeys.SelectableStudentMessagingRoles,
+            "somebody a student can write to");
+
+        var staffRoles = CheckMessagingRoles(
+            request.StaffMayWriteToStudentRoles, SettingKeys.SelectableStaffMessagingRoles,
+            "somebody who can write to a student");
+
         await SetPendingAsync(SettingKeys.MessagingEnabled, request.Enabled, actingAdminId, cancellationToken);
         await SetPendingAsync(SettingKeys.MessagingRecordedInActivityHistory,
             request.RecordedInActivityHistory, actingAdminId, cancellationToken);
         await SetPendingAsync(SettingKeys.MessagingAllowedExtensions, extensions, actingAdminId, cancellationToken);
 
+        await SetPendingAsync(SettingKeys.MessagingStudentsMayWrite,
+            request.StudentsMayWrite, actingAdminId, cancellationToken);
+        await SetPendingAsync(SettingKeys.MessagingStudentMayWriteToRoles,
+            Store(studentRoles), actingAdminId, cancellationToken);
+        await SetPendingAsync(SettingKeys.MessagingStaffMayWrite,
+            request.StaffMayWrite, actingAdminId, cancellationToken);
+        await SetPendingAsync(SettingKeys.MessagingStaffMayWriteToStudentRoles,
+            Store(staffRoles), actingAdminId, cancellationToken);
+
         await CommitAsync(actingAdminId, "MessagingSettingsUpdated",
             request.Enabled
-                ? $"People may write to each other through a publication. Contacts are "
-                  + (request.RecordedInActivityHistory ? "noted" : "not noted")
-                  + $" in the activity history. A message may carry: {extensions}."
+                ? "People may write to each other through a publication. "
+                  + Describe("A student may write to", request.StudentsMayWrite, studentRoles)
+                  + " " + Describe("A student may be written to by", request.StaffMayWrite, staffRoles)
+                  + $" Contacts are {(request.RecordedInActivityHistory ? "noted" : "not noted")} in the activity history."
+                  + $" A message may carry: {extensions}."
                 : "Writing to each other through a publication is switched off. What has already been written stays readable.",
             cancellationToken);
 
         return await GetMessagingSettingsAsync(cancellationToken);
+
+        static string Store(IReadOnlyList<string> roles) =>
+            roles.Count == 0 ? NobodyMarker : string.Join(',', roles);
+
+        static string Describe(string opening, bool allowed, IReadOnlyList<string> roles) =>
+            !allowed ? $"{opening} nobody: that direction is switched off."
+            : roles.Count == 0 ? $"{opening} nobody, because no role is chosen."
+            : $"{opening}: {string.Join(", ", roles)}.";
+    }
+
+    /// <summary>
+    /// A role list an administrator is trying to save. A name that cannot be on this list is refused
+    /// rather than dropped, because silently ignoring it leaves the screen showing a choice that was
+    /// never saved.
+    /// </summary>
+    private static List<string> CheckMessagingRoles(
+        IReadOnlyList<string>? chosen, IReadOnlyList<string> selectable, string what)
+    {
+        var roles = (chosen ?? [])
+            .Select(role => role.Trim())
+            .Where(role => role.Length > 0)
+            .Distinct()
+            .ToList();
+
+        var unknown = roles.Where(role => !selectable.Contains(role)).ToList();
+        if (unknown.Count > 0)
+        {
+            throw new BusinessRuleException(
+                $"These cannot be {what}: {string.Join(", ", unknown)}. "
+                + $"Choose from: {string.Join(", ", selectable)}.");
+        }
+
+        return roles;
     }
 
     /// <summary>
